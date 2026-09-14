@@ -79,17 +79,18 @@ function engineTitle(e: Engine, usable: boolean, installed: boolean): string {
 }
 
 /** 서버가 알려준 엔진만 보인다 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini. 쓸 수 없는 엔진은 비활성화한다. */
-function EngineToggle() {
+export function EngineToggle({ label = '답변 엔진', busy = false }: { label?: string; busy?: boolean }) {
   const { assistant, setEngine } = useApp()
-  const { engines, engine, pending } = assistant
+  const { engines, engine } = assistant
+  const pending = assistant.pending || busy
   if (!engines) return null
   const shown = (Object.keys(ENGINE_LABEL) as Engine[]).filter((e) => e in engines)
   if (shown.length === 0) return null
 
   return (
     <div className="engine-row">
-      <span>답변 엔진</span>
-      <div className="engine-toggle" role="radiogroup" aria-label="답변 엔진">
+      <span>{label}</span>
+      <div className="engine-toggle" role="radiogroup" aria-label={label}>
         {shown.map((e) => (
           <button
             key={e}

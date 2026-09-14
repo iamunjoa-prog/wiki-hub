@@ -3,14 +3,135 @@ import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
+import { EngineToggle } from '../components/AssistantDock'
 import { DiffView, diffStats } from '../components/DiffView'
+import { ENGINE_LABEL, requestAiEdit, type AiEditResult } from '../lib/assistant'
 import { useApp } from '../store/AppStore'
+import type { WikiDoc } from '../types'
+
+const AI_WAIT_HINT = { claude: '1~2분', codex: '2~3분', gemini: '20~40초' } as const
+
+/**
+ * 내 PC의 Claude·Codex CLI(배포 허브는 Gemini)에게 수정 요청을 보내 본문을 고친다.
+ * 결과는 편집 칸에만 들어가고, 변경 확인 → 제안 제출 → 승인을 거쳐야 반영된다.
+ */
+function AiEditBox({
+  doc,
+  body,
+  onApply,
+  onUndo,
+  onReview,
+}: {
+  doc: WikiDoc
+  body: string
+  onApply: (result: AiEditResult) => void
+  onUndo: () => void
+  onReview: () => void
+}) {
+  const { assistant } = useApp()
+  const [instruction, setInstruction] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<(AiEditResult & { added: number; removed: number }) | null>(null)
+
+  const engines = assistant.usableEngines
+  const available = engines.length > 0
+
+  const run = async () => {
+    if (!instruction.trim() || busy) return
+    setBusy(true)
+    setError(null)
+    setDone(null)
+    try {
+      const result = await requestAiEdit(doc, body, instruction.trim(), engines)
+      const stats = diffStats(body, result.body)
+      onApply(result)
+      setDone({ ...result, added: stats.added, removed: stats.removed })
+      setInstruction('')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="ai-edit">
+      <div className="ai-edit-head">
+        <span className="label strong">AI로 수정</span>
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          바꿀 내용을 말로 적으면 연결된 CLI가 본문을 고쳐 줍니다
+        </span>
+        <EngineToggle label="엔진" busy={busy} />
+      </div>
+
+      {!available ? (
+        <span className="muted" style={{ fontSize: 13 }}>
+          {assistant.engineStatus === undefined
+            ? '엔진 확인 중…'
+            : '쓸 수 있는 엔진이 없습니다 — 대시보드의 챗봇 답변 엔진에서 Claude·Codex CLI를 로그인하거나 Gemini API 키를 설정하세요.'}
+        </span>
+      ) : (
+        <div className="ai-edit-form">
+          <textarea
+            className="field"
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault()
+                run()
+              }
+            }}
+            placeholder="예: 쿠폰 발급 한도를 시간당 12만 건으로 바꾸고, 변경 이력 표에 오늘 날짜로 한 줄 추가해 줘"
+            aria-label="AI 수정 요청"
+            disabled={busy}
+          />
+          <button className="btn accent" disabled={!instruction.trim() || busy} onClick={run} title="Ctrl+Enter">
+            {busy ? '수정 중…' : '수정 요청'}
+          </button>
+        </div>
+      )}
+
+      {busy && assistant.engine && (
+        <span className="muted" style={{ fontSize: 12.5 }}>
+          {ENGINE_LABEL[assistant.engine]}가 문서를 고치는 중… ({AI_WAIT_HINT[assistant.engine]} 내외)
+        </span>
+      )}
+      {error && <span className="err">{error}</span>}
+      {done && (
+        <div className="ai-edit-result">
+          <b>✓ {done.by}</b>
+          <span>
+            추가 {done.added}줄 / 삭제 {done.removed}줄
+            {done.summary && ` · ${done.summary}`}
+          </span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <button
+              className="btn sm"
+              onClick={() => {
+                onUndo()
+                setDone(null)
+              }}
+            >
+              되돌리기
+            </button>
+            <button className="btn sm primary" onClick={onReview} disabled={done.added + done.removed === 0}>
+              변경 확인 →
+            </button>
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function ProposeEdit() {
   const { docId } = useParams()
   const navigate = useNavigate()
   const { docs, submitProposal } = useApp()
   const doc = docs.find((d) => d.id === docId)
+  const [beforeAi, setBeforeAi] = useState<string | null>(null)
 
   const draftKey = `wikihub.draft.${docId}`
   const [step, setStep] = useState<1 | 2>(1)
@@ -85,6 +206,21 @@ export function ProposeEdit() {
             </div>
 
             <div style={{ padding: 14 }}>
+              <AiEditBox
+                doc={doc}
+                body={body}
+                onApply={(result) => {
+                  setBeforeAi(body)
+                  setBody(result.body)
+                  setTab('edit')
+                  if (!reason.trim() && result.summary) setReason(`${result.summary} (AI 수정 · ${result.by})`)
+                }}
+                onUndo={() => {
+                  if (beforeAi !== null) setBody(beforeAi)
+                  setBeforeAi(null)
+                }}
+                onReview={() => setStep(2)}
+              />
               {tab === 'edit' ? (
                 <textarea
                   className="field"

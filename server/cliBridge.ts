@@ -5,8 +5,18 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
 import { readGeminiKey } from './env.js'
-import { askGemini } from './gemini.js'
-import { buildDocsBlock, REPLY_SCHEMA, type CliReply } from './knowledge.js'
+import { askGemini, editGemini } from './gemini.js'
+import {
+  buildDocsBlock,
+  buildEditRequest,
+  checkEditReply,
+  EDIT_SCHEMA,
+  parseEditInput,
+  REPLY_SCHEMA,
+  type CliReply,
+  type EditInput,
+  type EditReply,
+} from './knowledge.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -20,8 +30,11 @@ export type Engine = 'claude' | 'codex'
 const ROOT = resolve(__dirname, '..')
 const KNOWLEDGE_DIR = resolve(ROOT, '지식')
 const PROMPT_FILE = resolve(__dirname, 'assistant-prompt.md')
+const EDIT_PROMPT_FILE = resolve(__dirname, 'edit-prompt.md')
 
 const TIMEOUT_MS: Record<Engine, number> = { claude: 120_000, codex: 180_000 }
+/** 문서 편집은 본문 전체를 다시 써서 돌려주므로 답변보다 오래 걸린다 */
+const EDIT_TIMEOUT_MS: Record<Engine, number> = { claude: 240_000, codex: 300_000 }
 
 /** Windows의 npm 셸 래퍼(claude.cmd, codex.cmd)는 cmd.exe를 거쳐야 실행되므로 인자 속 따옴표를 이스케이프한다. */
 const IS_WIN = process.platform === 'win32'
@@ -100,15 +113,15 @@ function openLoginTerminal(engine: Engine): boolean {
 }
 
 /** CLI를 실행하고 stdout을 돌려준다. 한글 입력은 인자 대신 stdin으로 넘겨 셸 인코딩·줄바꿈 문제를 피한다. */
-function run(engine: Engine, args: string[], stdin: string, cwd: string): Promise<string> {
+function run(engine: Engine, args: string[], stdin: string, cwd: string, timeoutMs = TIMEOUT_MS[engine]): Promise<string> {
   return new Promise((resolvePromise, reject) => {
     const child = spawn(engine, args.map(quote), { cwd, shell: IS_WIN })
     let stdout = ''
     let stderr = ''
     const timer = setTimeout(() => {
       child.kill()
-      reject(new Error(`${engine} CLI 응답이 ${TIMEOUT_MS[engine] / 1000}초를 넘었습니다`))
-    }, TIMEOUT_MS[engine])
+      reject(new Error(`${engine} CLI 응답이 ${timeoutMs / 1000}초를 넘었습니다`))
+    }, timeoutMs)
 
     child.stdout.on('data', (d) => (stdout += d))
     child.stderr.on('data', (d) => (stderr += d))
@@ -125,7 +138,8 @@ function run(engine: Engine, args: string[], stdin: string, cwd: string): Promis
   })
 }
 
-async function askClaude(query: string): Promise<CliReply> {
+/** claude -p 를 JSON 스키마 모드로 실행한다. 도구는 읽기 전용(Read·Grep·Glob)만 열어 파일을 고치지 못하게 한다. */
+async function claudeJson(input: string, promptArgs: string[], schema: object, timeoutMs?: number): Promise<unknown> {
   const stdout = await run(
     'claude',
     [
@@ -133,37 +147,28 @@ async function askClaude(query: string): Promise<CliReply> {
       '--output-format', 'json',
       '--no-session-persistence',
       '--tools', 'Read,Grep,Glob',
-      '--system-prompt-file', PROMPT_FILE,
-      '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
-      '--json-schema', JSON.stringify(REPLY_SCHEMA),
+      ...promptArgs,
+      '--json-schema', JSON.stringify(schema),
     ],
-    query,
+    input,
     KNOWLEDGE_DIR,
+    timeoutMs,
   )
   const out = JSON.parse(stdout)
   if (out.is_error || !out.structured_output) throw new Error(out.result || 'claude CLI가 구조화된 응답을 주지 않았습니다')
-  return out.structured_output as CliReply
+  return out.structured_output
 }
 
 /**
  * Codex는 Windows 샌드박스가 셸 실행을 막는 환경이 있어(CreateProcessWithLogonW 1385) 문서를 직접 못 읽는다.
- * 샌드박스를 끄는 대신 전체 문서(약 100KB)를 프롬프트에 넣고 read-only 샌드박스를 유지한다.
+ * 샌드박스를 끄는 대신 필요한 문서를 프롬프트에 넣고 read-only 샌드박스를 유지한다.
  */
-async function askCodex(query: string): Promise<CliReply> {
-  const docsBlock = buildDocsBlock(KNOWLEDGE_DIR)
-
-  const prompt = [
-    readFileSync(PROMPT_FILE, 'utf8'),
-    '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
-    `<documents>\n${docsBlock}\n</documents>`,
-    `## 질문\n\n${query}`,
-  ].join('\n\n')
-
+async function codexJson(prompt: string, schema: object, timeoutMs?: number): Promise<unknown> {
   const work = mkdtempSync(join(tmpdir(), 'wiki-codex-'))
   try {
     const schemaFile = join(work, 'schema.json')
     const lastMessageFile = join(work, 'last.json')
-    writeFileSync(schemaFile, JSON.stringify(REPLY_SCHEMA))
+    writeFileSync(schemaFile, JSON.stringify(schema))
     await run(
       'codex',
       [
@@ -178,14 +183,66 @@ async function askCodex(query: string): Promise<CliReply> {
       ],
       prompt,
       KNOWLEDGE_DIR,
+      timeoutMs,
     )
-    return JSON.parse(readFileSync(lastMessageFile, 'utf8')) as CliReply
+    return JSON.parse(readFileSync(lastMessageFile, 'utf8'))
   } finally {
     rmSync(work, { recursive: true, force: true })
   }
 }
 
+const askClaude = async (query: string) =>
+  (await claudeJson(
+    query,
+    [
+      '--system-prompt-file', PROMPT_FILE,
+      '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
+    ],
+    REPLY_SCHEMA,
+  )) as CliReply
+
+/** 위키 문서 전체(약 100KB)를 프롬프트에 넣는다 */
+const askCodex = async (query: string) =>
+  (await codexJson(
+    [
+      readFileSync(PROMPT_FILE, 'utf8'),
+      '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
+      `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
+      `## 질문\n\n${query}`,
+    ].join('\n\n'),
+    REPLY_SCHEMA,
+  )) as CliReply
+
 const ASK: Record<Engine, (query: string) => Promise<CliReply>> = { claude: askClaude, codex: askCodex }
+
+const editClaude = async (input: EditInput) =>
+  checkEditReply(
+    await claudeJson(
+      buildEditRequest(input),
+      [
+        '--system-prompt-file', EDIT_PROMPT_FILE,
+        '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. 다른 문서를 참고해야 하면 Grep·Glob·Read로 찾아 읽어라.',
+      ],
+      EDIT_SCHEMA,
+      EDIT_TIMEOUT_MS.claude,
+    ),
+  )
+
+/** 편집할 문서 본문만 프롬프트에 넣는다 */
+const editCodex = async (input: EditInput) =>
+  checkEditReply(
+    await codexJson(
+      [
+        readFileSync(EDIT_PROMPT_FILE, 'utf8'),
+        '명령이나 도구를 실행하지 말고 아래 문서와 수정 요청만 보고 고쳐라.',
+        buildEditRequest(input),
+      ].join('\n\n'),
+      EDIT_SCHEMA,
+      EDIT_TIMEOUT_MS.codex,
+    ),
+  )
+
+const EDIT: Record<Engine, (input: EditInput) => Promise<EditReply>> = { claude: editClaude, codex: editCodex }
 
 export function cliBridge(): Plugin {
   return {
@@ -267,6 +324,49 @@ export function cliBridge(): Plugin {
             res.end(JSON.stringify(reply))
           } catch (err) {
             log.error(`[cli-bridge] ${(err as Error).message}`)
+            res.statusCode = 502
+            res.end(JSON.stringify({ error: (err as Error).message }))
+          }
+        })
+      })
+
+      // 수정 제안 화면의 "AI로 수정" — 고친 본문을 돌려줄 뿐 파일에는 쓰지 않는다 (반영은 승인 흐름으로)
+      server.middlewares.use('/api/edit', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        let body = ''
+        req.on('data', (c) => (body += c))
+        req.on('end', async () => {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          let engine: Engine | 'gemini'
+          let input: EditInput
+          try {
+            const raw = JSON.parse(body || '{}') as { engine?: Engine | 'gemini' }
+            engine = raw.engine ?? 'claude'
+            input = parseEditInput(raw)
+          } catch (err) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+            return
+          }
+          try {
+            const started = Date.now()
+            let reply: EditReply
+            if (engine === 'gemini') {
+              if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
+              reply = await editGemini(input, { apiKey: geminiKey, model: geminiModel, promptFile: EDIT_PROMPT_FILE })
+            } else {
+              if (!(engine in EDIT)) throw new Error(`알 수 없는 엔진: ${engine}`)
+              if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
+              reply = await EDIT[engine](input)
+            }
+            log.info(`[cli-bridge] edit ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.code} · ${input.instruction}`)
+            res.end(JSON.stringify(reply))
+          } catch (err) {
+            log.error(`[cli-bridge] edit ${(err as Error).message}`)
             res.statusCode = 502
             res.end(JSON.stringify({ error: (err as Error).message }))
           }
