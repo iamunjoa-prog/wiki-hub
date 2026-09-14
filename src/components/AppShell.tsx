@@ -1,53 +1,114 @@
 import { useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { categories } from '../data/docs'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 
+function Chevron({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`chev${open ? ' open' : ''}`}
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m9 6 6 6-6 6" />
+    </svg>
+  )
+}
+
+// 위키 문서 > 카테고리 > 문서 트리. 어느 페이지에서든 같은 구조로 보이고,
+// 화살표는 펼침/접힘만 담당한다(이동은 라벨 클릭).
 function WikiTree() {
   const { docs } = useApp()
   const location = useLocation()
+  const [params] = useSearchParams()
   const navigate = useNavigate()
-  const activeDocId = location.pathname.startsWith('/wiki/')
-    ? location.pathname.split('/')[2]
-    : null
-  const activeDoc = docs.find((d) => d.id === activeDocId)
 
-  const [expanded, setExpanded] = useState<string[]>(
-    activeDoc ? [activeDoc.category] : ['insight'],
-  )
+  const inWiki = location.pathname.startsWith('/wiki')
+  const activeDocId = location.pathname.startsWith('/wiki/') ? location.pathname.split('/')[2] : null
+  const activeDoc = docs.find((d) => d.id === activeDocId)
+  const activeCategory = location.pathname === '/wiki' ? params.get('category') : null
+  const currentCategory = activeDoc?.category ?? activeCategory
+
+  const [expanded, setExpanded] = useState<string[]>(currentCategory ? [currentCategory] : [])
 
   useEffect(() => {
-    if (activeDoc) setExpanded((prev) => (prev.includes(activeDoc.category) ? prev : [...prev, activeDoc.category]))
-  }, [activeDoc])
+    if (currentCategory)
+      setExpanded((prev) => (prev.includes(currentCategory) ? prev : [...prev, currentCategory]))
+  }, [currentCategory])
 
   const toggle = (id: string) =>
     setExpanded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
+  const rootOn = location.pathname === '/wiki' && !activeCategory
+
   return (
-    <>
-      {categories.map((c) => {
-        const open = expanded.includes(c.id)
-        const children = docs.filter((d) => d.category === c.id)
-        return (
-          <div key={c.id}>
-            <button className="nav-item sub" onClick={() => toggle(c.id)}>
-              {open ? '▾' : '▸'} {c.label}
-            </button>
-            {open &&
-              children.map((d) => (
+    <div className="nav-group">
+      <NavLink
+        to="/wiki"
+        end
+        className={`nav-item${rootOn ? ' on' : inWiki ? ' trail' : ''}`}
+      >
+        위키 문서
+      </NavLink>
+      <div className="nav-children">
+        {categories.map((c) => {
+          const open = expanded.includes(c.id)
+          const children = docs.filter((d) => d.category === c.id)
+          const catOn = activeCategory === c.id
+          const catTrail = activeDoc?.category === c.id
+          return (
+            <div key={c.id}>
+              <div className={`nav-item sub has-toggle${catOn ? ' on' : catTrail ? ' trail' : ''}`}>
                 <button
-                  key={d.id}
-                  className={`nav-item sub depth2${d.id === activeDocId ? ' on' : ''}`}
-                  onClick={() => navigate(`/wiki/${d.id}`)}
+                  className="nav-toggle"
+                  onClick={() => toggle(c.id)}
+                  aria-expanded={open}
+                  aria-label={`${c.label} ${open ? '접기' : '펼치기'}`}
                 >
-                  {d.title}
+                  <Chevron open={open} />
                 </button>
-              ))}
-          </div>
-        )
-      })}
-    </>
+                <button
+                  className="nav-label"
+                  onClick={() => {
+                    navigate(`/wiki?category=${c.id}`)
+                    if (!open) toggle(c.id)
+                  }}
+                >
+                  {c.label}
+                </button>
+                <span className="nav-count">{children.length}</span>
+              </div>
+              {open && (
+                <div className="nav-children depth2">
+                  {children.length === 0 ? (
+                    <div className="nav-empty">문서 없음</div>
+                  ) : (
+                    children.map((d) => (
+                      <button
+                        key={d.id}
+                        className={`nav-item sub leaf${d.id === activeDocId ? ' on' : ''}`}
+                        onClick={() => navigate(`/wiki/${d.id}`)}
+                        title={d.title}
+                      >
+                        <span className="nav-ellipsis">{d.title}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -58,7 +119,6 @@ function Sidebar() {
     proposals.filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length
 
-  const inWiki = location.pathname.startsWith('/wiki')
   const inSheets = location.pathname.startsWith('/sheets')
 
   return (
@@ -72,18 +132,7 @@ function Sidebar() {
           대시보드
         </NavLink>
 
-        <NavLink to="/wiki" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          위키 문서
-        </NavLink>
-        {inWiki ? (
-          <WikiTree />
-        ) : (
-          categories.map((c) => (
-            <NavLink key={c.id} to={`/wiki?category=${c.id}`} className="nav-item sub">
-              {c.label}
-            </NavLink>
-          ))
-        )}
+        <WikiTree />
 
         <NavLink to="/sheets" className={() => `nav-item${inSheets ? ' on' : ''}`}>
           GNB별 편성표
