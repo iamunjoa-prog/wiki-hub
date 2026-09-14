@@ -44,6 +44,74 @@ function isInstalled(cmd: Engine): boolean {
   return spawnSync(IS_WIN ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0
 }
 
+export interface EngineStatus {
+  installed: boolean
+  loggedIn: boolean
+}
+
+const ENGINES: Engine[] = ['claude', 'codex']
+
+/** 각 CLI의 status 명령으로 로그인 여부를 확인한다. 오류·시간 초과는 미로그인으로 본다. */
+function checkLogin(engine: Engine): Promise<boolean> {
+  const args = engine === 'claude' ? ['auth', 'status'] : ['login', 'status']
+  return new Promise((done) => {
+    const child = spawn(engine, args, { shell: IS_WIN, stdio: ['ignore', 'pipe', 'pipe'] })
+    let out = ''
+    const timer = setTimeout(() => {
+      child.kill()
+      done(false)
+    }, 15_000)
+    child.stdout.on('data', (d) => (out += d))
+    child.stderr.on('data', (d) => (out += d))
+    child.on('error', () => {
+      clearTimeout(timer)
+      done(false)
+    })
+    child.on('close', (code) => {
+      clearTimeout(timer)
+      if (engine === 'claude') {
+        try {
+          done(JSON.parse(out).loggedIn === true)
+        } catch {
+          done(false)
+        }
+      } else {
+        // codex는 "Logged in using ..." / "Not logged in" 을 출력한다
+        done(code === 0 && /logged in/i.test(out) && !/not logged in/i.test(out))
+      }
+    })
+  })
+}
+
+async function getEngineStatus(): Promise<Record<Engine, EngineStatus>> {
+  const entries = await Promise.all(
+    ENGINES.map(async (e) => {
+      const installed = isInstalled(e)
+      return [e, { installed, loggedIn: installed && (await checkLogin(e)) }] as const
+    }),
+  )
+  return Object.fromEntries(entries) as Record<Engine, EngineStatus>
+}
+
+const LOGIN_ARGS: Record<Engine, string[]> = { claude: ['claude', 'auth', 'login'], codex: ['codex', 'login'] }
+
+/** 로그인은 브라우저 OAuth를 거치므로 페이지 안에서 처리할 수 없다 — 이 PC에 로그인용 터미널 창을 띄운다. */
+function openLoginTerminal(engine: Engine): boolean {
+  const args = LOGIN_ARGS[engine]
+  if (IS_WIN) {
+    spawn('cmd.exe', ['/c', 'start', 'CLI login', 'cmd', '/k', ...args], { detached: true, stdio: 'ignore' }).unref()
+    return true
+  }
+  if (process.platform === 'darwin') {
+    spawn('osascript', ['-e', `tell application "Terminal" to do script "${args.join(' ')}"`], {
+      detached: true,
+      stdio: 'ignore',
+    }).unref()
+    return true
+  }
+  return false
+}
+
 /** CLI를 실행하고 stdout을 돌려준다. 한글 입력은 인자 대신 stdin으로 넘겨 셸 인코딩·줄바꿈 문제를 피한다. */
 function run(engine: Engine, args: string[], stdin: string, cwd: string): Promise<string> {
   return new Promise((resolvePromise, reject) => {
@@ -152,11 +220,38 @@ export function cliBridge(): Plugin {
     configureServer(server) {
       const log = server.config.logger
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
-      log.info(`[cli-bridge] claude ${installed.claude ? '✓' : '✗'} · codex ${installed.codex ? '✓' : '✗'}`)
+      getEngineStatus().then((s) => {
+        const mark = (e: Engine) => (!s[e].installed ? '✗ 미설치' : s[e].loggedIn ? '✓' : '⚠ 로그인 필요')
+        log.info(`[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')}`)
+      })
 
-      server.middlewares.use('/api/engines', (_req, res) => {
+      server.middlewares.use('/api/engines', async (_req, res) => {
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
-        res.end(JSON.stringify(installed))
+        const status = await getEngineStatus()
+        for (const e of ENGINES) installed[e] = status[e].installed
+        res.end(JSON.stringify(status))
+      })
+
+      server.middlewares.use('/api/login', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        let body = ''
+        req.on('data', (c) => (body += c))
+        req.on('end', () => {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          const { engine } = JSON.parse(body || '{}') as { engine?: Engine }
+          if (!engine || !ENGINES.includes(engine) || !installed[engine]) {
+            res.statusCode = 400
+            res.end(JSON.stringify({ error: '설치된 CLI가 아닙니다' }))
+            return
+          }
+          const opened = openLoginTerminal(engine)
+          log.info(`[cli-bridge] ${engine} 로그인 창 ${opened ? '열림' : '열 수 없음'}`)
+          res.end(JSON.stringify({ opened, command: LOGIN_ARGS[engine].join(' ') }))
+        })
       })
 
       server.middlewares.use('/api/ask', (req, res) => {

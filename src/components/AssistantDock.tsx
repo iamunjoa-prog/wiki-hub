@@ -88,7 +88,13 @@ function EngineToggle() {
             aria-checked={engine === e}
             className={engine === e ? 'on' : undefined}
             disabled={!engines[e] || pending}
-            title={engines[e] ? `${ENGINE_LABEL[e]} CLI로 답변` : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`}
+            title={
+              engines[e]
+                ? `${ENGINE_LABEL[e]} CLI로 답변`
+                : assistant.engineStatus?.[e].installed
+                  ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 대시보드에서 로그인`
+                  : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
+            }
             onClick={() => setEngine(e)}
           >
             {ENGINE_LABEL[e]}

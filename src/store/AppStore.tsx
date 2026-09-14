@@ -15,6 +15,7 @@ import type {
   CategoryId,
   ChatMessage,
   Engine,
+  EngineStatus,
   Promotion,
   Proposal,
   Role,
@@ -32,7 +33,9 @@ interface AssistantState {
   messages: ChatMessage[]
   pending: boolean
   campaignDraft: CampaignDraft | null
-  /** 로컬 dev 서버에 설치된 CLI. 배포본처럼 중계 서버가 없으면 null */
+  /** CLI별 설치·로그인 상태. 확인 전이면 undefined, 배포본처럼 중계 서버가 없으면 null */
+  engineStatus: Record<Engine, EngineStatus> | null | undefined
+  /** 답변에 쓸 수 있는(설치 + 로그인) CLI. 중계 서버가 없으면 null */
   engines: Record<Engine, boolean> | null
   /** 실제로 답변에 쓸 CLI — 선택한 CLI가 없으면 설치된 다른 CLI, 둘 다 없으면 null(규칙 기반) */
   engine: Engine | null
@@ -54,6 +57,7 @@ interface AppState {
   closeDock: () => void
   ask: (query: string) => void
   setEngine: (engine: Engine) => void
+  refreshEngines: () => Promise<void>
   setCampaignDraft: (draft: CampaignDraft | null) => void
 
   submitProposal: (docId: string, newBody: string, reason: string) => void
@@ -91,14 +95,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
     () => (localStorage.getItem(LS_ENGINE) as Engine) || 'claude',
   )
-  const [engines, setEngines] = useState<Record<Engine, boolean> | null>(null)
+  const [engineStatus, setEngineStatus] = useState<Record<Engine, EngineStatus> | null | undefined>(undefined)
+  const refreshEngines = useCallback(() => fetchEngines().then(setEngineStatus), [])
+  const engines = useMemo(
+    () =>
+      engineStatus
+        ? (Object.fromEntries(
+            Object.entries(engineStatus).map(([e, s]) => [e, s.installed && s.loggedIn]),
+          ) as Record<Engine, boolean>)
+        : null,
+    [engineStatus],
+  )
 
   useEffect(() => localStorage.setItem(LS_ROLE, role), [role])
   useEffect(() => localStorage.setItem(LS_DOCK, dockOpen ? '1' : '0'), [dockOpen])
   useEffect(() => localStorage.setItem(LS_ENGINE, preferredEngine), [preferredEngine])
   useEffect(() => {
-    fetchEngines().then(setEngines)
-  }, [])
+    refreshEngines()
+  }, [refreshEngines])
 
   const engine: Engine | null = !engines
     ? null
@@ -285,7 +299,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sheets,
     proposals,
     promotions,
-    assistant: { open: dockOpen, messages, pending, campaignDraft, engines, engine },
+    assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine },
     toast,
     setRole: setRoleState,
     showToast,
@@ -293,6 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeDock: () => setDockOpen(false),
     ask,
     setEngine: setPreferredEngine,
+    refreshEngines,
     setCampaignDraft,
     submitProposal,
     decideProposal,

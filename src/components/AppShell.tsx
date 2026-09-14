@@ -174,11 +174,13 @@ export function AppShell() {
       {assistant.open ? (
         <AssistantDock />
       ) : (
-        <div className="rail">
-          <button onClick={openDock} aria-label="어시스턴트 열기" title="편성·마케팅 어시스턴트" />
-          <span className="vlabel">챗봇 열기</span>
-          {assistant.campaignDraft && <span className="badge">캠페인 조건 대기</span>}
-        </div>
+        <button className="fab" onClick={openDock} title="편성·마케팅 어시스턴트">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
+          </svg>
+          챗봇
+          {assistant.campaignDraft && <span className="fab-badge">캠페인 조건 대기</span>}
+        </button>
       )}
       {toast && <div className="toast">{toast}</div>}
     </div>

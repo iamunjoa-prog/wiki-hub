@@ -85,12 +85,28 @@ export interface AssistantReply {
 
 export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex' }
 
-/** 로컬 dev 서버에 설치된 CLI 목록. 배포본처럼 경로가 없으면 null — 선택 버튼을 숨긴다. */
-export async function fetchEngines(): Promise<Record<Engine, boolean> | null> {
+type EngineStatus = import('../types').EngineStatus
+
+/** 로컬 dev 서버에 있는 CLI의 설치·로그인 상태. 배포본처럼 경로가 없으면 null — 선택 버튼을 숨긴다. */
+export async function fetchEngines(): Promise<Record<Engine, EngineStatus> | null> {
   try {
     const res = await fetch('/api/engines')
     if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null
-    return (await res.json()) as Record<Engine, boolean>
+    return (await res.json()) as Record<Engine, EngineStatus>
+  } catch {
+    return null
+  }
+}
+
+/** 로컬 PC에 CLI 로그인용 터미널 창을 띄워 달라고 요청한다. 창을 못 띄우면 직접 실행할 명령을 돌려준다. */
+export async function requestLogin(engine: Engine): Promise<{ opened: boolean; command: string } | null> {
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine }),
+    })
+    return res.ok ? await res.json() : null
   } catch {
     return null
   }
