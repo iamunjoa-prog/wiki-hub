@@ -1,5 +1,5 @@
 import { docs } from '../data/docs'
-import type { CampaignDraft, ChatMessage, SourceRef } from '../types'
+import type { CampaignDraft, ChatMessage, Engine, SourceRef } from '../types'
 import { extractSentences, searchDocs } from './retrieval'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
@@ -79,6 +79,37 @@ export interface AssistantReply {
   text: string
   sources: SourceRef[]
   campaign?: CampaignDraft
+  /** 답을 만든 쪽 — 화면 하단 라벨로 보여준다 */
+  answeredBy?: string
+}
+
+export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex' }
+
+type EngineStatus = import('../types').EngineStatus
+
+/** 로컬 dev 서버에 있는 CLI의 설치·로그인 상태. 배포본처럼 경로가 없으면 null — 선택 버튼을 숨긴다. */
+export async function fetchEngines(): Promise<Record<Engine, EngineStatus> | null> {
+  try {
+    const res = await fetch('/api/engines')
+    if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null
+    return (await res.json()) as Record<Engine, EngineStatus>
+  } catch {
+    return null
+  }
+}
+
+/** 로컬 PC에 CLI 로그인용 터미널 창을 띄워 달라고 요청한다. 창을 못 띄우면 직접 실행할 명령을 돌려준다. */
+export async function requestLogin(engine: Engine): Promise<{ opened: boolean; command: string } | null> {
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ engine }),
+    })
+    return res.ok ? await res.json() : null
+  } catch {
+    return null
+  }
 }
 
 export function answer(query: string): AssistantReply {
@@ -117,15 +148,16 @@ export function answer(query: string): AssistantReply {
 }
 
 /**
- * 로컬 dev 서버의 /api/ask(Claude Code CLI 중계)로 답을 받는다.
+ * 로컬 dev 서버의 /api/ask(Claude Code·Codex CLI 중계)로 답을 받는다.
  * 경로가 없거나(배포본·CLI 미설치) 실패하면 규칙 기반 answer()로 대체해 누구나 쓸 수 있게 한다.
  */
-export async function askAssistant(query: string): Promise<AssistantReply> {
+export async function askAssistant(query: string, engine: Engine | null): Promise<AssistantReply> {
+  if (!engine) return { ...answer(query), answeredBy: '규칙 기반' }
   try {
     const res = await fetch('/api/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, engine }),
     })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = (await res.json()) as { text: string; sourcePaths: string[] }
@@ -136,10 +168,10 @@ export async function askAssistant(query: string): Promise<AssistantReply> {
       .map((d) => ({ docId: d.id, label: `출처 · ${d.title}` }))
 
     const campaign = detectCampaignIntent(query) ? buildCampaignDraft(query) : undefined
-    return { text: data.text, sources, campaign }
+    return { text: data.text, sources, campaign, answeredBy: ENGINE_LABEL[engine] }
   } catch (err) {
-    console.info('[assistant] CLI 연결 없음 — 규칙 기반 답변 사용:', (err as Error).message)
-    return answer(query)
+    console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패 — 규칙 기반 답변 사용:`, (err as Error).message)
+    return { ...answer(query), answeredBy: `규칙 기반 (${ENGINE_LABEL[engine]} 응답 실패)` }
   }
 }
 

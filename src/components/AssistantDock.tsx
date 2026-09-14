@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { SUGGESTED_QUESTIONS } from '../lib/assistant'
+import { ENGINE_LABEL, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { useApp } from '../store/AppStore'
-import type { CampaignDraft, ChatMessage } from '../types'
+import type { CampaignDraft, ChatMessage, Engine } from '../types'
 
 function RichText({ text }: { text: string }) {
   return (
@@ -65,6 +65,42 @@ function Message({ msg }: { msg: ChatMessage }) {
         </div>
       )}
       {msg.campaign && <CampaignCard draft={msg.campaign} />}
+      {msg.answeredBy && <div className="by">답변 · {msg.answeredBy}</div>}
+    </div>
+  )
+}
+
+/** 로컬 dev 서버에서만 보인다. 설치되지 않은 CLI는 비활성화한다. */
+function EngineToggle() {
+  const { assistant, setEngine } = useApp()
+  const { engines, engine, pending } = assistant
+  if (!engines) return null
+
+  return (
+    <div className="engine-row">
+      <span>답변 엔진</span>
+      <div className="engine-toggle" role="radiogroup" aria-label="답변 엔진">
+        {(Object.keys(ENGINE_LABEL) as Engine[]).map((e) => (
+          <button
+            key={e}
+            type="button"
+            role="radio"
+            aria-checked={engine === e}
+            className={engine === e ? 'on' : undefined}
+            disabled={!engines[e] || pending}
+            title={
+              engines[e]
+                ? `${ENGINE_LABEL[e]} CLI로 답변`
+                : assistant.engineStatus?.[e].installed
+                  ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 대시보드에서 로그인`
+                  : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
+            }
+            onClick={() => setEngine(e)}
+          >
+            {ENGINE_LABEL[e]}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -109,10 +145,17 @@ export function AssistantDock() {
         {assistant.messages.map((m) => (
           <Message key={m.id} msg={m} />
         ))}
-        {assistant.pending && <div className="typing">문서를 읽고 답을 정리하는 중… (최대 30초 내외)</div>}
+        {assistant.pending && (
+          <div className="typing">
+            {assistant.engine
+              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${assistant.engine === 'codex' ? '1~2분' : '30초'} 내외)`
+              : '문서를 찾는 중…'}
+          </div>
+        )}
       </div>
 
       <div className="dock-foot">
+        <EngineToggle />
         <form
           className="composer"
           onSubmit={(e) => {
