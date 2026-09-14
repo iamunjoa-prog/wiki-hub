@@ -442,6 +442,28 @@ button.row:hover { background: var(--surface-subtle); }
 .status-dot.warn { background: #e0a100; box-shadow: 0 0 0 3px rgba(224, 161, 0, 0.18); }
 .status-dot.loading { animation: pulse 1.2s ease-in-out infinite; }
 
+.cli-modal { width: 500px; max-width: calc(100vw - 32px); }
+.cli-guide { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text-2); }
+.cli-steps { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 12px; font-size: 14px; line-height: 1.6; }
+.cli-steps li { display: flex; flex-direction: column; gap: 6px; }
+.cli-setting { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.cli-setting-head { display: flex; align-items: center; gap: 8px; }
+.cli-setting-head > span:last-child { margin-left: auto; }
+.cmd {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-sheet);
+  font: 13px var(--code);
+  text-align: left;
+}
+.cmd:hover { border-color: var(--line); }
+.cmd .muted { font: 12px var(--sans); }
+
 /* ---------- search results ---------- */
 
 .filter-bar { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
