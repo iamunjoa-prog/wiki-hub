@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
-import { answer, makeMessage, newId } from '../lib/assistant'
+import { askAssistant, makeMessage, newId } from '../lib/assistant'
 import type {
   CampaignDraft,
   CategoryId,
@@ -104,15 +104,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDockOpen(true)
     setMessages((prev) => [...prev, makeMessage('user', q)])
     setPending(true)
-    setTimeout(() => {
-      const reply = answer(q)
+    askAssistant(q).then((reply) => {
       setMessages((prev) => [
         ...prev,
         makeMessage('assistant', reply.text, { sources: reply.sources, campaign: reply.campaign }),
       ])
       if (reply.campaign) setCampaignDraft(reply.campaign)
       setPending(false)
-    }, 550)
+    })
   }, [])
 
   const submitProposal = useCallback(
