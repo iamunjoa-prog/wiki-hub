@@ -52,12 +52,17 @@ export interface Proposal {
 
 export type SheetType = 'sheet' | 'screen'
 
+/** 편성/스케줄 › 홈 하위 플랫폼 */
+export type SheetPlatform = 'btv' | 'mobile'
+
 export interface Sheet {
   id: string
   name: string
   type: SheetType
   url: string
   gnb: string
+  /** 홈 GNB 편성표만 — B tv / 모바일 B tv 구분 */
+  platform?: SheetPlatform
   ownerId: string
   ownerName: string
   periodStart: string

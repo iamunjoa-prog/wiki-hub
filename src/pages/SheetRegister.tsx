@@ -1,22 +1,35 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
-import { gnbList } from '../data/sheets'
+import { gnbList, platformLabel } from '../data/sheets'
 import { useApp } from '../store/AppStore'
-import type { SheetType } from '../types'
+import type { SheetPlatform, SheetType } from '../types'
 
 export function SheetRegister() {
   const { addSheet, session } = useApp()
   const navigate = useNavigate()
+  const [params] = useSearchParams()
+
+  // 편성/스케줄 › 홈 › B tv 목록에서 들어오면 해당 GNB·플랫폼을 미리 고른다
+  const initialGnb = params.get('gnb')
+  const initialPlatform = params.get('platform')
 
   const [type, setType] = useState<SheetType>('sheet')
   const [url, setUrl] = useState('')
   const [name, setName] = useState('')
-  const [gnb, setGnb] = useState(gnbList[0])
+  const [gnb, setGnb] = useState(initialGnb && gnbList.includes(initialGnb) ? initialGnb : gnbList[0])
+  const [platform, setPlatform] = useState<SheetPlatform>(
+    initialPlatform && initialPlatform in platformLabel ? (initialPlatform as SheetPlatform) : 'btv',
+  )
   const [periodStart, setPeriodStart] = useState('')
   const [periodEnd, setPeriodEnd] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
+
+  const isHome = gnb === '홈'
+  const backUrl = isHome
+    ? `/sheets?gnb=${encodeURIComponent(gnb)}&platform=${platform}`
+    : `/sheets?gnb=${encodeURIComponent(gnb)}`
 
   const submit = () => {
     if (!url.trim()) return setError('URL은 필수입니다')
@@ -28,11 +41,12 @@ export function SheetRegister() {
       type,
       url: url.trim(),
       gnb,
+      platform: isHome ? platform : undefined,
       periodStart: periodStart || '-',
       periodEnd: periodEnd || '-',
       description: description.trim(),
     })
-    navigate('/sheets')
+    navigate(backUrl)
   }
 
   return (
@@ -85,11 +99,27 @@ export function SheetRegister() {
               </div>
               <div className="form-row">
                 <span className="label strong">대상 GNB</span>
-                <select className="field" value={gnb} onChange={(e) => setGnb(e.target.value)}>
-                  {gnbList.map((g) => (
-                    <option key={g}>{g}</option>
-                  ))}
-                </select>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <select className="field" value={gnb} onChange={(e) => setGnb(e.target.value)}>
+                    {gnbList.map((g) => (
+                      <option key={g}>{g}</option>
+                    ))}
+                  </select>
+                  {isHome && (
+                    <select
+                      className="field"
+                      value={platform}
+                      onChange={(e) => setPlatform(e.target.value as SheetPlatform)}
+                      aria-label="플랫폼"
+                    >
+                      {(Object.keys(platformLabel) as SheetPlatform[]).map((p) => (
+                        <option key={p} value={p}>
+                          {platformLabel[p]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
               <div className="form-row">
                 <span className="label strong">대상 기간</span>
@@ -131,7 +161,7 @@ export function SheetRegister() {
               <button className="btn primary" onClick={submit}>
                 등록
               </button>
-              <button className="btn" onClick={() => navigate('/sheets')}>
+              <button className="btn" onClick={() => navigate(-1)}>
                 취소
               </button>
             </div>

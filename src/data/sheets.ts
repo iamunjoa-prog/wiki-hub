@@ -1,6 +1,12 @@
-import type { Promotion, Proposal, Sheet } from '../types'
+import type { Promotion, Proposal, Sheet, SheetPlatform } from '../types'
 
 export const gnbList = ['홈', '영화/시리즈', 'TV 방송', '키즈', '스포츠']
+
+/** 편성/스케줄 › 홈 하위 메뉴 (사이드바 순서) */
+export const platformLabel: Record<SheetPlatform, string> = { btv: 'B tv', mobile: '모바일 B tv' }
+
+/** 편성/스케줄 › 캠페인 메뉴가 바로 띄우는 캠페인 웹앱 주소 — 비어 있으면 "연결 예정" 안내를 보여준다 */
+export const CAMPAIGN_APP_URL = ''
 
 export const sheets: Sheet[] = [
   {
@@ -9,6 +15,7 @@ export const sheets: Sheet[] = [
     type: 'sheet',
     url: 'https://docs.google.com/spreadsheets/d/EXAMPLE-HOME-0926/edit',
     gnb: '홈',
+    platform: 'btv',
     ownerId: 'kim',
     ownerName: '김OO',
     periodStart: '2026-09-01',

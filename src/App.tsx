@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { Approvals } from './pages/Approvals'
+import { CampaignApp } from './pages/CampaignApp'
 import { CampaignHandoff } from './pages/CampaignHandoff'
 import { Dashboard } from './pages/Dashboard'
 import { MyRequests } from './pages/MyRequests'
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/search" element={<SearchResults />} />
         <Route path="/sheets" element={<Sheets />} />
         <Route path="/sheets/new" element={<SheetRegister />} />
+        <Route path="/sheets/campaign" element={<CampaignApp />} />
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/handoff" element={<CampaignHandoff />} />
