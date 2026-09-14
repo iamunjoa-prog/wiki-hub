@@ -70,17 +70,27 @@ function Message({ msg }: { msg: ChatMessage }) {
   )
 }
 
-/** 로컬 dev 서버에서만 보인다. 설치되지 않은 CLI는 비활성화한다. */
+function engineTitle(e: Engine, usable: boolean, installed: boolean): string {
+  if (e === 'gemini') return usable ? 'Gemini API로 답변' : 'Gemini API 키가 설정되지 않았습니다'
+  if (usable) return `${ENGINE_LABEL[e]} CLI로 답변`
+  return installed
+    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 대시보드에서 로그인`
+    : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
+}
+
+/** 서버가 알려준 엔진만 보인다 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini. 쓸 수 없는 엔진은 비활성화한다. */
 function EngineToggle() {
   const { assistant, setEngine } = useApp()
   const { engines, engine, pending } = assistant
   if (!engines) return null
+  const shown = (Object.keys(ENGINE_LABEL) as Engine[]).filter((e) => e in engines)
+  if (shown.length === 0) return null
 
   return (
     <div className="engine-row">
       <span>답변 엔진</span>
       <div className="engine-toggle" role="radiogroup" aria-label="답변 엔진">
-        {(Object.keys(ENGINE_LABEL) as Engine[]).map((e) => (
+        {shown.map((e) => (
           <button
             key={e}
             type="button"
@@ -88,13 +98,7 @@ function EngineToggle() {
             aria-checked={engine === e}
             className={engine === e ? 'on' : undefined}
             disabled={!engines[e] || pending}
-            title={
-              engines[e]
-                ? `${ENGINE_LABEL[e]} CLI로 답변`
-                : assistant.engineStatus?.[e].installed
-                  ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 대시보드에서 로그인`
-                  : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
-            }
+            title={engineTitle(e, Boolean(engines[e]), Boolean(assistant.engineStatus?.[e]?.installed))}
             onClick={() => setEngine(e)}
           >
             {ENGINE_LABEL[e]}
@@ -148,7 +152,7 @@ export function AssistantDock() {
         {assistant.pending && (
           <div className="typing">
             {assistant.engine
-              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${assistant.engine === 'codex' ? '1~2분' : '30초'} 내외)`
+              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${assistant.engine === 'codex' ? '1~2분' : assistant.engine === 'gemini' ? '10~20초' : '30초'} 내외)`
               : '문서를 찾는 중…'}
           </div>
         )}

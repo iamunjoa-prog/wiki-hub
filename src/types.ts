@@ -98,7 +98,10 @@ export interface SourceRef {
 }
 
 /** 어시스턴트 답변에 쓰는 로컬 CLI */
-export type Engine = 'claude' | 'codex'
+export type Engine = 'claude' | 'codex' | 'gemini'
+
+/** 로그인·설치가 필요한 로컬 CLI 엔진 (Gemini는 서버의 API 키로 동작) */
+export type CliEngine = Exclude<Engine, 'gemini'>
 
 export interface EngineStatus {
   installed: boolean
