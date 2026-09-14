@@ -179,7 +179,7 @@ export function AppShell() {
             <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
           </svg>
           챗봇
-          {assistant.campaignDraft && <span className="fab-badge">캠페인 조건 대기</span>}
+          {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
         </button>
       )}
       {toast && <div className="toast">{toast}</div>}

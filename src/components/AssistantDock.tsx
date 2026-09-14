@@ -25,7 +25,7 @@ function CampaignCard({ draft }: { draft: CampaignDraft }) {
   const navigate = useNavigate()
   return (
     <div className="campaign-card">
-      <span className="t">캠페인 의도 감지 · 조건 정리됨</span>
+      <span className="t">프로모션 진행 의도 감지 · 조건 정리됨</span>
       <dl>
         <dt>타겟</dt>
         <dd>{draft.target}</dd>

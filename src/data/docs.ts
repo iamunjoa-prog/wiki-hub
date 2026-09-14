@@ -23,7 +23,7 @@ export const docCommits: Record<string, DocCommit[]> = {}
 
 export const relatedSites = [
   { title: '편성 시스템', desc: '편성표 등록 · 확정', url: 'https://example.com/programming' },
-  { title: '캠페인 실행', desc: 'Company A 캠페인 화면', url: 'https://btvcuration.github.io/campaign/' },
+  { title: '프로모션 자동화', desc: 'Company A 프로모션 자동화 화면', url: 'https://btvcuration.github.io/campaign/' },
   { title: '지표 대시보드', desc: '일별 시청 지표', url: 'https://example.com/metrics' },
   { title: '컨플루언스', desc: '이관 예정 레거시 문서', url: 'https://example.com/wiki' },
 ]

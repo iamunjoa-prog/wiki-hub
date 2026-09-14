@@ -21,9 +21,9 @@
   --radius-sm: 5px;
   --shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.07);
 
-  --w-sidebar: 200px;
-  --w-sidebar-doc: 180px;
-  --w-toc: 130px;
+  --w-sidebar: 248px;
+  --w-sidebar-doc: 248px;
+  --w-toc: 200px;
   --w-rail: 44px;
   --w-dock: 300px;
   --w-detail: 320px;
