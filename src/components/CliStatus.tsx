@@ -5,7 +5,10 @@ import type { Engine, EngineStatus } from '../types'
 
 const ENGINES = Object.keys(ENGINE_LABEL) as Engine[]
 const LOGIN_WAIT_MS = 180_000
-const LOCAL_URL = 'http://localhost:5173'
+/** start-hub.bat 은 5173 포트로 고정 실행한다 (vite.config.ts strictPort) */
+const LOCAL_URL = 'http://localhost:5173/'
+/** scripts/setup.ps1 이 등록하는 링크 — 누르면 이 PC에서 start-hub.bat 이 실행된다 */
+const LAUNCH_URL = 'wikihub://start'
 const INSTALL_CMD: Record<Engine, string> = {
   claude: 'npm i -g @anthropic-ai/claude-code',
   codex: 'npm i -g @openai/codex',
@@ -30,6 +33,80 @@ function Cmd({ children }: { children: string }) {
       <span>{children}</span>
       <span className="muted">복사</span>
     </button>
+  )
+}
+
+/** 배포 허브에서 이 PC의 로컬 허브가 켜져 있는지 본다 — no-cors라 응답은 못 읽지만 연결 성공 여부는 알 수 있다 */
+async function probeLocalHub(): Promise<boolean> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 1500)
+  try {
+    await fetch(`${LOCAL_URL}api/engines`, { mode: 'no-cors', cache: 'no-store', signal: ctrl.signal })
+    return true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+type HubState = 'checking' | 'running' | 'stopped' | 'starting'
+const HUB_LABEL: Record<HubState, string> = {
+  checking: '확인 중…',
+  running: '켜져 있음',
+  stopped: '꺼져 있음',
+  starting: '켜는 중…',
+}
+
+/** 로컬 허브가 켜져 있으면 열기, 꺼져 있으면 wikihub:// 링크로 실행 */
+function LocalHubLauncher() {
+  const [state, setState] = useState<HubState>('checking')
+  const startedAt = useRef(0)
+
+  useEffect(() => {
+    probeLocalHub().then((ok) => setState(ok ? 'running' : 'stopped'))
+  }, [])
+
+  // 실행을 누른 뒤에는 서버가 뜰 때까지 2초마다 확인한다 (첫 실행은 설치 때문에 오래 걸릴 수 있음)
+  useEffect(() => {
+    if (state !== 'starting') return
+    const t = setInterval(async () => {
+      if (await probeLocalHub()) setState('running')
+      else if (Date.now() - startedAt.current > 180_000) setState('stopped')
+    }, 2000)
+    return () => clearInterval(t)
+  }, [state])
+
+  const launch = () => {
+    startedAt.current = Date.now()
+    setState('starting')
+    window.location.href = LAUNCH_URL
+  }
+
+  const dot = state === 'running' ? 'ok' : state === 'stopped' ? 'off' : 'loading'
+  return (
+    <div className="cli-setting">
+      <div className="cli-setting-head">
+        <span className={`status-dot ${dot}`} />
+        <b>이 PC의 로컬 허브</b>
+        <span className={state === 'running' ? 'cli-ok' : 'muted'}>{HUB_LABEL[state]}</span>
+      </div>
+      {state === 'running' ? (
+        <a className="btn sm primary" style={{ alignSelf: 'flex-start' }} href={LOCAL_URL} target="_blank" rel="noreferrer">
+          로컬 허브 열기 ↗
+        </a>
+      ) : (
+        <>
+          <button className="btn sm primary" style={{ alignSelf: 'flex-start' }} onClick={launch} disabled={state !== 'stopped'}>
+            {state === 'starting' ? '켜는 중… 브라우저에서 열기를 허용해 주세요' : '로컬 허브 실행'}
+          </button>
+          <span className="cli-note">
+            버튼을 눌러도 아무 일이 없다면 이 PC에 아직 세팅이 안 된 것입니다. 아래 <b>처음 쓰는 PC라면</b>을 따라 한 번만
+            세팅하세요.
+          </span>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -146,8 +223,11 @@ export function CliStatus() {
                 <>
                   <p className="cli-guide">
                     지금 보고 계신 배포 허브에는 CLI가 없어서 챗봇이 <b>규칙 기반 답변</b>으로 동작합니다.
-                    Claude·Codex로 답변받으려면 <b>내 PC에서 허브를 실행</b>한 뒤 로그인하세요.
+                    Claude·Codex 답변은 <b>이 PC에서 켠 로컬 허브</b>에서 받을 수 있어요.
                   </p>
+                  <LocalHubLauncher />
+                  <details className="cli-first">
+                  <summary>처음 쓰는 PC라면</summary>
                   <ol className="cli-steps">
                     <li>
                       <span>
@@ -160,12 +240,10 @@ export function CliStatus() {
                       </span>
                     </li>
                     <li>
-                      <span>브라우저가 자동으로 열리면 끝 — 다음부터는 바탕화면 바로가기로 실행</span>
+                      <span>브라우저가 자동으로 열리면 끝 — 다음부터는 바탕화면 바로가기나 위 [로컬 허브 실행] 버튼으로 켜세요</span>
                     </li>
                   </ol>
-                  <a className="btn sm primary" style={{ alignSelf: 'flex-start' }} href={LOCAL_URL} target="_blank" rel="noreferrer">
-                    로컬 허브 열기 ↗
-                  </a>
+                  </details>
                 </>
               ) : (
                 <>

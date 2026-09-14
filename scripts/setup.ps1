@@ -1,4 +1,4 @@
-﻿param([switch]$Check)
+param([switch]$Check)
 # 본부 지식 허브 첫 실행 세팅 — start-hub.bat 이 매번 호출한다. 이미 갖춰진 항목은 조용히 건너뛴다.
 # -Check: 아무것도 설치·생성하지 않고 상태만 출력한다.
 
@@ -67,7 +67,19 @@ if (-not $Check -and -not (Test-Path $shortcut)) {
   Write-Host "[완료] 바탕화면에 '본부 지식 허브' 바로가기를 만들었습니다. 다음부터는 그걸 더블클릭하세요." -ForegroundColor Green
 }
 
-# 5. 패키지
+# 5. 배포 허브의 [로컬 허브 실행] 버튼용 wikihub:// 링크 — 현재 사용자 한정, 관리자 권한 불필요
+$protoKey = 'HKCU:\Software\Classes\wikihub'
+$protoCommand = "`"$env:ComSpec`" /c `"`"$(Join-Path $root 'start-hub.bat')`"`""
+$registered = (Get-ItemProperty "$protoKey\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
+if (-not $Check -and $registered -ne $protoCommand) {
+  New-Item "$protoKey\shell\open\command" -Force | Out-Null
+  Set-ItemProperty $protoKey -Name '(default)' -Value 'URL:본부 지식 허브'
+  Set-ItemProperty $protoKey -Name 'URL Protocol' -Value ''
+  Set-ItemProperty "$protoKey\shell\open\command" -Name '(default)' -Value $protoCommand
+  Write-Host '[완료] 배포 허브의 [로컬 허브 실행] 버튼으로 이 PC의 허브를 켤 수 있게 등록했습니다.' -ForegroundColor Green
+}
+
+# 6. 패키지
 if (-not (Test-Path (Join-Path $root 'node_modules'))) {
   if ($Check) {
     Write-Host '[확인] 패키지 설치 필요'
@@ -85,5 +97,6 @@ if ($Check) {
     Write-Host ("[확인] {0}: 설치={1} 로그인={2}" -f $name, $installed, ($installed -and (Test-LoggedIn $name)))
   }
   Write-Host ("[확인] 바탕화면 바로가기: {0}" -f (Test-Path $shortcut))
+  Write-Host ("[확인] wikihub:// 링크 등록: {0}" -f ($registered -eq $protoCommand))
 }
 exit 0

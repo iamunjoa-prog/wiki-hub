@@ -463,6 +463,9 @@ button.row:hover { background: var(--surface-subtle); }
 }
 .cmd:hover { border-color: var(--line); }
 .cmd .muted { font: 12px var(--sans); }
+.cli-note { font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+.cli-first { border-top: 1px solid var(--border); padding-top: 10px; }
+.cli-first summary { cursor: pointer; font: 600 13.5px var(--sans); color: var(--text-2); margin-bottom: 10px; }
 
 /* ---------- search results ---------- */
 
