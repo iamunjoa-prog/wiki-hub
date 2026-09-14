@@ -155,8 +155,9 @@ export function CliStatus() {
                       <Cmd>{INSTALL_CMD.codex}</Cmd>
                     </li>
                     <li>
-                      허브 저장소 폴더에서 실행
-                      <Cmd>npm install && npm run dev</Cmd>
+                      <span>
+                        허브 폴더의 <b>start-hub.bat</b> 더블클릭 — 브라우저가 자동으로 열립니다
+                      </span>
                     </li>
                     <li>
                       <span>
