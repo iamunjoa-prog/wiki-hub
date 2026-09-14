@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
+import { readGeminiKey } from './env.js'
 import { askGemini } from './gemini.js'
 import { buildDocsBlock, REPLY_SCHEMA, type CliReply } from './knowledge.js'
 
@@ -194,7 +195,7 @@ export function cliBridge(): Plugin {
       const log = server.config.logger
       // CLI가 없거나 실패할 때 쓰는 Gemini API 키 — 허브 폴더의 .env.local 에서 읽는다 (브라우저로는 보내지 않음)
       const env = loadEnv(server.config.mode, server.config.root, '')
-      const geminiKey = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY
+      const geminiKey = readGeminiKey(env) || readGeminiKey()
       const geminiModel = env.GEMINI_MODEL || process.env.GEMINI_MODEL
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
       getEngineStatus().then((s) => {
