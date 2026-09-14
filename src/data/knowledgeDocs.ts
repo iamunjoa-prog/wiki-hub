@@ -15,7 +15,9 @@ interface Frontmatter {
   [key: string]: string
 }
 
-function parseFrontmatter(raw: string): { fm: Frontmatter; body: string } {
+function parseFrontmatter(source: string): { fm: Frontmatter; body: string } {
+  // Windows 체크아웃은 CRLF라, 편집 칸·AI 결과(LF)와 비교하면 모든 줄이 바뀐 것으로 잡힌다 — LF로 통일한다
+  const raw = source.replace(/\r\n?/g, '\n')
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
   if (!match) return { fm: {}, body: raw }
   const [, fmBlock, rest] = match

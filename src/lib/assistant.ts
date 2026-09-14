@@ -1,5 +1,5 @@
 import { docs } from '../data/docs'
-import type { CampaignDraft, ChatMessage, Engine, SourceRef } from '../types'
+import type { CampaignDraft, ChatMessage, Engine, SourceRef, WikiDoc } from '../types'
 import { extractSentences, searchDocs } from './retrieval'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
@@ -188,6 +188,50 @@ export async function askAssistant(query: string, engines: Engine[]): Promise<As
     }
   }
   return { ...answer(query), answeredBy: failed.length ? `규칙 기반 (${failed.join('·')} 응답 실패)` : '규칙 기반' }
+}
+
+export interface AiEditResult {
+  body: string
+  summary: string
+  /** 수정한 엔진 — 앞선 엔진이 실패했으면 함께 적는다 */
+  by: string
+}
+
+/**
+ * 수정 제안 화면의 "AI로 수정". 쓸 수 있는 엔진을 순서대로 시도해 고친 본문 전체를 받는다.
+ * 규칙 기반 대체는 없다 — 모두 실패하면 마지막 오류를 throw 한다.
+ */
+export async function requestAiEdit(
+  doc: Pick<WikiDoc, 'title' | 'code' | 'path'>,
+  body: string,
+  instruction: string,
+  engines: Engine[],
+): Promise<AiEditResult> {
+  if (engines.length === 0) throw new Error('쓸 수 있는 AI 엔진이 없습니다')
+  const failed: string[] = []
+  let lastError = ''
+  for (const engine of engines) {
+    try {
+      const res = await fetch('/api/edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ engine, title: doc.title, code: doc.code, path: doc.path, body, instruction }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { body?: string; summary?: string; error?: string }
+      if (!res.ok || typeof data.body !== 'string') throw new Error(data.error || `HTTP ${res.status}`)
+      const label = ENGINE_LABEL[engine]
+      return {
+        body: data.body,
+        summary: data.summary ?? '',
+        by: failed.length ? `${label} (${failed.join('·')} 실패)` : label,
+      }
+    } catch (err) {
+      lastError = (err as Error).message
+      console.info(`[ai-edit] ${ENGINE_LABEL[engine]} 실패:`, lastError)
+      failed.push(ENGINE_LABEL[engine])
+    }
+  }
+  throw new Error(`AI 수정에 실패했습니다 — ${lastError}`)
 }
 
 export function makeMessage(role: ChatMessage['role'], text: string, extra?: Partial<ChatMessage>): ChatMessage {

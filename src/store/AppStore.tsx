@@ -39,6 +39,8 @@ interface AssistantState {
   engines: Partial<Record<Engine, boolean>> | null
   /** 실제로 답변에 쓸 CLI — 선택한 CLI가 없으면 설치된 다른 CLI, 둘 다 없으면 null(규칙 기반) */
   engine: Engine | null
+  /** 선택한 엔진 → 나머지 순으로 시도할 엔진 목록 */
+  usableEngines: Engine[]
 }
 
 interface AppState {
@@ -303,7 +305,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sheets,
     proposals,
     promotions,
-    assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine },
+    assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine, usableEngines },
     toast,
     setRole: setRoleState,
     showToast,

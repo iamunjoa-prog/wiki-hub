@@ -1,6 +1,15 @@
 import { readFileSync } from 'node:fs'
 import { GoogleGenAI } from '@google/genai'
-import { buildDocsBlock, REPLY_SCHEMA, type CliReply } from './knowledge.js'
+import {
+  buildDocsBlock,
+  buildEditRequest,
+  checkEditReply,
+  EDIT_SCHEMA,
+  REPLY_SCHEMA,
+  type CliReply,
+  type EditInput,
+  type EditReply,
+} from './knowledge.js'
 
 /** GEMINI_MODEL 환경변수로 바꿀 수 있다 */
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash'
@@ -38,4 +47,23 @@ export async function askGemini(query: string, opts: GeminiOptions): Promise<Cli
   const out = JSON.parse(response.text) as Partial<CliReply>
   if (typeof out.text !== 'string') throw new Error('Gemini 응답 형식이 올바르지 않습니다')
   return { text: out.text, sourcePaths: Array.isArray(out.sourcePaths) ? out.sourcePaths : [] }
+}
+
+/** 수정 제안 화면의 "AI로 수정" — 문서 본문과 요청만 넣고 고친 본문 전체를 { body, summary } 로 받는다 */
+export async function editGemini(
+  input: EditInput,
+  opts: Pick<GeminiOptions, 'apiKey' | 'model' | 'promptFile'>,
+): Promise<EditReply> {
+  const ai = new GoogleGenAI({ apiKey: opts.apiKey })
+  const response = await ai.models.generateContent({
+    model: opts.model || GEMINI_DEFAULT_MODEL,
+    contents: buildEditRequest(input),
+    config: {
+      systemInstruction: readFileSync(opts.promptFile, 'utf8'),
+      responseMimeType: 'application/json',
+      responseJsonSchema: EDIT_SCHEMA,
+    },
+  })
+  if (!response.text) throw new Error('Gemini가 빈 응답을 반환했습니다')
+  return checkEditReply(JSON.parse(response.text))
 }

@@ -597,6 +597,31 @@ button.row:hover { background: var(--surface-subtle); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-row { display: flex; flex-direction: column; gap: 6px; }
 .form-actions { display: flex; gap: 8px; align-items: center; }
+
+/* 수정 제안 · AI로 수정 */
+.ai-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-subtle);
+}
+.ai-edit-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ai-edit-head .engine-row { margin-left: auto; }
+.ai-edit-form { display: flex; gap: 8px; align-items: stretch; }
+.ai-edit-form textarea { flex: 1; min-height: 44px; font-family: var(--sans); }
+.ai-edit-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13.5px;
+  color: var(--text-2);
+}
+.ai-edit-result b { color: var(--ok); }
 .hint { padding: 9px 10px; border: 1px solid var(--border); background: var(--surface-subtle); font: 13px/1.6 var(--mono); color: var(--text-2); }
 .seg { display: flex; gap: 6px; }
 .err { font: 13px var(--mono); color: var(--danger); }

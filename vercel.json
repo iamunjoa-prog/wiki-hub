@@ -7,6 +7,10 @@
     "api/ask.ts": {
       "includeFiles": "{지식/**,server/assistant-prompt.md}",
       "maxDuration": 60
+    },
+    "api/edit.ts": {
+      "includeFiles": "server/edit-prompt.md",
+      "maxDuration": 60
     }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
