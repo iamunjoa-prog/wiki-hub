@@ -150,19 +150,17 @@ export function CliStatus() {
                   </p>
                   <ol className="cli-steps">
                     <li>
-                      CLI 설치 (쓸 것만)
-                      <Cmd>{INSTALL_CMD.claude}</Cmd>
-                      <Cmd>{INSTALL_CMD.codex}</Cmd>
-                    </li>
-                    <li>
                       <span>
-                        허브 폴더의 <b>start-hub.bat</b> 더블클릭 — 브라우저가 자동으로 열립니다
+                        허브 폴더의 <b>start-hub.bat</b> 더블클릭
                       </span>
                     </li>
                     <li>
                       <span>
-                        로컬 허브 대시보드의 <b>⚙ 연결 설정</b>에서 로그인
+                        안내에 따라 <b>Y</b>만 누르면 Node.js·CLI 설치, 로그인, 바탕화면 바로가기까지 자동으로 세팅됩니다
                       </span>
+                    </li>
+                    <li>
+                      <span>브라우저가 자동으로 열리면 끝 — 다음부터는 바탕화면 바로가기로 실행</span>
                     </li>
                   </ol>
                   <a className="btn sm primary" style={{ alignSelf: 'flex-start' }} href={LOCAL_URL} target="_blank" rel="noreferrer">
