@@ -237,9 +237,81 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* 화살표 없는 형제 메뉴 — 화살표 있는 메뉴와 글자 시작점을 맞춘다 */
 .nav-item.sub.no-toggle { padding-left: 22px; }
 
-/* 외부 웹앱을 본문 전체에 띄우는 화면 (편성/스케줄 › 캠페인) */
-.content.app-frame-wrap { display: flex; flex-direction: column; overflow: hidden; }
-.app-frame { flex: 1; width: 100%; border: 0; background: var(--surface); }
+/* 편성/스케줄 › 캠페인 신청 캘린더 */
+.camp-cal { display: flex; flex-direction: column; gap: 12px; }
+.camp-cal-filters { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; padding: 10px 12px; overflow: visible; }
+.camp-cal-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-2); cursor: pointer; }
+.camp-cal-check input { accent-color: var(--accent); width: 15px; height: 15px; }
+.search-input.camp-cal-search { flex: none; margin-left: auto; width: 220px; max-width: 100%; }
+.chip-row { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 3px 11px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+.chip:hover { border-color: var(--text); color: var(--text); }
+.chip.on { background: var(--text); border-color: var(--text); color: #fff; }
+
+.camp-cal-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.camp-cal-month { font: 700 16px var(--sans); min-width: 104px; text-align: center; }
+.camp-cal-hint { margin-left: auto; font-size: 12.5px; }
+
+.camp-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.camp-cal-head { font-size: 12px; font-weight: 600; color: var(--muted); text-align: center; padding-bottom: 2px; }
+.camp-cal-head.sun, .camp-cal-day .sun { color: var(--accent); }
+.camp-cal-head.sat, .camp-cal-day .sat { color: #3b6fd8; }
+.camp-cal-cell {
+  min-height: 124px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.camp-cal-cell.blank { background: transparent; border-color: transparent; }
+.camp-cal-cell.has { background: #fff6f8; border-color: #f3c4cd; }
+.camp-cal-cell.today { box-shadow: inset 0 0 0 1.5px var(--text); }
+.camp-cal-day { display: flex; align-items: center; justify-content: space-between; font-size: 12.5px; font-weight: 600; margin-bottom: 1px; }
+.camp-cal-count { border: 0; background: none; padding: 0; font-size: 11px; font-weight: 600; color: var(--accent); }
+.camp-cal-count:hover { text-decoration: underline; }
+.camp-cal-item {
+  display: block;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  font-size: 11.5px;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.camp-cal-item:hover { border-color: var(--accent); color: var(--accent); }
+.camp-cal-more {
+  padding: 2px 6px;
+  border: 1px dashed #f3c4cd;
+  border-radius: 4px;
+  background: none;
+  font-size: 11.5px;
+  color: var(--accent);
+}
+.camp-cal-more:hover { border-style: solid; }
+
+.modal.camp-day-modal { width: min(560px, 92vw); max-height: 80vh; display: flex; flex-direction: column; }
+.camp-day-list { display: flex; flex-direction: column; gap: 10px; padding: 14px; overflow: auto; }
+.camp-day-item { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.camp-day-title { font-weight: 700; font-size: 14.5px; line-height: 1.4; }
+.camp-day-meta { margin: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+.camp-day-meta > div { display: flex; gap: 12px; }
+.camp-day-meta dt { min-width: 60px; color: var(--muted); }
+.camp-day-meta dd { margin: 0; font-weight: 600; }
+.camp-day-foot { display: flex; justify-content: flex-end; padding: 10px 14px; border-top: 1px solid var(--border); }
 .nav-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
 
