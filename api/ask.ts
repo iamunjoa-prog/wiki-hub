@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { readGeminiKey } from '../server/env.js'
 import { askGemini } from '../server/gemini.js'
 import { buildDocsBlock } from '../server/knowledge.js'
 
@@ -24,11 +25,11 @@ export function GET(): Response {
   } catch {
     docsBytes = 0
   }
-  return Response.json({ docsBytes, promptFound: existsSync(PROMPT_FILE), geminiKey: Boolean(process.env.GEMINI_API_KEY) })
+  return Response.json({ docsBytes, promptFound: existsSync(PROMPT_FILE), geminiKey: Boolean(readGeminiKey()) })
 }
 
 export async function POST(request: Request): Promise<Response> {
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = readGeminiKey()
   if (!apiKey) return error(503, 'GEMINI_API_KEY가 설정되지 않았습니다')
 
   // 다른 사이트의 페이지가 이 함수를 불러 API 키를 쓰지 못하게, 브라우저 요청은 같은 출처만 받는다
