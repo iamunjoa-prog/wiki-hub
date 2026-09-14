@@ -9,11 +9,12 @@ import {
 } from 'react'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
-import { askAssistant, makeMessage, newId } from '../lib/assistant'
+import { askAssistant, fetchEngines, makeMessage, newId } from '../lib/assistant'
 import type {
   CampaignDraft,
   CategoryId,
   ChatMessage,
+  Engine,
   Promotion,
   Proposal,
   Role,
@@ -24,12 +25,17 @@ import type {
 
 const LS_ROLE = 'wikihub.role'
 const LS_DOCK = 'wikihub.dockOpen'
+const LS_ENGINE = 'wikihub.engine'
 
 interface AssistantState {
   open: boolean
   messages: ChatMessage[]
   pending: boolean
   campaignDraft: CampaignDraft | null
+  /** 로컬 dev 서버에 설치된 CLI. 배포본처럼 중계 서버가 없으면 null */
+  engines: Record<Engine, boolean> | null
+  /** 실제로 답변에 쓸 CLI — 선택한 CLI가 없으면 설치된 다른 CLI, 둘 다 없으면 null(규칙 기반) */
+  engine: Engine | null
 }
 
 interface AppState {
@@ -47,6 +53,7 @@ interface AppState {
   openDock: () => void
   closeDock: () => void
   ask: (query: string) => void
+  setEngine: (engine: Engine) => void
   setCampaignDraft: (draft: CampaignDraft | null) => void
 
   submitProposal: (docId: string, newBody: string, reason: string) => void
@@ -81,9 +88,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [pending, setPending] = useState(false)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
+  const [preferredEngine, setPreferredEngine] = useState<Engine>(
+    () => (localStorage.getItem(LS_ENGINE) as Engine) || 'claude',
+  )
+  const [engines, setEngines] = useState<Record<Engine, boolean> | null>(null)
 
   useEffect(() => localStorage.setItem(LS_ROLE, role), [role])
   useEffect(() => localStorage.setItem(LS_DOCK, dockOpen ? '1' : '0'), [dockOpen])
+  useEffect(() => localStorage.setItem(LS_ENGINE, preferredEngine), [preferredEngine])
+  useEffect(() => {
+    fetchEngines().then(setEngines)
+  }, [])
+
+  const engine: Engine | null = !engines
+    ? null
+    : engines[preferredEngine]
+      ? preferredEngine
+      : ((Object.keys(engines) as Engine[]).find((e) => engines[e]) ?? null)
 
   useEffect(() => {
     if (!toast) return
@@ -104,15 +125,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDockOpen(true)
     setMessages((prev) => [...prev, makeMessage('user', q)])
     setPending(true)
-    askAssistant(q).then((reply) => {
+    askAssistant(q, engine).then((reply) => {
       setMessages((prev) => [
         ...prev,
-        makeMessage('assistant', reply.text, { sources: reply.sources, campaign: reply.campaign }),
+        makeMessage('assistant', reply.text, {
+          sources: reply.sources,
+          campaign: reply.campaign,
+          answeredBy: reply.answeredBy,
+        }),
       ])
       if (reply.campaign) setCampaignDraft(reply.campaign)
       setPending(false)
     })
-  }, [])
+  }, [engine])
 
   const submitProposal = useCallback(
     (docId: string, newBody: string, reason: string) => {
@@ -260,13 +285,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sheets,
     proposals,
     promotions,
-    assistant: { open: dockOpen, messages, pending, campaignDraft },
+    assistant: { open: dockOpen, messages, pending, campaignDraft, engines, engine },
     toast,
     setRole: setRoleState,
     showToast,
     openDock: () => setDockOpen(true),
     closeDock: () => setDockOpen(false),
     ask,
+    setEngine: setPreferredEngine,
     setCampaignDraft,
     submitProposal,
     decideProposal,

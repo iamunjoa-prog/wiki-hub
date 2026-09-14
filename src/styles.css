@@ -411,6 +411,14 @@ button.row:hover { background: var(--surface-subtle); }
 .suggest button:hover { border-color: var(--accent); color: var(--accent); }
 
 .typing { display: flex; gap: 4px; align-items: center; font: 12.5px var(--mono); color: var(--muted); }
+.msg .by { margin-top: 6px; font: 11.5px var(--mono); color: var(--muted); }
+
+.engine-row { display: flex; align-items: center; gap: 8px; font: 12px var(--mono); color: var(--muted); }
+.engine-toggle { display: flex; border: 1px solid var(--border); }
+.engine-toggle button { border: 0; background: none; padding: 3px 10px; font: 12px var(--mono); color: var(--muted); cursor: pointer; }
+.engine-toggle button + button { border-left: 1px solid var(--border); }
+.engine-toggle button.on { background: var(--accent); color: #fff; }
+.engine-toggle button:disabled:not(.on) { opacity: 0.4; cursor: not-allowed; }
 
 /* ---------- search results ---------- */
 

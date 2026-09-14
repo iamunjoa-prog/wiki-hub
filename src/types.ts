@@ -97,10 +97,14 @@ export interface SourceRef {
   anchor?: string
 }
 
+/** 어시스턴트 답변에 쓰는 로컬 CLI */
+export type Engine = 'claude' | 'codex'
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
   sources?: SourceRef[]
   campaign?: CampaignDraft
+  answeredBy?: string
 }
