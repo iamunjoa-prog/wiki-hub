@@ -141,7 +141,7 @@ export function answer(query: string): AssistantReply {
 
   let text = lines.join('\n')
   if (campaign) {
-    text += `\n\n정책 기준으로 캠페인 조건을 아래와 같이 정리했습니다. 확인 후 진행해 주세요.`
+    text += `\n\n정책 기준으로 프로모션 조건을 아래와 같이 정리했습니다. 확인 후 진행해 주세요.`
   }
 
   return { text, sources, campaign }
@@ -180,7 +180,7 @@ export function makeMessage(role: ChatMessage['role'], text: string, extra?: Par
 }
 
 export const SUGGESTED_QUESTIONS = [
-  '월정액 할인 쿠폰 캠페인 배너로 진행 가능해?',
+  '월정액 할인 쿠폰 프로모션 배너로 진행 가능해?',
   '판촉용 쿠폰 품의는 누구 결재가 필요해?',
   'CBS에서 승인요청 버튼이 안 눌려',
   '전환동의 팝업은 어느 UI 버전부터 돼?',

@@ -34,7 +34,7 @@ export function CampaignHandoff() {
         <div className="content">
           <div className="empty">
             <div className="box" />
-            아직 정리된 캠페인 조건이 없습니다
+            아직 정리된 프로모션 조건이 없습니다
             <button
               className="btn sm accent"
               onClick={() => {
@@ -54,7 +54,7 @@ export function CampaignHandoff() {
 
   const proceed = () => {
     setCampaignDraft(draft)
-    showToast('확정 조건을 담아 캠페인 화면으로 전달했습니다')
+    showToast('확정 조건을 담아 프로모션 자동화 화면으로 전달했습니다')
     window.open(buildHandoffUrl(draft), '_blank', 'noopener,noreferrer')
   }
 
@@ -63,7 +63,7 @@ export function CampaignHandoff() {
       <TopBar />
       <div className="content">
         <div className="page-head">
-          <span className="page-title">캠페인 핸드오프 확인</span>
+          <span className="page-title">프로모션 자동화 연결 확인</span>
           <span className="tag">최종 확인 단계</span>
         </div>
 
@@ -128,11 +128,11 @@ export function CampaignHandoff() {
 
             <div className="hairline" style={{ paddingTop: 12 }}>
               <div className="mono muted" style={{ fontSize: 10.5, marginBottom: 10 }}>
-                외부 캠페인 실행 화면으로 이동합니다 — {CAMPAIGN_URL.replace('https://', '')}
+                외부 프로모션 자동화 화면으로 이동합니다 — {CAMPAIGN_URL.replace('https://', '')}
               </div>
               <div className="form-actions">
                 <button className="btn accent" onClick={proceed}>
-                  이대로 캠페인 진행 ↗
+                  프로모션 자동화로 진행 ↗
                 </button>
                 <button className="btn" onClick={() => navigate(-1)}>
                   대화로 돌아가기
