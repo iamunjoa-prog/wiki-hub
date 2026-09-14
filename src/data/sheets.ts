@@ -5,8 +5,8 @@ export const gnbList = ['홈', '영화/시리즈', 'TV 방송', '키즈', '스�
 /** 편성/스케줄 › 홈 하위 메뉴 (사이드바 순서) */
 export const platformLabel: Record<SheetPlatform, string> = { btv: 'B tv', mobile: '모바일 B tv' }
 
-/** 편성/스케줄 › 캠페인 메뉴가 바로 띄우는 캠페인 웹앱 주소 — 비어 있으면 "연결 예정" 안내를 보여준다 */
-export const CAMPAIGN_APP_URL = ''
+/** 편성/스케줄 › 캠페인 메뉴가 바로 띄우는 캠페인 웹앱(캠페인 신청 캘린더) 주소 — 비어 있으면 "연결 예정" 안내를 보여준다 */
+export const CAMPAIGN_APP_URL = 'https://pg-apps.skbroadband.com/campaign-dashboard0-v2-4/#calendar'
 
 export const sheets: Sheet[] = [
   {
