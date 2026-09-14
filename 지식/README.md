@@ -9,6 +9,32 @@
 | `insight/` | 장르별 편성 인사이트 | `INS-G-nn` |
 | `marketing/` | 마케팅 정책 | `MKT-P-nn` |
 | `programming/` | 편성 정책 | `PRG-P-nn` |
+| `marketing/ppc/` | 마케팅 정책 › PPC 프로모션 (하위 트리) | `PPC-*` (아래 참고) |
+
+### PPC 프로모션 하위 트리 (`marketing/ppc/`)
+
+문서가 많아 하위 폴더로 트리를 구성합니다. 루트 인덱스는 `marketing/ppc/index.md` (`PPC-00`).
+
+| 폴더 | 내용 | 문서 코드 |
+|---|---|---|
+| `promotion/` | 프로모션 정책·업무 (공통 / PPM / PPV / 홍보물) | `PPC-P-nn` |
+| `system/cbs/` · `acs/` · `swing/` | 시스템 매뉴얼 | `PPC-CBS-nn` · `PPC-ACS-nn` · `PPC-SWG-nn` |
+| `reference/` | UI 버전표, 담당자, 용어, FAQ | `PPC-R-nn` |
+| `docs/` | 원본·첨부, 커뮤니케이션 가이드라인 | `PPC-D-nn` |
+| `performance/` | 실적 | `PPC-K-nn` |
+
+PPC 문서는 기본 프론트매터에 아래 필드를 추가로 씁니다.
+
+```yaml
+scope: PPM          # PPM | PPV | 공통 — 챗봇이 상품 유형으로 근거 문서를 거를 때 사용
+systems: [CBS, ACS] # 관련 시스템
+parent: PPC-P-20    # 트리 상위 문서 코드 (루트는 null)
+order: 21           # 같은 부모 아래 정렬 순서
+status: 정리완료     # 정리완료 | 초안 | 빈 페이지
+source: "원문 위치"
+```
+
+본문 첫 줄에는 사람이 보는 메타 줄을 둡니다: `> 적용대상 **PPM 전용** · 관련 시스템 CBS · 상위 [문서명](코드)`
 
 ## 파일 형식
 
