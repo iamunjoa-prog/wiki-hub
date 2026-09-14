@@ -11,7 +11,8 @@ function buildHandoffUrl(draft: CampaignDraft): string {
     target: draft.target,
     periodStart: draft.periodStart,
     periodEnd: draft.periodEnd,
-    budget: draft.budget,
+    channel: draft.channel,
+    targetCount: draft.targetCount,
     policyRefs: draft.policyRefs.join(','),
     note: draft.note,
     source: 'wiki-hub',
@@ -98,8 +99,15 @@ export function CampaignHandoff() {
                 />
               </div>
 
-              <span>예산</span>
-              <input className="field" value={draft.budget} onChange={(e) => set({ budget: e.target.value })} />
+              <span>채널</span>
+              <input className="field" value={draft.channel} onChange={(e) => set({ channel: e.target.value })} />
+
+              <span>전체 타겟수</span>
+              <input
+                className="field"
+                value={draft.targetCount}
+                onChange={(e) => set({ targetCount: e.target.value })}
+              />
 
               <span>근거 정책</span>
               <input

@@ -1,17 +1,16 @@
 import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
-import { categoryShort, relatedSites } from '../data/docs'
+import { categories, categoryShort, relatedSites } from '../data/docs'
 import { useApp } from '../store/AppStore'
 
 export function Dashboard() {
   const { docs, sheets, proposals, promotions, session } = useApp()
   const navigate = useNavigate()
 
-  const byCategory = {
-    insight: docs.filter((d) => d.category === 'insight').length,
-    marketing: docs.filter((d) => d.category === 'marketing').length,
-    programming: docs.filter((d) => d.category === 'programming').length,
-  }
+  const byCategory = categories.map((c) => ({
+    label: c.label,
+    count: docs.filter((d) => d.category === c.id).length,
+  }))
   const pending =
     proposals.filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length
@@ -33,8 +32,7 @@ export function Dashboard() {
           <div className="kpi">
             <span className="label">카테고리별</span>
             <span className="sub">
-              인사이트 {byCategory.insight} / 마케팅 {byCategory.marketing} / 편성{' '}
-              {byCategory.programming}
+              {byCategory.map((c) => `${c.label} ${c.count}`).join(' / ')}
             </span>
           </div>
           <div className="kpi">

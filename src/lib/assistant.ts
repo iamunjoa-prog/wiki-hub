@@ -1,10 +1,23 @@
 import { docs } from '../data/docs'
-import type { CampaignDraft, ChatMessage, SourceRef, WikiDoc } from '../types'
+import type { CampaignDraft, ChatMessage, SourceRef } from '../types'
 import { extractSentences, searchDocs } from './retrieval'
 
-const GENRES = ['예능', '드라마', '영화', '키즈', '스포츠']
-const CAMPAIGN_HINTS = ['캠페인', '프로모션', '집행', '광고', '마케팅 진행']
-const INTENT_HINTS = ['가능', '진행', '하고', '해도', '할까', '돌리', '집행', '띄우', '준비']
+/** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
+const PRODUCTS: { keywords: string[]; label: string; scope: 'PPM' | 'PPV'; policyCode: string }[] = [
+  { keywords: ['월정액', 'ppm', '구독'], label: 'PPM(월정액)', scope: 'PPM', policyCode: 'PPC-P-02' },
+  { keywords: ['단건', 'ppv', 'vod', '개별구매'], label: 'PPV(단건)', scope: 'PPV', policyCode: 'PPC-P-03' },
+]
+
+/** 발송 채널 — 캠페인 발송 Capa 기준이 채널별로 다르다 */
+const CHANNELS: { keywords: string[]; label: string }[] = [
+  { keywords: ['배너', '타겟배너'], label: '타겟배너' },
+  { keywords: ['tv팝업', 'tv 팝업', '팝업'], label: 'TV팝업' },
+  { keywords: ['스마트알림', '알림', '푸시'], label: '스마트알림' },
+  { keywords: ['토스트'], label: '토스트팝업' },
+]
+
+const CAMPAIGN_HINTS = ['캠페인', '프로모션', '집행', '발송', '쿠폰 발급']
+const INTENT_HINTS = ['가능', '진행', '하고', '해도', '할까', '돌리', '집행', '띄우', '준비', '만들']
 
 let seq = 0
 export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${seq++}`
@@ -15,57 +28,50 @@ export function detectCampaignIntent(query: string): boolean {
   return hasCampaign && hasIntent
 }
 
-function detectGenre(query: string): string | null {
-  return GENRES.find((g) => query.includes(g)) ?? null
+function detectProduct(query: string) {
+  const q = query.toLowerCase()
+  return PRODUCTS.find((p) => p.keywords.some((k) => q.includes(k))) ?? null
 }
 
-/** MKT-P-03 예산 표에서 장르별 표준 예산을 읽는다. */
-function budgetFromPolicy(genre: string, policyDoc: WikiDoc | undefined): string {
-  if (!policyDoc) return ''
-  const row = policyDoc.body
-    .split('\n')
-    .find((l) => l.startsWith('|') && l.includes(genre) && l.includes('만 원'))
-  if (!row) return ''
-  const cells = row.split('|').map((c) => c.trim())
-  return cells[2] ?? ''
+function detectChannel(query: string): string | null {
+  const q = query.toLowerCase()
+  return CHANNELS.find((c) => c.keywords.some((k) => q.includes(k)))?.label ?? null
 }
 
-/** 장르 인사이트 문서에서 권장 캠페인 구간(MM/DD 시작 – MM/DD 종료)을 읽는다. */
-function periodFromInsight(genre: string): { start: string; end: string } | null {
-  const insight = docs.find((d) => d.category === 'insight' && d.title.includes(genre))
-  if (!insight) return null
-  const m = insight.body.match(/(\d{2})\/(\d{2})\s*시작\s*[–\-~]\s*(\d{2})\/(\d{2})\s*종료/)
-  if (!m) return null
-  const year = new Date().getFullYear()
-  return { start: `${year}-${m[1]}-${m[2]}`, end: `${year}-${m[3]}-${m[4]}` }
+/** "50만", "3만명" 같은 표현에서 타겟 모수를 읽는다. */
+function detectTargetCount(query: string): string | null {
+  const m = query.match(/([\d,.]+)\s*(만|천)?\s*(명|건)?/)
+  if (!m || !m[1] || !m[2]) return null
+  return `${m[1]}${m[2]}`
 }
 
-/** MKT-P-03 "노출 누적 3주 원칙"에 따른 기본 기간. */
+/** 운영 프로세스 Step 1의 기본 리드타임 — 품의·쿠폰 생성·공지에 필요한 최소 준비 기간. */
 function defaultPeriod(): { start: string; end: string } {
   const start = new Date()
-  start.setDate(start.getDate() + 7)
+  start.setDate(start.getDate() + 14)
   const end = new Date(start)
-  end.setDate(end.getDate() + 20)
+  end.setDate(end.getDate() + 13)
   const fmt = (d: Date) => d.toISOString().slice(0, 10)
   return { start: fmt(start), end: fmt(end) }
 }
 
 export function buildCampaignDraft(query: string): CampaignDraft {
-  const genre = detectGenre(query) ?? '예능'
-  const policyDoc = docs.find((d) => d.code === 'MKT-P-03')
-  const period = periodFromInsight(genre) ?? defaultPeriod()
-  const budget = budgetFromPolicy(genre, policyDoc) || '3,000만 원'
+  const product = detectProduct(query) ?? PRODUCTS[0]
+  const channel = detectChannel(query) ?? '타겟배너'
+  const period = defaultPeriod()
 
-  const policyRefs = [policyDoc?.code, docs.find((d) => d.category === 'insight' && d.title.includes(genre))?.code]
-    .filter((c): c is string => Boolean(c))
+  // 운영 프로세스(PPC-P-01)와 상품별 정책은 항상 근거로 붙인다.
+  const policyRefs = ['PPC-P-01', product.policyCode]
+  if (channel) policyRefs.push('PPC-P-04')
 
   return {
-    target: `신규 세그먼트 × ${genre}`,
+    target: `${product.label} 대상 · ${channel}`,
     periodStart: period.start,
     periodEnd: period.end,
-    budget,
-    policyRefs,
-    note: '',
+    channel,
+    targetCount: detectTargetCount(query) ?? '',
+    policyRefs: policyRefs.filter((c) => docs.some((d) => d.code === c)),
+    note: '발송 Capa(배너 일 300만 / 쿠폰 시간당 12만 / TV팝업 노드당 90만)와 일정 중복은 캠페인 스케줄에서 확인 필요',
   }
 }
 
@@ -81,8 +87,8 @@ export function answer(query: string): AssistantReply {
   if (hits.length === 0) {
     return {
       text:
-        '담당 범위(편성·마케팅 정책, 장르별 인사이트, 등록된 GNB 편성표) 안에서 근거 문서를 찾지 못했습니다.\n' +
-        '장르명이나 정책 코드(예: 예능, MKT-P-03)를 함께 넣어 다시 물어봐 주세요.',
+        '담당 범위(프로모션 정책·업무, ACS·CBS·Swing 시스템 매뉴얼, 등록된 편성표) 안에서 근거 문서를 찾지 못했습니다.\n' +
+        '상품 유형(PPM·PPV)이나 문서 코드(예: PPC-P-02)를 함께 넣어 다시 물어봐 주세요.',
       sources: [],
     }
   }
@@ -115,8 +121,8 @@ export function makeMessage(role: ChatMessage['role'], text: string, extra?: Par
 }
 
 export const SUGGESTED_QUESTIONS = [
-  '9월 예능 신규 시청자 캠페인 가능해?',
-  '신규 유입 캠페인 기간은 최소 얼마야?',
-  '예능 표준 예산이 얼마지?',
-  '주말 편성 슬롯 구성 알려줘',
+  '월정액 할인 쿠폰 캠페인 배너로 진행 가능해?',
+  '판촉용 쿠폰 품의는 누구 결재가 필요해?',
+  'CBS에서 승인요청 버튼이 안 눌려',
+  '전환동의 팝업은 어느 UI 버전부터 돼?',
 ]

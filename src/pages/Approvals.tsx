@@ -47,7 +47,7 @@ export function Approvals() {
   const { session, docs, sheets, proposals, promotions, decideProposal, decidePromotion } = useApp()
   const [tab, setTab] = useState<'docs' | 'sheets' | 'admin'>('docs')
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [category, setCategory] = useState<CategoryId>('insight')
+  const [category, setCategory] = useState<CategoryId>('promotion')
   const [busy, setBusy] = useState(false)
   const [rejecting, setRejecting] = useState(false)
 

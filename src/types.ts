@@ -7,7 +7,7 @@ export interface Session {
   role: Role
 }
 
-export type CategoryId = 'insight' | 'marketing' | 'programming'
+export type CategoryId = 'programming' | 'promotion' | 'system' | 'guide'
 
 export interface Category {
   id: CategoryId
@@ -83,7 +83,10 @@ export interface CampaignDraft {
   target: string
   periodStart: string
   periodEnd: string
-  budget: string
+  /** 발송 채널 — 타겟배너 / TV팝업 / 스마트알림 / 토스트팝업 */
+  channel: string
+  /** 전체 타겟수 — 캠페인 발송 Capa 확인의 기준값 */
+  targetCount: string
   policyRefs: string[]
   note: string
 }

@@ -33,8 +33,10 @@ function CampaignCard({ draft }: { draft: CampaignDraft }) {
         <dd>
           {draft.periodStart} ~ {draft.periodEnd}
         </dd>
-        <dt>예산</dt>
-        <dd>{draft.budget}</dd>
+        <dt>채널</dt>
+        <dd>{draft.channel}</dd>
+        <dt>타겟수</dt>
+        <dd>{draft.targetCount}</dd>
         <dt>근거 정책</dt>
         <dd>{draft.policyRefs.join(' · ')}</dd>
       </dl>
@@ -89,7 +91,7 @@ export function AssistantDock() {
           ▸
         </button>
       </div>
-      <div className="dock-scope">담당 범위 · 편성/마케팅 정책 + 장르 인사이트 + 등록된 GNB 편성표</div>
+      <div className="dock-scope">담당 범위 · 프로모션 정책·업무 + ACS·CBS·Swing 매뉴얼 + 등록된 편성표</div>
 
       <div className="dock-log" ref={logRef}>
         {assistant.messages.length === 0 && (

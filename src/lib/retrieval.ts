@@ -42,6 +42,15 @@ function countOccurrences(haystack: string, needle: string): number {
   return count
 }
 
+/** 마크다운 표기(링크·강조·인용)를 벗겨 사람이 읽는 문장만 남긴다. */
+function stripMarkdown(text: string): string {
+  return text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+    .replace(/[*`>#|]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function bestParagraph(body: string, terms: string[]): string {
   const paragraphs = body
     .split(/\n{2,}/)
@@ -58,7 +67,7 @@ function bestParagraph(body: string, terms: string[]): string {
       best = p
     }
   }
-  return best.replace(/[#*>`|]/g, '').replace(/\s+/g, ' ').trim()
+  return stripMarkdown(best)
 }
 
 export function searchDocs(query: string, pool: WikiDoc[] = docs): ScoredDoc[] {
@@ -87,7 +96,7 @@ export function extractSentences(doc: WikiDoc, query: string, limit = 3): string
     .split('\n')
     .map((l) => l.trim())
     .filter((l) => l.length > 10 && !l.startsWith('#') && !l.startsWith('|') && !l.startsWith('---'))
-    .map((l) => l.replace(/^[-*>]\s*/, '').replace(/[*`]/g, ''))
+    .map((l) => stripMarkdown(l.replace(/^[-*>]\s*/, '')))
 
   return lines
     .map((line) => {
