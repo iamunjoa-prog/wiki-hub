@@ -1,9 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Plugin } from 'vite'
+import { loadEnv, type Plugin } from 'vite'
+import { askGemini } from './gemini.js'
+import { buildDocsBlock, REPLY_SCHEMA, type CliReply } from './knowledge.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -14,27 +16,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 export type Engine = 'claude' | 'codex'
 
-export interface CliReply {
-  text: string
-  sourcePaths: string[]
-}
-
 const ROOT = resolve(__dirname, '..')
 const KNOWLEDGE_DIR = resolve(ROOT, '지식')
 const PROMPT_FILE = resolve(__dirname, 'assistant-prompt.md')
 
 const TIMEOUT_MS: Record<Engine, number> = { claude: 120_000, codex: 180_000 }
-
-// OpenAI 구조화 출력은 additionalProperties:false 와 전체 required 를 요구한다.
-const REPLY_SCHEMA = {
-  type: 'object',
-  properties: {
-    text: { type: 'string' },
-    sourcePaths: { type: 'array', items: { type: 'string' } },
-  },
-  required: ['text', 'sourcePaths'],
-  additionalProperties: false,
-}
 
 /** Windows의 npm 셸 래퍼(claude.cmd, codex.cmd)는 cmd.exe를 거쳐야 실행되므로 인자 속 따옴표를 이스케이프한다. */
 const IS_WIN = process.platform === 'win32'
@@ -158,25 +144,12 @@ async function askClaude(query: string): Promise<CliReply> {
   return out.structured_output as CliReply
 }
 
-function listDocs(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const full = join(dir, e.name)
-    if (e.isDirectory()) return listDocs(full)
-    return e.name.endsWith('.md') ? [full] : []
-  })
-}
-
 /**
  * Codex는 Windows 샌드박스가 셸 실행을 막는 환경이 있어(CreateProcessWithLogonW 1385) 문서를 직접 못 읽는다.
  * 샌드박스를 끄는 대신 전체 문서(약 100KB)를 프롬프트에 넣고 read-only 샌드박스를 유지한다.
  */
 async function askCodex(query: string): Promise<CliReply> {
-  const docsBlock = listDocs(KNOWLEDGE_DIR)
-    .map((file) => {
-      const path = relative(KNOWLEDGE_DIR, file).replace(/\\/g, '/')
-      return `<document path="${path}">\n${readFileSync(file, 'utf8')}\n</document>`
-    })
-    .join('\n\n')
+  const docsBlock = buildDocsBlock(KNOWLEDGE_DIR)
 
   const prompt = [
     readFileSync(PROMPT_FILE, 'utf8'),
@@ -219,17 +192,24 @@ export function cliBridge(): Plugin {
     apply: 'serve',
     configureServer(server) {
       const log = server.config.logger
+      // CLI가 없거나 실패할 때 쓰는 Gemini API 키 — 허브 폴더의 .env.local 에서 읽는다 (브라우저로는 보내지 않음)
+      const env = loadEnv(server.config.mode, server.config.root, '')
+      const geminiKey = env.GEMINI_API_KEY || process.env.GEMINI_API_KEY
+      const geminiModel = env.GEMINI_MODEL || process.env.GEMINI_MODEL
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
       getEngineStatus().then((s) => {
         const mark = (e: Engine) => (!s[e].installed ? '✗ 미설치' : s[e].loggedIn ? '✓' : '⚠ 로그인 필요')
-        log.info(`[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')}`)
+        log.info(
+          `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'}`,
+        )
       })
 
       server.middlewares.use('/api/engines', async (_req, res) => {
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         const status = await getEngineStatus()
         for (const e of ENGINES) installed[e] = status[e].installed
-        res.end(JSON.stringify(status))
+        const gemini = Boolean(geminiKey)
+        res.end(JSON.stringify({ ...status, gemini: { installed: gemini, loggedIn: gemini } }))
       })
 
       server.middlewares.use('/api/login', (req, res) => {
@@ -265,12 +245,23 @@ export function cliBridge(): Plugin {
         req.on('end', async () => {
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
           try {
-            const { query, engine = 'claude' } = JSON.parse(body) as { query?: string; engine?: Engine }
+            const { query, engine = 'claude' } = JSON.parse(body) as { query?: string; engine?: Engine | 'gemini' }
             if (!query?.trim()) throw new Error('질문이 비어 있습니다')
-            if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)
-            if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
             const started = Date.now()
-            const reply = await ASK[engine](query.trim())
+            let reply: CliReply
+            if (engine === 'gemini') {
+              if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
+              reply = await askGemini(query.trim(), {
+                apiKey: geminiKey,
+                model: geminiModel,
+                knowledgeDir: KNOWLEDGE_DIR,
+                promptFile: PROMPT_FILE,
+              })
+            } else {
+              if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)
+              if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
+              reply = await ASK[engine](query.trim())
+            }
             log.info(`[cli-bridge] ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${query.trim()}`)
             res.end(JSON.stringify(reply))
           } catch (err) {

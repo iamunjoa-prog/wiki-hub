@@ -83,23 +83,30 @@ export interface AssistantReply {
   answeredBy?: string
 }
 
-export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex' }
+export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
+
+/** 자동 선택 순서 — CLI가 있으면 CLI, 없으면 Gemini API */
+export const ENGINE_PRIORITY: Engine[] = ['claude', 'codex', 'gemini']
 
 type EngineStatus = import('../types').EngineStatus
+type CliEngine = import('../types').CliEngine
 
-/** 로컬 dev 서버에 있는 CLI의 설치·로그인 상태. 배포본처럼 경로가 없으면 null — 선택 버튼을 숨긴다. */
-export async function fetchEngines(): Promise<Record<Engine, EngineStatus> | null> {
+/**
+ * 서버가 제공하는 엔진별 상태. 로컬 허브는 claude·codex·gemini, 배포 허브는 gemini만 돌려준다.
+ * 경로 자체가 없으면 null — 규칙 기반으로만 답한다.
+ */
+export async function fetchEngines(): Promise<Partial<Record<Engine, EngineStatus>> | null> {
   try {
     const res = await fetch('/api/engines')
     if (!res.ok || !res.headers.get('content-type')?.includes('application/json')) return null
-    return (await res.json()) as Record<Engine, EngineStatus>
+    return (await res.json()) as Partial<Record<Engine, EngineStatus>>
   } catch {
     return null
   }
 }
 
 /** 로컬 PC에 CLI 로그인용 터미널 창을 띄워 달라고 요청한다. 창을 못 띄우면 직접 실행할 명령을 돌려준다. */
-export async function requestLogin(engine: Engine): Promise<{ opened: boolean; command: string } | null> {
+export async function requestLogin(engine: CliEngine): Promise<{ opened: boolean; command: string } | null> {
   try {
     const res = await fetch('/api/login', {
       method: 'POST',
@@ -147,32 +154,40 @@ export function answer(query: string): AssistantReply {
   return { text, sources, campaign }
 }
 
+async function askEngine(query: string, engine: Engine): Promise<AssistantReply> {
+  const res = await fetch('/api/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query, engine }),
+  })
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  const data = (await res.json()) as { text: string; sourcePaths: string[] }
+
+  const sources: SourceRef[] = data.sourcePaths
+    .map((p) => docs.find((d) => d.path === p.replace(/\\/g, '/').replace(/^\.?\//, '')))
+    .filter((d): d is (typeof docs)[number] => Boolean(d))
+    .map((d) => ({ docId: d.id, label: `출처 · ${d.title}` }))
+
+  const campaign = detectCampaignIntent(query) ? buildCampaignDraft(query) : undefined
+  return { text: data.text, sources, campaign, answeredBy: ENGINE_LABEL[engine] }
+}
+
 /**
- * 로컬 dev 서버의 /api/ask(Claude Code·Codex CLI 중계)로 답을 받는다.
- * 경로가 없거나(배포본·CLI 미설치) 실패하면 규칙 기반 answer()로 대체해 누구나 쓸 수 있게 한다.
+ * 쓸 수 있는 엔진을 순서대로 시도한다 — 선택한 CLI가 실패하면 다음 엔진(예: Gemini)으로 넘어간다.
+ * 모두 없거나 실패하면 규칙 기반 answer()로 대체해 누구나 쓸 수 있게 한다.
  */
-export async function askAssistant(query: string, engine: Engine | null): Promise<AssistantReply> {
-  if (!engine) return { ...answer(query), answeredBy: '규칙 기반' }
-  try {
-    const res = await fetch('/api/ask', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, engine }),
-    })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
-    const data = (await res.json()) as { text: string; sourcePaths: string[] }
-
-    const sources: SourceRef[] = data.sourcePaths
-      .map((p) => docs.find((d) => d.path === p.replace(/\\/g, '/').replace(/^\.?\//, '')))
-      .filter((d): d is (typeof docs)[number] => Boolean(d))
-      .map((d) => ({ docId: d.id, label: `출처 · ${d.title}` }))
-
-    const campaign = detectCampaignIntent(query) ? buildCampaignDraft(query) : undefined
-    return { text: data.text, sources, campaign, answeredBy: ENGINE_LABEL[engine] }
-  } catch (err) {
-    console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패 — 규칙 기반 답변 사용:`, (err as Error).message)
-    return { ...answer(query), answeredBy: `규칙 기반 (${ENGINE_LABEL[engine]} 응답 실패)` }
+export async function askAssistant(query: string, engines: Engine[]): Promise<AssistantReply> {
+  const failed: string[] = []
+  for (const engine of engines) {
+    try {
+      const reply = await askEngine(query, engine)
+      return failed.length ? { ...reply, answeredBy: `${reply.answeredBy} (${failed.join('·')} 응답 실패)` } : reply
+    } catch (err) {
+      console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패:`, (err as Error).message)
+      failed.push(ENGINE_LABEL[engine])
+    }
   }
+  return { ...answer(query), answeredBy: failed.length ? `규칙 기반 (${failed.join('·')} 응답 실패)` : '규칙 기반' }
 }
 
 export function makeMessage(role: ChatMessage['role'], text: string, extra?: Partial<ChatMessage>): ChatMessage {

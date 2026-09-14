@@ -9,7 +9,7 @@ import {
 } from 'react'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
-import { askAssistant, fetchEngines, makeMessage, newId } from '../lib/assistant'
+import { askAssistant, ENGINE_PRIORITY, fetchEngines, makeMessage, newId } from '../lib/assistant'
 import type {
   CampaignDraft,
   CategoryId,
@@ -33,10 +33,10 @@ interface AssistantState {
   messages: ChatMessage[]
   pending: boolean
   campaignDraft: CampaignDraft | null
-  /** CLI별 설치·로그인 상태. 확인 전이면 undefined, 배포본처럼 중계 서버가 없으면 null */
-  engineStatus: Record<Engine, EngineStatus> | null | undefined
-  /** 답변에 쓸 수 있는(설치 + 로그인) CLI. 중계 서버가 없으면 null */
-  engines: Record<Engine, boolean> | null
+  /** 엔진별 상태 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini만. 확인 전이면 undefined, 서버 경로가 없으면 null */
+  engineStatus: Partial<Record<Engine, EngineStatus>> | null | undefined
+  /** 답변에 쓸 수 있는(설치 + 로그인/키) 엔진. 서버 경로가 없으면 null */
+  engines: Partial<Record<Engine, boolean>> | null
   /** 실제로 답변에 쓸 CLI — 선택한 CLI가 없으면 설치된 다른 CLI, 둘 다 없으면 null(규칙 기반) */
   engine: Engine | null
 }
@@ -95,14 +95,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
     () => (localStorage.getItem(LS_ENGINE) as Engine) || 'claude',
   )
-  const [engineStatus, setEngineStatus] = useState<Record<Engine, EngineStatus> | null | undefined>(undefined)
+  const [engineStatus, setEngineStatus] = useState<Partial<Record<Engine, EngineStatus>> | null | undefined>(undefined)
   const refreshEngines = useCallback(() => fetchEngines().then(setEngineStatus), [])
   const engines = useMemo(
     () =>
       engineStatus
         ? (Object.fromEntries(
-            Object.entries(engineStatus).map(([e, s]) => [e, s.installed && s.loggedIn]),
-          ) as Record<Engine, boolean>)
+            Object.entries(engineStatus).map(([e, s]) => [e, Boolean(s?.installed && s.loggedIn)]),
+          ) as Partial<Record<Engine, boolean>>)
         : null,
     [engineStatus],
   )
@@ -114,11 +114,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshEngines()
   }, [refreshEngines])
 
-  const engine: Engine | null = !engines
-    ? null
-    : engines[preferredEngine]
-      ? preferredEngine
-      : ((Object.keys(engines) as Engine[]).find((e) => engines[e]) ?? null)
+  // 선택한 엔진을 먼저, 나머지는 CLI → Gemini 순으로 시도한다
+  const usableEngines = useMemo<Engine[]>(
+    () =>
+      engines
+        ? [preferredEngine, ...ENGINE_PRIORITY.filter((e) => e !== preferredEngine)].filter((e) => engines[e])
+        : [],
+    [engines, preferredEngine],
+  )
+  const engine: Engine | null = usableEngines[0] ?? null
 
   useEffect(() => {
     if (!toast) return
@@ -139,7 +143,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setDockOpen(true)
     setMessages((prev) => [...prev, makeMessage('user', q)])
     setPending(true)
-    askAssistant(q, engine).then((reply) => {
+    askAssistant(q, usableEngines).then((reply) => {
       setMessages((prev) => [
         ...prev,
         makeMessage('assistant', reply.text, {
@@ -151,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (reply.campaign) setCampaignDraft(reply.campaign)
       setPending(false)
     })
-  }, [engine])
+  }, [usableEngines])
 
   const submitProposal = useCallback(
     (docId: string, newBody: string, reason: string) => {
