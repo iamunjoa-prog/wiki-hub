@@ -109,7 +109,7 @@ export function AssistantDock() {
         {assistant.messages.map((m) => (
           <Message key={m.id} msg={m} />
         ))}
-        {assistant.pending && <div className="typing">문서를 찾는 중…</div>}
+        {assistant.pending && <div className="typing">문서를 읽고 답을 정리하는 중… (최대 30초 내외)</div>}
       </div>
 
       <div className="dock-foot">

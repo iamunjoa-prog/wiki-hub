@@ -116,6 +116,33 @@ export function answer(query: string): AssistantReply {
   return { text, sources, campaign }
 }
 
+/**
+ * 로컬 dev 서버의 /api/ask(Claude Code CLI 중계)로 답을 받는다.
+ * 경로가 없거나(배포본·CLI 미설치) 실패하면 규칙 기반 answer()로 대체해 누구나 쓸 수 있게 한다.
+ */
+export async function askAssistant(query: string): Promise<AssistantReply> {
+  try {
+    const res = await fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = (await res.json()) as { text: string; sourcePaths: string[] }
+
+    const sources: SourceRef[] = data.sourcePaths
+      .map((p) => docs.find((d) => d.path === p.replace(/\\/g, '/').replace(/^\.?\//, '')))
+      .filter((d): d is (typeof docs)[number] => Boolean(d))
+      .map((d) => ({ docId: d.id, label: `출처 · ${d.title}` }))
+
+    const campaign = detectCampaignIntent(query) ? buildCampaignDraft(query) : undefined
+    return { text: data.text, sources, campaign }
+  } catch (err) {
+    console.info('[assistant] CLI 연결 없음 — 규칙 기반 답변 사용:', (err as Error).message)
+    return answer(query)
+  }
+}
+
 export function makeMessage(role: ChatMessage['role'], text: string, extra?: Partial<ChatMessage>): ChatMessage {
   return { id: newId('msg'), role, text, ...extra }
 }
