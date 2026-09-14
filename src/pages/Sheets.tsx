@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
-import { gnbList } from '../data/sheets'
+import { gnbList, platformLabel } from '../data/sheets'
 import { useApp } from '../store/AppStore'
+import type { SheetPlatform } from '../types'
 
 const typeLabel = { sheet: '시트', screen: '전용 화면' } as const
 
@@ -12,8 +13,22 @@ export function Sheets() {
   const navigate = useNavigate()
 
   const [q, setQ] = useState('')
-  const [gnb, setGnb] = useState('')
   const [owner, setOwner] = useState('')
+
+  // GNB·플랫폼은 사이드바 메뉴(편성/스케줄 › 홈 › B tv)와 맞물리도록 URL에 둔다
+  const gnb = params.get('gnb') ?? ''
+  const platformParam = params.get('platform')
+  const platform = platformParam && platformParam in platformLabel ? (platformParam as SheetPlatform) : null
+
+  const setGnb = (value: string) =>
+    setParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (value) next.set('gnb', value)
+      else next.delete('gnb')
+      if (value !== '홈') next.delete('platform')
+      next.delete('id')
+      return next
+    })
 
   const owners = useMemo(() => [...new Set(sheets.map((s) => s.ownerName))], [sheets])
 
@@ -22,6 +37,7 @@ export function Sheets() {
     return (
       text.includes(q.toLowerCase()) &&
       (!gnb || s.gnb === gnb) &&
+      (!platform || s.platform === platform) &&
       (!owner || s.ownerName === owner)
     )
   })
@@ -32,12 +48,24 @@ export function Sheets() {
     (p) => p.sheetId === selectedId && p.status === 'pending',
   )
 
+  const registerQuery = new URLSearchParams()
+  if (gnb) registerQuery.set('gnb', gnb)
+  if (platform) registerQuery.set('platform', platform)
+  const registerUrl = `/sheets/new${registerQuery.size ? `?${registerQuery}` : ''}`
+
+  const gnbText = (s: { gnb: string; platform?: SheetPlatform }) =>
+    s.platform ? `${s.gnb} · ${platformLabel[s.platform]}` : s.gnb
+
   return (
     <>
       <TopBar />
       <div className="content flush sheetzone" style={{ display: 'flex', flexDirection: 'column' }}>
         <div className="panel-head" style={{ background: 'var(--surface)', flex: 'none' }}>
-          <span className="label strong">GNB별 편성표</span>
+          <span className="label strong">
+            편성/스케줄
+            {gnb && ` › ${gnb}`}
+            {platform && ` › ${platformLabel[platform]}`}
+          </span>
           <span className="tag">비공식 · 링크 허브</span>
           <span className="mono muted" style={{ marginLeft: 'auto', fontSize: 10.5 }}>
             본부 전체 공개
@@ -68,7 +96,7 @@ export function Sheets() {
                   <option key={o}>{o}</option>
                 ))}
               </select>
-              <button className="btn sm primary" onClick={() => navigate('/sheets/new')}>
+              <button className="btn sm primary" onClick={() => navigate(registerUrl)}>
                 + 등록
               </button>
             </div>
@@ -86,7 +114,13 @@ export function Sheets() {
                 <button
                   key={s.id}
                   className={`sheet-grid-row${s.id === selectedId ? ' on' : ''}`}
-                  onClick={() => setParams({ id: s.id })}
+                  onClick={() =>
+                    setParams((prev) => {
+                      const next = new URLSearchParams(prev)
+                      next.set('id', s.id)
+                      return next
+                    })
+                  }
                 >
                   <span className="name">
                     <span className={`tag${s.type === 'screen' ? ' solid' : ''}`} style={{ flex: 'none' }}>
@@ -95,7 +129,7 @@ export function Sheets() {
                     <span style={{ color: s.id === selectedId ? 'var(--text)' : undefined }}>{s.name}</span>
                   </span>
                   <span>{s.ownerName}</span>
-                  <span>{s.gnb}</span>
+                  <span>{gnbText(s)}</span>
                   <span>
                     {s.periodStart.slice(5)}–{s.periodEnd.slice(5)}
                   </span>
@@ -106,7 +140,7 @@ export function Sheets() {
                 <div className="empty" style={{ background: 'var(--surface)' }}>
                   <div className="box" />
                   조건에 맞는 편성표가 없습니다
-                  <button className="btn sm primary" onClick={() => navigate('/sheets/new')}>
+                  <button className="btn sm primary" onClick={() => navigate(registerUrl)}>
                     + 편성표 등록
                   </button>
                 </div>
@@ -121,7 +155,7 @@ export function Sheets() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ font: '700 14px var(--mono)' }}>{selected.name}</div>
                     <div className="mono muted" style={{ fontSize: 10.5, marginTop: 5 }}>
-                      {selected.ownerName} · {selected.gnb} · {selected.periodStart.slice(5)}–
+                      {selected.ownerName} · {gnbText(selected)} · {selected.periodStart.slice(5)}–
                       {selected.periodEnd.slice(5)} · {typeLabel[selected.type]}
                     </div>
                   </div>

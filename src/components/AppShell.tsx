@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { categories } from '../data/docs'
+import { platformLabel } from '../data/sheets'
+import type { SheetPlatform } from '../types'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 
@@ -112,14 +114,80 @@ function WikiTree() {
   )
 }
 
+const HOME_LIST_URL = `/sheets?gnb=${encodeURIComponent('홈')}`
+
+// 편성/스케줄 > 홈(B tv · 모바일 B tv) · 캠페인. 캠페인은 하위 없이 바로 웹앱 화면으로 간다.
+function ScheduleTree() {
+  const location = useLocation()
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+
+  const onList = location.pathname === '/sheets'
+  const gnb = onList ? params.get('gnb') : null
+  const platform = onList ? params.get('platform') : null
+  const inHome = gnb === '홈'
+  const onCampaign = location.pathname === '/sheets/campaign'
+  const rootOn = onList && !gnb
+  const inSchedule = location.pathname.startsWith('/sheets')
+
+  const [homeOpen, setHomeOpen] = useState(inHome)
+  useEffect(() => {
+    if (inHome) setHomeOpen(true)
+  }, [inHome])
+
+  return (
+    <div className="nav-group">
+      <NavLink to="/sheets" end className={`nav-item${rootOn ? ' on' : inSchedule ? ' trail' : ''}`}>
+        편성/스케줄
+      </NavLink>
+      <div className="nav-children">
+        <div>
+          <div className={`nav-item sub has-toggle${inHome && !platform ? ' on' : inHome ? ' trail' : ''}`}>
+            <button
+              className="nav-toggle"
+              onClick={() => setHomeOpen((o) => !o)}
+              aria-expanded={homeOpen}
+              aria-label={`홈 ${homeOpen ? '접기' : '펼치기'}`}
+            >
+              <Chevron open={homeOpen} />
+            </button>
+            <button
+              className="nav-label"
+              onClick={() => {
+                navigate(HOME_LIST_URL)
+                setHomeOpen(true)
+              }}
+            >
+              홈
+            </button>
+          </div>
+          {homeOpen && (
+            <div className="nav-children depth2">
+              {(Object.keys(platformLabel) as SheetPlatform[]).map((p) => (
+                <button
+                  key={p}
+                  className={`nav-item sub leaf${inHome && platform === p ? ' on' : ''}`}
+                  onClick={() => navigate(`${HOME_LIST_URL}&platform=${p}`)}
+                >
+                  {platformLabel[p]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <NavLink to="/sheets/campaign" className={`nav-item sub no-toggle${onCampaign ? ' on' : ''}`}>
+          캠페인
+        </NavLink>
+      </div>
+    </div>
+  )
+}
+
 function Sidebar() {
   const { session, setRole, proposals, promotions } = useApp()
-  const location = useLocation()
   const pendingCount =
     proposals.filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length
-
-  const inSheets = location.pathname.startsWith('/sheets')
 
   return (
     <aside className="sidebar">
@@ -134,9 +202,7 @@ function Sidebar() {
 
         <WikiTree />
 
-        <NavLink to="/sheets" className={() => `nav-item${inSheets ? ' on' : ''}`}>
-          GNB별 편성표
-        </NavLink>
+        <ScheduleTree />
         <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           내 요청 현황
         </NavLink>

@@ -134,7 +134,7 @@ export function Dashboard() {
 
               <div className="panel">
                 <div className="panel-head">
-                  <span className="label strong">자주 쓰는 GNB 편성표</span>
+                  <span className="label strong">자주 쓰는 편성/스케줄</span>
                   <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/sheets')}>
                     전체 보기 →
                   </button>

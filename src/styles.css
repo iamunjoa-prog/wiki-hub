@@ -234,6 +234,12 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .chev.open { transform: rotate(90deg); }
 
 .nav-item.leaf { font-size: 13px; padding: 5px 8px; }
+/* 화살표 없는 형제 메뉴 — 화살표 있는 메뉴와 글자 시작점을 맞춘다 */
+.nav-item.sub.no-toggle { padding-left: 22px; }
+
+/* 외부 웹앱을 본문 전체에 띄우는 화면 (편성/스케줄 › 캠페인) */
+.content.app-frame-wrap { display: flex; flex-direction: column; overflow: hidden; }
+.app-frame { flex: 1; width: 100%; border: 0; background: var(--surface); }
 .nav-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
 
