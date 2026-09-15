@@ -85,3 +85,103 @@ export function diffWithPrev(index: number) {
     removed: [...before].filter((i) => !cur.has(i)).map((i) => labels[i]),
   }
 }
+
+/**
+ * 연속 편성 구간. 모니터링에서 실제로 궁금한 건 "오늘 뭐가 걸렸나"보다
+ * "이게 언제부터 언제까지 걸려 있나 / 뭐랑 겹치나"라서, 날짜별 목록을
+ * 배너 단위 막대로 뒤집어 놓는다.
+ */
+export interface Run {
+  zone: SlotZone
+  /** labels 인덱스 */
+  label: number
+  /** 전달한 날짜 배열 안에서의 시작·끝 위치 (둘 다 포함) */
+  from: number
+  to: number
+}
+
+export interface RunRow {
+  key: string
+  zone: SlotZone
+  label: number
+  name: string
+  kind: SlotKind
+  runs: Run[]
+  /** 구간 길이 합 — 며칠 걸렸는지 */
+  days: number
+}
+
+const ZONE_ORDER: SlotZone[] = ['pre', 'lib', 'post']
+
+/** dayIndexes(scheduleDays 인덱스 배열)를 배너별 연속 구간으로 접는다. */
+export function runRows(dayIndexes: number[]): RunRow[] {
+  const open = new Map<string, Run>()
+  const rows = new Map<string, RunRow>()
+
+  dayIndexes.forEach((di, col) => {
+    const day = scheduleDays[di]
+    const seen = new Set<string>()
+
+    for (const zone of ZONE_ORDER) {
+      for (const label of day[zone]) {
+        const key = `${zone}:${label}`
+        seen.add(key)
+        const cur = open.get(key)
+        if (cur && cur.to === col - 1) {
+          cur.to = col
+          continue
+        }
+        const run: Run = { zone, label, from: col, to: col }
+        open.set(key, run)
+        const row = rows.get(key)
+        if (row) {
+          row.runs.push(run)
+          continue
+        }
+        const slot = parse(labels[label], zone, 0)
+        rows.set(key, { key, zone, label, name: slot.name, kind: slot.kind, runs: [run], days: 0 })
+      }
+    }
+
+    for (const [key, run] of open) if (!seen.has(key) && run.to < col) open.delete(key)
+  })
+
+  const out = [...rows.values()]
+  for (const row of out) row.days = row.runs.reduce((n, r) => n + (r.to - r.from + 1), 0)
+
+  return out.sort(
+    (a, b) =>
+      ZONE_ORDER.indexOf(a.zone) - ZONE_ORDER.indexOf(b.zone) ||
+      a.runs[0].from - b.runs[0].from ||
+      b.days - a.days,
+  )
+}
+
+/**
+ * 매스(타겟 미해당) 사용자에게 실제로 보이는 슬롯.
+ * 타겟 배너는 추출된 모수에게만 나가므로, 그 외 사용자가 보는 화면에서는 빠진다.
+ * 정책 상한(앞 5 / 콘텐츠 10 / 뒤 5)과 비교해야 하는 숫자도 이쪽이다.
+ */
+export const isMassVisible = (slot: Slot) => slot.kind !== 'target'
+
+export interface MassCount {
+  pre: number
+  lib: number
+  post: number
+  total: number
+  /** 타겟 배너 수 — 매스 화면에서 빠지는 만큼 */
+  targetOnly: number
+}
+
+export function massCount(day: ScheduleDay): MassCount {
+  const n = { pre: 0, lib: 0, post: 0, total: 0, targetOnly: 0 }
+  for (const zone of ZONE_ORDER) {
+    for (const slot of slotsOf(day, zone)) {
+      if (isMassVisible(slot)) {
+        n[zone] += 1
+        n.total += 1
+      } else n.targetOnly += 1
+    }
+  }
+  return n
+}
