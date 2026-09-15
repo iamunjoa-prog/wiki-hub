@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { GoogleGenAI } from '@google/genai'
 import {
+  type AskInput,
   buildDocsBlock,
   buildEditRequest,
   checkEditReply,
@@ -25,7 +26,7 @@ export interface GeminiOptions {
  * CLI가 없는 사용자용 — Gemini API에 위키 문서 전체를 system instruction으로 넣고 { text, sourcePaths } JSON으로 받는다.
  * 호출은 항상 서버(로컬 vite 중계 또는 Vercel 함수)에서 해서 API 키가 브라우저에 노출되지 않게 한다.
  */
-export async function askGemini(query: string, opts: GeminiOptions): Promise<CliReply> {
+export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<CliReply> {
   const ai = new GoogleGenAI({ apiKey: opts.apiKey })
   const systemInstruction = [
     readFileSync(opts.promptFile, 'utf8'),
@@ -35,7 +36,11 @@ export async function askGemini(query: string, opts: GeminiOptions): Promise<Cli
 
   const response = await ai.models.generateContent({
     model: opts.model || GEMINI_DEFAULT_MODEL,
-    contents: query,
+    // 기획 상담은 여러 턴에 걸쳐 조건을 모으므로 이력을 그대로 넘긴다
+    contents: [
+      ...input.history.map((t) => ({ role: t.role === 'user' ? 'user' : 'model', parts: [{ text: t.text }] })),
+      { role: 'user', parts: [{ text: input.query }] },
+    ],
     config: {
       systemInstruction,
       responseMimeType: 'application/json',

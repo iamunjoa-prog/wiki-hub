@@ -1,5 +1,5 @@
 ﻿param([switch]$Check)
-# 본부 지식 허브 첫 실행 세팅 — start-hub.bat 이 매번 호출한다. 이미 갖춰진 항목은 조용히 건너뛴다.
+# 플랫폼 담당 지식 허브 첫 실행 세팅 — start-hub.bat 이 매번 호출한다. 이미 갖춰진 항목은 조용히 건너뛴다.
 # -Check: 아무것도 설치·생성하지 않고 상태만 출력한다.
 
 $ErrorActionPreference = 'Continue'
@@ -58,13 +58,13 @@ foreach ($name in $cli.Keys) {
 }
 
 # 4. 바탕화면 바로가기
-$shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '본부 지식 허브.lnk'
+$shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '플랫폼 담당 지식 허브.lnk'
 if (-not $Check -and -not (Test-Path $shortcut)) {
   $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
   $link.TargetPath = Join-Path $root 'start-hub.bat'
   $link.WorkingDirectory = $root
   $link.Save()
-  Write-Host "[완료] 바탕화면에 '본부 지식 허브' 바로가기를 만들었습니다. 다음부터는 그걸 더블클릭하세요." -ForegroundColor Green
+  Write-Host "[완료] 바탕화면에 '플랫폼 담당 지식 허브' 바로가기를 만들었습니다. 다음부터는 그걸 더블클릭하세요." -ForegroundColor Green
 }
 
 # 5. 패키지

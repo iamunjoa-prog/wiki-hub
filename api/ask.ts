@@ -2,7 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { readGeminiKey } from '../server/env.js'
 import { askGemini } from '../server/gemini.js'
-import { buildDocsBlock } from '../server/knowledge.js'
+import { buildDocsBlock, parseAskInput, type AskInput } from '../server/knowledge.js'
 
 /**
  * 배포 허브(Vercel)의 챗봇 답변 — CLI가 없으므로 Gemini API로 답한다.
@@ -10,7 +10,6 @@ import { buildDocsBlock } from '../server/knowledge.js'
  */
 
 const ROOT = process.cwd()
-const MAX_QUERY = 2000
 
 const KNOWLEDGE_DIR = join(ROOT, '지식')
 const PROMPT_FILE = join(ROOT, 'server', 'assistant-prompt.md')
@@ -36,18 +35,15 @@ export async function POST(request: Request): Promise<Response> {
   const origin = request.headers.get('origin')
   if (origin && new URL(origin).host !== new URL(request.url).host) return error(403, '허용되지 않은 요청입니다')
 
-  let query = ''
+  let input: AskInput
   try {
-    const body = (await request.json()) as { query?: unknown }
-    query = String(body.query ?? '').trim()
-  } catch {
-    return error(400, '요청 형식이 올바르지 않습니다')
+    input = parseAskInput(await request.json())
+  } catch (err) {
+    return error(400, (err as Error).message || '요청 형식이 올바르지 않습니다')
   }
-  if (!query) return error(400, '질문이 비어 있습니다')
-  if (query.length > MAX_QUERY) return error(400, `질문은 ${MAX_QUERY}자 이내로 입력해 주세요`)
 
   try {
-    const reply = await askGemini(query, {
+    const reply = await askGemini(input, {
       apiKey,
       model: process.env.GEMINI_MODEL,
       knowledgeDir: KNOWLEDGE_DIR,

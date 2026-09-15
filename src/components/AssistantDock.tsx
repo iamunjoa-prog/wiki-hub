@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ENGINE_LABEL, SUGGESTED_QUESTIONS } from '../lib/assistant'
-import { useApp } from '../store/AppStore'
-import type { CampaignDraft, ChatMessage, Engine } from '../types'
+import { useApp, type IntentChoice } from '../store/AppStore'
+import type { ChatMessage, Engine } from '../types'
 
 function RichText({ text }: { text: string }) {
   return (
@@ -21,28 +21,36 @@ function RichText({ text }: { text: string }) {
   )
 }
 
-function CampaignCard({ draft }: { draft: CampaignDraft }) {
-  const navigate = useNavigate()
+/**
+ * 진행 의도 확인 — 조건 카드를 먼저 띄우지 않고 "진행하려는 프로모션이 있는지"부터 묻는다.
+ * '네'를 고르면 상품 유형만 확인하고 프로모션 어드민 화면을 새 탭으로 연다.
+ */
+function IntentChip({ msg }: { msg: ChatMessage }) {
+  const { resolveIntent } = useApp()
+  const intent = msg.intent
+  if (!intent) return null
+
+  const choices: { label: string; value: IntentChoice }[] =
+    intent.kind === 'confirm'
+      ? [
+          { label: '네, 진행할게요', value: 'yes' },
+          { label: '아니요, 질문만 할게요', value: 'no' },
+        ]
+      : [
+          { label: '월정액(PPM)', value: 'PPM' },
+          { label: '단건(PPV)', value: 'PPV' },
+        ]
+
   return (
-    <div className="campaign-card">
-      <span className="t">프로모션 진행 의도 감지 · 조건 정리됨</span>
-      <dl>
-        <dt>타겟</dt>
-        <dd>{draft.target}</dd>
-        <dt>기간</dt>
-        <dd>
-          {draft.periodStart} ~ {draft.periodEnd}
-        </dd>
-        <dt>채널</dt>
-        <dd>{draft.channel}</dd>
-        <dt>타겟수</dt>
-        <dd>{draft.targetCount}</dd>
-        <dt>근거 정책</dt>
-        <dd>{draft.policyRefs.join(' · ')}</dd>
-      </dl>
-      <button className="btn accent sm block" onClick={() => navigate('/handoff')}>
-        확인 화면으로 →
-      </button>
+    <div className="intent-chip">
+      <span className="t">{intent.question}</span>
+      <div className="suggest">
+        {choices.map((c) => (
+          <button key={c.value} onClick={() => resolveIntent(msg.id, c.value)}>
+            {c.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -54,7 +62,7 @@ function Message({ msg }: { msg: ChatMessage }) {
 
   return (
     <div className="msg bot">
-      <RichText text={msg.text} />
+      {msg.text && <RichText text={msg.text} />}
       {msg.sources && msg.sources.length > 0 && (
         <div className="sources">
           {msg.sources.map((s) => (
@@ -64,7 +72,8 @@ function Message({ msg }: { msg: ChatMessage }) {
           ))}
         </div>
       )}
-      {msg.campaign && <CampaignCard draft={msg.campaign} />}
+      {msg.intent && <IntentChip msg={msg} />}
+      {msg.intentAnswer && <div className="intent-answer">선택 · {msg.intentAnswer}</div>}
       {msg.answeredBy && <div className="by">답변 · {msg.answeredBy}</div>}
     </div>
   )
