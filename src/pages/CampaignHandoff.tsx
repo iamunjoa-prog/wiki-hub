@@ -1,24 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
+import { buildCampaignUrl, CAMPAIGN_URL } from '../lib/campaignLink'
 import { useApp } from '../store/AppStore'
 import type { CampaignDraft } from '../types'
-
-const CAMPAIGN_URL = 'https://btvcuration.github.io/campaign/'
-
-function buildHandoffUrl(draft: CampaignDraft): string {
-  const params = new URLSearchParams({
-    target: draft.target,
-    periodStart: draft.periodStart,
-    periodEnd: draft.periodEnd,
-    channel: draft.channel,
-    targetCount: draft.targetCount,
-    policyRefs: draft.policyRefs.join(','),
-    note: draft.note,
-    source: 'wiki-hub',
-  })
-  return `${CAMPAIGN_URL}?${params.toString()}`
-}
 
 export function CampaignHandoff() {
   const { assistant, setCampaignDraft, openDock, showToast } = useApp()
@@ -55,7 +40,7 @@ export function CampaignHandoff() {
   const proceed = () => {
     setCampaignDraft(draft)
     showToast('확정 조건을 담아 프로모션 자동화 화면으로 전달했습니다')
-    window.open(buildHandoffUrl(draft), '_blank', 'noopener,noreferrer')
+    window.open(buildCampaignUrl(draft), '_blank', 'noopener,noreferrer')
   }
 
   return (
@@ -150,7 +135,7 @@ export function CampaignHandoff() {
             className="hint"
             style={{ marginTop: 8, wordBreak: 'break-all', fontSize: 10.5 }}
           >
-            {buildHandoffUrl(draft)}
+            {buildCampaignUrl(draft)}
           </div>
         </details>
       </div>

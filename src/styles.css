@@ -537,6 +537,19 @@ button.row:hover { background: var(--surface-subtle); }
 .campaign-card dt { color: var(--muted); }
 .campaign-card dd { margin: 0; color: var(--text); }
 
+/* 진행 의도 확인 — 조건 카드보다 가볍게, 답을 고르면 사라진다 */
+.intent-chip {
+  border: 1px solid var(--accent);
+  background: var(--surface);
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.intent-chip .t { font: 12.5px var(--mono); color: var(--accent); line-height: 1.5; }
+.intent-chip .suggest button { border-color: var(--accent); color: var(--accent); }
+.msg .intent-answer { margin-top: 6px; font: 11.5px var(--mono); color: var(--muted); }
+
 .suggest { display: flex; flex-wrap: wrap; gap: 5px; }
 .suggest button {
   border: 1px solid var(--line);
@@ -790,3 +803,117 @@ button.row:hover { background: var(--surface-subtle); }
 
 .sk { background: var(--rowsep); height: 9px; animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+/* ---------- 편성/스케줄 › 홈 › B tv (Today B tv 스케줄링) ---------- */
+
+.btv-page { display: flex; flex-direction: column; }
+.btv-split { flex: 1; min-height: 0; display: flex; }
+
+.btv-days {
+  width: 210px;
+  flex: none;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+}
+.btv-month-row { display: flex; gap: 5px; padding: 10px; border-bottom: 1px solid var(--border); }
+.btv-day-list { flex: 1; overflow: auto; padding: 6px; display: flex; flex-direction: column; gap: 1px; }
+
+.btv-day {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  text-align: left;
+}
+.btv-day:hover { background: rgba(0, 0, 0, 0.035); }
+.btv-day.on { background: var(--text); color: #fff; }
+.btv-day.idle { opacity: 0.45; }
+.btv-day-date { font: 600 12.5px var(--mono); width: 54px; flex: none; display: flex; gap: 4px; }
+.btv-day-date em { font-style: normal; color: var(--muted); }
+.btv-day.on .btv-day-date em { color: rgba(255, 255, 255, 0.6); }
+.btv-day-date em.sun { color: var(--accent); }
+.btv-day-date em.sat { color: #3b6fd8; }
+.btv-day-bars { flex: 1; display: flex; gap: 2px; align-items: center; min-width: 0; }
+.btv-day-bars .bar { height: 4px; border-radius: 2px; }
+.bar.z-pre { background: #ea002c; }
+.bar.z-lib { background: #c8a300; }
+.bar.z-post { background: #3b6fd8; }
+.btv-day.on .btv-day-bars .bar { filter: brightness(1.7); }
+.btv-day-n { font-size: 11px; color: var(--muted); }
+.btv-day.on .btv-day-n { color: rgba(255, 255, 255, 0.7); }
+
+.btv-rail { flex: 1; min-width: 0; overflow: auto; padding: 16px 18px 28px; }
+.btv-rail-head { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
+.btv-rail-head h1 { margin: 0; font: 700 22px var(--mono); }
+.btv-rail-head h1 em { font: 600 14px var(--mono); font-style: normal; color: var(--muted); margin-left: 6px; }
+.btv-rail-head p { margin: 5px 0 0; font-size: 12.5px; }
+
+.btv-counts { margin-left: auto; display: flex; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.btv-count { padding: 8px 14px; display: flex; flex-direction: column; gap: 2px; border-right: 1px solid var(--border); }
+.btv-count:last-child { border-right: 0; }
+.btv-count b { font: 700 20px var(--mono); }
+.btv-count span { font: 11.5px var(--mono); color: var(--muted); }
+
+.btv-ended {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  margin-bottom: 14px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.btv-zone { margin-bottom: 16px; border-left: 3px solid var(--border); padding-left: 12px; }
+.btv-zone.z-pre { border-left-color: #ea002c; }
+.btv-zone.z-lib { border-left-color: #c8a300; }
+.btv-zone.z-post { border-left-color: #3b6fd8; }
+.btv-zone-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; }
+.btv-zone-head .mono { font-size: 11.5px; }
+.btv-zone-empty { font: 12.5px var(--mono); color: var(--muted); padding: 10px 0 4px; }
+
+.rail-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
+  gap: 8px;
+}
+.rail-card {
+  display: flex;
+  gap: 9px;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.rail-card:hover { border-color: var(--line); box-shadow: var(--shadow-hover); }
+.rail-order {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border);
+  font: 600 11px var(--mono);
+  color: var(--text-2);
+}
+.rail-body { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.rail-name { font: 600 13px/1.45 var(--mono); word-break: keep-all; }
+.rail-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 11px; }
+.rail-kind { font: 600 10.5px var(--mono); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--line); color: var(--text-2); }
+.rail-kind.k-mass { border-color: #ea002c; color: #ea002c; }
+.rail-kind.k-target { border-color: #3b6fd8; color: #3b6fd8; }
+.rail-kind.k-content { border-color: #c8a300; color: #9a7d00; }
+.rail-new { font: 600 10.5px var(--mono); padding: 1px 5px; border-radius: 3px; background: var(--text); color: #fff; }
