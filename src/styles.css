@@ -25,7 +25,7 @@
   --w-sidebar-doc: 248px;
   --w-toc: 200px;
   --w-rail: 44px;
-  --w-dock: 300px;
+  --w-dock: clamp(320px, 33vw, 560px);
   --w-detail: 320px;
   --h-topbar: 44px;
 }
