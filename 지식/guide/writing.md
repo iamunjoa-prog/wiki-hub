@@ -24,6 +24,7 @@ source: "지식 문서 폴더 규약"
 | --- | --- | --- |
 | `지식/programming/` | 편성 | `PRG-*` |
 | `지식/promotion/` | 프로모션 | `PPC-P-*` · `PPC-R-*` |
+| `지식/insight/` | 마케팅 인사이트 | `MKI-*` |
 | `지식/system/` | 시스템 매뉴얼 | `PPC-ACS` · `PPC-CBS` · `PPC-SWG` |
 | `지식/guide/` | 이용 안내 | `HUB-*` |
 
@@ -55,7 +56,7 @@ source: "원문 위치"
 | --- | --- |
 | `title` | 사이드바·문서 상단에 보이는 제목 |
 | `code` | 문서 식별자. 챗봇이 근거를 표시할 때, 문서끼리 링크할 때 쓴다 |
-| `category` | `programming` / `promotion` / `system` / `guide` — 어느 메뉴에 들어갈지 |
+| `category` | `programming` / `promotion` / `insight` / `system` / `guide` — 어느 메뉴에 들어갈지 |
 | `scope` | `PPM 전용` / `PPV 전용` / `공통` — 챗봇이 상품 유형으로 근거를 거를 때 쓴다 |
 | `systems` | 관련 시스템 (`[CBS, ACS]`) |
 | `order` | 메뉴 안에서의 정렬 순서 (작을수록 위) |

@@ -7,7 +7,7 @@ export interface Session {
   role: Role
 }
 
-export type CategoryId = 'programming' | 'promotion' | 'system' | 'guide'
+export type CategoryId = 'programming' | 'promotion' | 'insight' | 'system' | 'guide'
 
 export interface Category {
   id: CategoryId
