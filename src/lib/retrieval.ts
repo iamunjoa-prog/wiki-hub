@@ -1,5 +1,5 @@
 import { docs } from '../data/docs'
-import type { ProductScope, WikiDoc } from '../types'
+import type { CategoryId, ProductScope, WikiDoc } from '../types'
 
 const STOPWORDS = new Set([
   '그리고', '그래서', '하지만', '어떻게', '무엇', '뭐야', '알려줘', '해줘', '있나요', '인가요',
@@ -14,17 +14,19 @@ function rawTerms(text: string): string[] {
     .filter((t) => t.length > 1 && !STOPWORDS.has(t))
 }
 
-export function tokenize(text: string): string[] {
-  const raw = rawTerms(text)
-
-  const out = new Set<string>()
-  for (const t of raw) {
-    out.add(t)
-    if (/^[가-힣]+$/.test(t) && t.length > 2) {
-      out.add(t.slice(0, t.length - 1))
-      if (t.length > 3) out.add(t.slice(0, t.length - 2))
-    }
+/** 한 단어와 그 접두 조각들. 조사가 붙은 "반응률이"가 "반응률"과 이어지게 한다. */
+function expand(term: string): string[] {
+  const out = [term]
+  if (/^[가-힣]+$/.test(term) && term.length > 2) {
+    out.push(term.slice(0, term.length - 1))
+    if (term.length > 3) out.push(term.slice(0, term.length - 2))
   }
+  return out
+}
+
+export function tokenize(text: string): string[] {
+  const out = new Set<string>()
+  for (const t of rawTerms(text)) for (const v of expand(t)) out.add(v)
   return [...out]
 }
 
@@ -85,6 +87,39 @@ export interface SearchInput {
   context?: string
   /** 사용자가 밝힌 상품 유형. 지정하면 반대 상품 전용 문서는 근거에서 뺀다 */
   scope?: ProductScope | null
+  /**
+   * 이 메뉴의 문서를 먼저 본다. 판단을 묻는 질문에는 정책 문서보다
+   * 마케팅 인사이트가 답에 가깝다 — 같은 점수면 이쪽을 위로 올린다.
+   */
+  preferCategory?: CategoryId | null
+}
+
+/** 선호 메뉴 가산 — 순위를 뒤집을 만큼은 올리되, 관련 없는 문서를 끌어올리지는 않는 배수 */
+const PREFERRED_CATEGORY_BOOST = 1.8
+
+/**
+ * 흔한 단어는 근거로서 값이 싸다. '메뉴'는 거의 모든 매뉴얼에 있지만 '띠배너'는 몇 문서에만 있다.
+ * 문서 빈도의 역수로 가중해, 스치듯 겹친 단어가 점수를 끌어올리지 못하게 한다.
+ */
+const idfCache = new WeakMap<WikiDoc[], Map<string, number>>()
+
+function idfFor(pool: WikiDoc[], term: string): number {
+  let table = idfCache.get(pool)
+  if (!table) {
+    table = new Map()
+    idfCache.set(pool, table)
+  }
+  const cached = table.get(term)
+  if (cached !== undefined) return cached
+
+  let df = 0
+  for (const doc of pool) {
+    if (`${doc.title} ${doc.code} ${doc.body}`.toLowerCase().includes(term)) df++
+  }
+  const idf = Math.log(pool.length / (1 + df)) + 1
+  const value = Math.max(idf, 0.2)
+  table.set(term, value)
+  return value
 }
 
 /** 이번 발화의 단어가 앞선 대화의 단어를 항상 이기도록 가중치를 매긴다. */
@@ -107,7 +142,8 @@ function weighTerms(input: SearchInput): Map<string, number> {
  */
 function countTermsMentioned(doc: WikiDoc, terms: string[]): number {
   const haystack = `${doc.title} ${doc.code} ${doc.body}`.toLowerCase()
-  return terms.filter((t) => haystack.includes(t)).length
+  // 조사까지 그대로 일치할 필요는 없다 — "반응률이"는 "반응률"로도 걸린다.
+  return terms.filter((t) => expand(t).some((v) => haystack.includes(v))).length
 }
 
 /** PPV를 물었는데 PPM 전용 정책이 근거로 올라오는 일을 막는다. 공통 문서는 어느 쪽이든 남긴다. */
@@ -132,10 +168,12 @@ export function searchDocs(input: string | SearchInput, pool: WikiDoc[] = docs):
     const body = doc.body.toLowerCase()
     let score = 0
     for (const [t, w] of weights) {
-      score += countOccurrences(title, t) * 8 * w
-      score += countOccurrences(doc.code.toLowerCase(), t) * 10 * w
-      score += Math.min(countOccurrences(body, t), 6) * 2 * w
+      const weight = w * idfFor(pool, t)
+      score += countOccurrences(title, t) * 8 * weight
+      score += countOccurrences(doc.code.toLowerCase(), t) * 10 * weight
+      score += Math.min(countOccurrences(body, t), 6) * 2 * weight
     }
+    if (search.preferCategory && doc.category === search.preferCategory) score *= PREFERRED_CATEGORY_BOOST
     if (score > 0) scored.push({ doc, score, excerpt: bestParagraph(doc.body, terms) })
   }
   return scored.sort((a, b) => b.score - a.score)

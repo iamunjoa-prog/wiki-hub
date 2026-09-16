@@ -237,24 +237,26 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
    * 대화 전체를 한 덩어리로 검색하면 어시스턴트가 되물은 "월정액(PPM)인가요?" 때문에
    * PPV 질문에 PPM 정책이 근거로 올라온다.
    */
+  const advice = wantsAdvice(query)
   const search: SearchInput = {
     query,
     context: userText(history),
     scope: slots.product?.scope ?? null,
+    // 판단을 물으면 정책 문서보다 마케팅 인사이트가 답에 가깝다
+    preferCategory: advice ? 'insight' : null,
   }
   const hits = searchDocs(search).slice(0, 3)
 
   if (hits.length === 0) {
     return {
       text:
-        '담당 범위(프로모션 정책·업무, ACS·CBS·Swing 시스템 매뉴얼, 등록된 편성표) 안에서 근거 문서를 찾지 못했습니다.\n' +
+        '담당 범위(프로모션 정책·업무, 마케팅 인사이트, ACS·CBS·Swing 시스템 매뉴얼, 등록된 편성표) 안에서 근거 문서를 찾지 못했습니다.\n' +
         '상품 유형(PPM·PPV)이나 문서 코드(예: PPC-P-02)를 함께 넣어 다시 물어봐 주세요.',
       sources: [],
     }
   }
 
   // 결론부터 한 줄 — 무엇을 기준으로 답했는지 먼저 밝힌다.
-  const advice = wantsAdvice(query)
   const lines: string[] = []
   if (slots.product) {
     lines.push(
@@ -283,10 +285,16 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     }
   }
 
-  // 위키가 담는 것은 정책·설정 기준이다. 성과를 끌어올리는 실행 방안은 범위 밖이라 그렇다고 밝힌다.
+  // 판단 질문에는 인용한 근거 외에 더 볼 문서를 한 줄로 짚어 준다.
   if (advice) {
+    const more = hits
+      .slice(0, 3)
+      .filter((h) => h.doc.category === 'insight' && !used.includes(h))
+      .map((h) => `${h.doc.title}(${h.doc.code})`)
     lines.push(
-      '위키에 적힌 근거는 여기까지(정책·시스템 설정 기준)입니다. 크리에이티브·구좌 구성 같은 실행 방안은 문서 범위 밖이라, 진행하실 거면 프로모션 자동화 화면에서 이어가시는 편이 빠릅니다.',
+      more.length
+        ? `구좌 구성과 카피 방향은 마케팅 인사이트의 ${more.join(' · ')}에 더 정리되어 있습니다.`
+        : '구좌 구성·카피 방향·과거 실적은 마케팅 인사이트 메뉴에서 더 볼 수 있습니다.',
     )
   }
 

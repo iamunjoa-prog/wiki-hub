@@ -4,6 +4,7 @@ import { knowledgeDocs } from './knowledgeDocs'
 export const categories: Category[] = [
   { id: 'programming', label: '편성' },
   { id: 'promotion', label: '프로모션' },
+  { id: 'insight', label: '마케팅 인사이트' },
   { id: 'system', label: '시스템 매뉴얼' },
   { id: 'guide', label: '이용 안내' },
 ]
@@ -11,6 +12,7 @@ export const categories: Category[] = [
 export const categoryShort: Record<Category['id'], string> = {
   programming: '편성',
   promotion: '프로모션',
+  insight: '인사이트',
   system: '시스템',
   guide: '안내',
 }
