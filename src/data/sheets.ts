@@ -2,7 +2,7 @@ import type { Promotion, Proposal, Sheet, SheetPlatform } from '../types'
 
 export const gnbList = ['홈', '영화/시리즈', 'TV 방송', '키즈', '스포츠']
 
-/** 편성/스케줄 › 홈 하위 메뉴 (사이드바 순서) */
+/** 편성/스케줄 목록 화면의 플랫폼 구분 (사이드바 트리는 data/scheduleNav.ts) */
 export const platformLabel: Record<SheetPlatform, string> = { btv: 'B tv', mobile: '모바일 B tv' }
 
 /** 캠페인 대시보드 › 캠페인 신청 및 캘린더 — 편성/스케줄 › 캠페인의 "상세 보기"가 이동하는 곳 */

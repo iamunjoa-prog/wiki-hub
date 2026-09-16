@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { categories } from '../data/docs'
-import { platformLabel } from '../data/sheets'
-import type { SheetPlatform } from '../types'
+import type { ScheduleLeaf } from '../data/scheduleNav'
+import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 
@@ -117,32 +117,38 @@ function WikiTree() {
   )
 }
 
-const HOME_LIST_URL = `/sheets?gnb=${encodeURIComponent('홈')}`
-// B tv는 목록이 아니라 Today B tv 스케줄링 화면으로 바로 간다
-const BTV_URL = '/sheets/btv'
-// 모바일 B tv는 하위에 빅배너 스케줄 화면을 둔다
-const BIG_BANNER_URL = '/sheets/mobile/big-banner'
-
-// 편성/스케줄 > 홈(B tv · 모바일 B tv) · 캠페인. 캠페인은 하위 없이 바로 웹앱 화면으로 간다.
+// 편성/스케줄 > B tv · 모바일 B tv > (홈 묶음 | 단일 화면). 트리 정의는 data/scheduleNav.ts 한 곳에 둔다.
 function ScheduleTree() {
   const location = useLocation()
-  const [params] = useSearchParams()
   const navigate = useNavigate()
 
-  const onList = location.pathname === '/sheets'
-  const gnb = onList ? params.get('gnb') : null
-  const platform = onList ? params.get('platform') : null
-  const onBtv = location.pathname === '/sheets/btv'
-  const onBigBanner = location.pathname === BIG_BANNER_URL
-  const inHome = gnb === '홈' || onBtv || onBigBanner
-  const onCampaign = location.pathname === '/sheets/campaign'
-  const rootOn = onList && !gnb
   const inSchedule = location.pathname.startsWith('/sheets')
+  const rootOn = location.pathname === '/sheets'
+  const here = location.pathname
 
-  const [homeOpen, setHomeOpen] = useState(inHome)
+  /** 지금 보고 있는 화면이 속한 플랫폼·묶음 — 열어 둔 채로 보여야 위치를 알 수 있다 */
+  const trail = scheduleTrail(here)
+  const activePlatform = trail?.[1] ?? null
+  const activeGroup = trail?.length === 4 ? trail[2] : null
+
+  const [openPlatform, setOpenPlatform] = useState<string | null>(activePlatform ?? 'B tv')
+  const [openGroup, setOpenGroup] = useState<string | null>(activeGroup)
+
   useEffect(() => {
-    if (inHome) setHomeOpen(true)
-  }, [inHome])
+    if (activePlatform) setOpenPlatform(activePlatform)
+    if (activeGroup) setOpenGroup(activeGroup)
+  }, [activePlatform, activeGroup])
+
+  const leaf = (l: ScheduleLeaf) => (
+    <button
+      key={l.path}
+      className={`nav-item sub leaf${here === l.path ? ' on' : ''}`}
+      onClick={() => navigate(l.path)}
+    >
+      <span className="nav-ellipsis">{l.label}</span>
+      {l.soon && <span className="nav-soon">{l.soon}</span>}
+    </button>
+  )
 
   return (
     <div className="nav-group">
@@ -150,61 +156,58 @@ function ScheduleTree() {
         편성/스케줄
       </NavLink>
       <div className="nav-children">
-        <div>
-          <div
-            className={`nav-item sub has-toggle${
-              inHome && !platform && !onBtv && !onBigBanner ? ' on' : inHome ? ' trail' : ''
-            }`}
-          >
-            <button
-              className="nav-toggle"
-              onClick={() => setHomeOpen((o) => !o)}
-              aria-expanded={homeOpen}
-              aria-label={`홈 ${homeOpen ? '접기' : '펼치기'}`}
-            >
-              <Chevron open={homeOpen} />
-            </button>
-            <button
-              className="nav-label"
-              onClick={() => {
-                navigate(HOME_LIST_URL)
-                setHomeOpen(true)
-              }}
-            >
-              홈
-            </button>
-          </div>
-          {homeOpen && (
-            <div className="nav-children depth2">
-              {(Object.keys(platformLabel) as SheetPlatform[]).map((p) => (
-                <div key={p}>
-                  <button
-                    className={`nav-item sub leaf${
-                      (p === 'btv' ? onBtv : inHome && platform === p) ? ' on' : p === 'mobile' && onBigBanner ? ' trail' : ''
-                    }`}
-                    onClick={() => navigate(p === 'btv' ? BTV_URL : `${HOME_LIST_URL}&platform=${p}`)}
-                  >
-                    {platformLabel[p]}
-                  </button>
-                  {/* 모바일 B tv 아래 빅배너 스케줄 — 시트를 그대로 옮긴 화면이라 목록을 거치지 않는다 */}
-                  {p === 'mobile' && (
-                    <div className="nav-children depth3">
-                      <button
-                        className={`nav-item sub leaf${onBigBanner ? ' on' : ''}`}
-                        onClick={() => navigate(BIG_BANNER_URL)}
-                      >
-                        빅배너 스케줄
-                      </button>
-                    </div>
-                  )}
+        {scheduleNav.map((platform) => {
+          const open = openPlatform === platform.label
+          const onTrail = activePlatform === platform.label
+          return (
+            <div key={platform.label}>
+              <div className={`nav-item sub has-toggle${onTrail ? ' trail' : ''}`}>
+                <button
+                  className="nav-toggle"
+                  onClick={() => setOpenPlatform((o) => (o === platform.label ? null : platform.label))}
+                  aria-expanded={open}
+                  aria-label={`${platform.label} ${open ? '접기' : '펼치기'}`}
+                >
+                  <Chevron open={open} />
+                </button>
+                <button
+                  className="nav-label"
+                  onClick={() => setOpenPlatform((o) => (o === platform.label ? null : platform.label))}
+                >
+                  {platform.label}
+                </button>
+              </div>
+              {open && (
+                <div className="nav-children depth2">
+                  {platform.children.map((node) => {
+                    if (!isGroup(node)) return leaf(node)
+                    const key = node.label
+                    const groupOpen = openGroup === key || activeGroup === key
+                    const groupTrail = onTrail && activeGroup === key
+                    return (
+                      <div key={key}>
+                        <div className={`nav-item sub has-toggle${groupTrail ? ' trail' : ''}`}>
+                          <button
+                            className="nav-toggle"
+                            onClick={() => setOpenGroup((o) => (o === key ? null : key))}
+                            aria-expanded={groupOpen}
+                            aria-label={`${key} ${groupOpen ? '접기' : '펼치기'}`}
+                          >
+                            <Chevron open={groupOpen} />
+                          </button>
+                          <button className="nav-label" onClick={() => setOpenGroup((o) => (o === key ? null : key))}>
+                            {key}
+                          </button>
+                        </div>
+                        {groupOpen && <div className="nav-children depth3">{node.children.map(leaf)}</div>}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
-        <NavLink to="/sheets/campaign" className={`nav-item sub no-toggle${onCampaign ? ' on' : ''}`}>
-          캠페인
-        </NavLink>
+          )
+        })}
       </div>
     </div>
   )
