@@ -21,6 +21,8 @@ export interface WikiDoc {
   category: CategoryId
   /** 문서 코드 — 챗봇 근거 정책 참조에 사용 (예: MKT-P-03) */
   code: string
+  /** 적용 상품 — 프론트매터 `scope`. 챗봇이 반대 상품 문서를 근거로 집지 않게 하는 데 쓴다 */
+  scope?: ProductScope | '공통'
   body: string
   version: number
   updatedBy: string
