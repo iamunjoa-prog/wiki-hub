@@ -158,7 +158,7 @@ export function BigBannerSchedule() {
       <TopBar />
       <div className="content flush sheetzone btv-page">
         <div className="panel-head" style={{ background: 'var(--surface)', flex: 'none' }}>
-          <span className="label strong">편성/스케줄 › 홈 › 모바일 B tv</span>
+          <span className="label strong">편성/스케줄 › 모바일 B tv › 홈 › 빅배너</span>
           <span className="tag solid">빅배너 스케줄</span>
           <span className="mono muted" style={{ fontSize: 10.5 }}>
             조회기준 {base} · 순번대로 롤링 노출

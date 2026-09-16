@@ -146,7 +146,7 @@ export function BtvSchedule() {
       <TopBar />
       <div className="content flush sheetzone btv-page">
         <div className="panel-head" style={{ background: 'var(--surface)', flex: 'none' }}>
-          <span className="label strong">편성/스케줄 › 홈 › B tv</span>
+          <span className="label strong">편성/스케줄 › B tv › 홈 › Today B tv</span>
           <span className="tag solid">Today B tv 스케줄링</span>
           <span className="mono muted" style={{ fontSize: 10.5 }}>
             콘텐츠 앞 {SLOT_LIMIT.pre} · 콘텐츠 {SLOT_LIMIT.lib} · 콘텐츠 뒤 {SLOT_LIMIT.post} 노출 정책

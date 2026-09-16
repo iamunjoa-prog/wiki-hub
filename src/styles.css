@@ -328,6 +328,23 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .nav-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
 
+/* 아직 화면이 없는 편성 메뉴 — 눌러도 되는 메뉴와 구분되게 상태를 옆에 붙인다 */
+.nav-soon {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--muted);
+  font-size: 10.5px;
+  letter-spacing: -0.01em;
+}
+
+/* 편성/스케줄 자리표시 화면 */
+.schedule-soon { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.schedule-soon h1 { margin: 0; font-size: 20px; }
+.schedule-soon p { margin: 0; }
+
 .sidebar-foot {
   flex: none;
   margin-top: auto;
