@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ENGINE_LABEL, SUGGESTED_QUESTIONS } from '../lib/assistant'
+import { ENGINE_LABEL, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
 import type { ChatMessage, Engine } from '../types'
 
@@ -119,6 +119,30 @@ export function EngineToggle({ label = '답변 엔진', busy = false }: { label?
   )
 }
 
+/** 바로가기 — 챗봇 안에서 편성 스케줄·캠페인 현황을 열고, 프로모션 기획도 바로 시작한다. */
+function QuickActions({ onPlan }: { onPlan: () => void }) {
+  const navigate = useNavigate()
+  const { closeDock } = useApp()
+
+  const go = (to: string) => {
+    navigate(to)
+    closeDock()
+  }
+
+  return (
+    <div className="dock-quick">
+      <span className="label">바로 확인하기</span>
+      <div className="suggest">
+        <button onClick={() => go('/sheets/btv')}>홈 편성 스케줄 (B tv)</button>
+        <button onClick={() => go('/sheets/campaign')}>캠페인 신청 캘린더</button>
+        <button className="go" onClick={onPlan}>
+          프로모션 기획 시작하기
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function AssistantDock() {
   const { assistant, closeDock, ask } = useApp()
   const [input, setInput] = useState('')
@@ -136,12 +160,15 @@ export function AssistantDock() {
   return (
     <aside className="dock">
       <div className="dock-head">
-        <span className="t">편성·마케팅 어시스턴트</span>
+        <span className="t">무엇이든 물어보세요</span>
         <button onClick={closeDock} aria-label="어시스턴트 닫기">
           ▸
         </button>
       </div>
-      <div className="dock-scope">담당 범위 · 프로모션 정책·업무 + ACS·CBS·Swing 매뉴얼 + 등록된 편성표</div>
+      <div className="dock-scope">
+        프로모션 정책·업무, ACS·CBS·Swing 매뉴얼, 편성표까지 — 자세한 내용을 챗봇이 문서 근거로 정리해 드립니다
+      </div>
+      <QuickActions onPlan={() => send(PLAN_STARTER)} />
 
       <div className="dock-log" ref={logRef}>
         {assistant.messages.length === 0 && (

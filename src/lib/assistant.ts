@@ -330,6 +330,9 @@ export function makeMessage(role: ChatMessage['role'], text: string, extra?: Par
   return { id: newId('msg'), role, text, ...extra }
 }
 
+/** '프로모션 기획 시작하기' 버튼이 보내는 첫 발화 — 진행 의도 확인 흐름을 그대로 탄다. */
+export const PLAN_STARTER = '프로모션을 기획하려고 해'
+
 export const SUGGESTED_QUESTIONS = [
   '월정액 할인 쿠폰 프로모션 배너로 진행 가능해?',
   '판촉용 쿠폰 품의는 누구 결재가 필요해?',

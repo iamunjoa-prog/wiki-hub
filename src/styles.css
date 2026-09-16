@@ -510,6 +510,10 @@ button.row:hover { background: var(--surface-subtle); }
 .dock-head .t { font: 600 14px var(--mono); color: var(--accent); }
 .dock-head button { margin-left: auto; border: 0; background: none; color: var(--muted); font: 14.5px var(--mono); }
 .dock-scope { padding: 9px 12px; font: 11.5px/1.5 var(--mono); color: var(--muted); border-bottom: 1px solid var(--border); }
+.dock-quick { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.dock-quick .label { font: 11.5px var(--mono); color: var(--muted); }
+.dock-quick .suggest button.go { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+
 .dock-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .dock-foot .composer { display: flex; gap: 6px; }
