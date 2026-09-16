@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ENGINE_LABEL, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
@@ -213,9 +213,80 @@ function QuickActions({ onPlan }: { onPlan: () => void }) {
   )
 }
 
+/* ---------- 독 너비 조절 ---------- */
+
+const DOCK_W_KEY = 'dock-width'
+const DOCK_W_MIN = 320
+/** 사이드바(248px) + 본문 최소 480px는 남겨 둔다 — 챗봇을 넓혀도 화면을 다 먹지 않게 */
+const DOCK_W_RESERVE = 728
+const clampDockWidth = (w: number) =>
+  Math.min(Math.max(w, DOCK_W_MIN), Math.max(DOCK_W_MIN, window.innerWidth - DOCK_W_RESERVE))
+
+function readStoredDockWidth() {
+  try {
+    const raw = localStorage.getItem(DOCK_W_KEY)
+    if (raw) return clampDockWidth(Number(raw))
+  } catch {
+    /* 저장소를 못 쓰는 브라우저면 기본값으로 */
+  }
+  return clampDockWidth(Math.round(window.innerWidth * 0.33))
+}
+
+/**
+ * 왼쪽 경계를 마우스로 끌어 독 너비를 바꾼다.
+ * 드래그 중에는 본문 텍스트가 선택되지 않도록 body에 클래스를 건다.
+ */
+function useDockResize() {
+  const [width, setWidth] = useState(readStoredDockWidth)
+  const [dragging, setDragging] = useState(false)
+
+  useEffect(() => {
+    const onResize = () => setWidth((w) => clampDockWidth(w))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (e: PointerEvent) => setWidth(clampDockWidth(window.innerWidth - e.clientX))
+    const onUp = () => setDragging(false)
+    document.body.classList.add('resizing-x')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      document.body.classList.remove('resizing-x')
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [dragging])
+
+  useEffect(() => {
+    if (dragging) return
+    try {
+      localStorage.setItem(DOCK_W_KEY, String(width))
+    } catch {
+      /* 저장 못 해도 이번 세션 너비는 유지된다 */
+    }
+  }, [dragging, width])
+
+  /** 키보드로도 조절 — 화살표 16px, 홈/엔드로 최소·최대 */
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 64 : 16
+    if (e.key === 'ArrowLeft') setWidth((w) => clampDockWidth(w + step))
+    else if (e.key === 'ArrowRight') setWidth((w) => clampDockWidth(w - step))
+    else if (e.key === 'Home') setWidth(clampDockWidth(DOCK_W_MIN))
+    else if (e.key === 'End') setWidth(clampDockWidth(window.innerWidth))
+    else return
+    e.preventDefault()
+  }, [])
+
+  return { width, dragging, startDrag: () => setDragging(true), onKeyDown }
+}
+
 export function AssistantDock() {
   const { assistant, closeDock, ask } = useApp()
   const [input, setInput] = useState('')
+  const { width, dragging, startDrag, onKeyDown } = useDockResize()
   const logRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -228,7 +299,19 @@ export function AssistantDock() {
   }
 
   return (
-    <aside className="dock">
+    <aside className="dock" style={{ width }}>
+      <div
+        className={`dock-resizer${dragging ? ' on' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="챗봇 너비 조절"
+        tabIndex={0}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          startDrag()
+        }}
+        onKeyDown={onKeyDown}
+      />
       <div className="dock-head">
         <span className="t">무엇이든 물어보세요</span>
         <button onClick={closeDock} aria-label="어시스턴트 닫기">
