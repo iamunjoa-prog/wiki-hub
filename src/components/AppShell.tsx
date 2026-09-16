@@ -39,15 +39,18 @@ function WikiTree() {
   const activeCategory = location.pathname === '/wiki' ? params.get('category') : null
   const currentCategory = activeDoc?.category ?? activeCategory
 
-  const [expanded, setExpanded] = useState<string[]>(currentCategory ? [currentCategory] : [])
+  /**
+   * 카테고리는 한 번에 하나만 펼친다.
+   * 누르는 족족 쌓이면 문서가 많은 인사이트·프로모션에서 목록이 화면을 넘겨
+   * 정작 찾던 문서가 스크롤 밖으로 밀린다.
+   */
+  const [openCategory, setOpenCategory] = useState<string | null>(currentCategory ?? null)
 
   useEffect(() => {
-    if (currentCategory)
-      setExpanded((prev) => (prev.includes(currentCategory) ? prev : [...prev, currentCategory]))
+    if (currentCategory) setOpenCategory(currentCategory)
   }, [currentCategory])
 
-  const toggle = (id: string) =>
-    setExpanded((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  const toggle = (id: string) => setOpenCategory((prev) => (prev === id ? null : id))
 
   const rootOn = location.pathname === '/wiki' && !activeCategory
 
@@ -62,7 +65,7 @@ function WikiTree() {
       </NavLink>
       <div className="nav-children">
         {categories.map((c) => {
-          const open = expanded.includes(c.id)
+          const open = openCategory === c.id
           const children = docs.filter((d) => d.category === c.id)
           const catOn = activeCategory === c.id
           const catTrail = activeDoc?.category === c.id
