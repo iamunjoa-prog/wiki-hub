@@ -148,11 +148,13 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   background: var(--surface-subtle);
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 .sidebar.narrow { width: var(--w-sidebar-doc); }
 
 .brand {
   display: flex;
+  flex: none;
   align-items: center;
   gap: 7px;
   height: var(--h-topbar);
@@ -162,7 +164,17 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 }
 .brand .dot { width: 8px; height: 8px; background: var(--text); }
 
-.nav { display: flex; flex-direction: column; gap: 2px; padding: 10px; }
+/* 문서가 많은 카테고리를 펼치면 목록이 화면보다 길어진다.
+   nav가 직접 스크롤하지 않으면 로고·푸터가 눌리면서 메뉴 전체가 위로 밀린다. */
+.nav {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+}
 .nav-item {
   display: flex;
   align-items: center;
@@ -317,6 +329,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
 
 .sidebar-foot {
+  flex: none;
   margin-top: auto;
   padding: 10px 12px;
   border-top: 1px solid var(--border);
