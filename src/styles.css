@@ -25,7 +25,7 @@
   --w-sidebar-doc: 248px;
   --w-toc: 200px;
   --w-rail: 44px;
-  --w-dock: clamp(320px, 33vw, 560px);
+  --w-dock: clamp(320px, 33vw, 560px); /* 초기값 — 실제 너비는 드래그로 바뀐다 */
   --w-detail: 320px;
   --h-topbar: 44px;
 }
@@ -503,12 +503,41 @@ button.row:hover { background: var(--surface-subtle); }
 .dock {
   width: var(--w-dock);
   flex: none;
+  position: relative;
   border-left: 1px solid var(--border);
   background: var(--surface-subtle);
   display: flex;
   flex-direction: column;
   min-height: 0;
 }
+/* 왼쪽 경계를 끌어 너비 조절 — 선은 1px이지만 잡는 영역은 7px로 넉넉하게 */
+.dock-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 7px;
+  z-index: 5;
+  cursor: col-resize;
+  background: none;
+}
+.dock-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 1px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity .12s;
+}
+.dock-resizer:hover::after,
+.dock-resizer:focus-visible::after,
+.dock-resizer.on::after { opacity: 1; }
+.dock-resizer:focus-visible { outline: none; }
+/* 드래그 중에는 본문이 선택되거나 커서가 바뀌지 않게 */
+body.resizing-x { cursor: col-resize; user-select: none; }
 .dock-head {
   display: flex;
   align-items: center;
