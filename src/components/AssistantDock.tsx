@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ENGINE_LABEL, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine } from '../types'
+import type { ChatMessage, Engine, PromotionBrief } from '../types'
 
 function RichText({ text }: { text: string }) {
   return (
@@ -36,10 +36,17 @@ function IntentChip({ msg }: { msg: ChatMessage }) {
           { label: '네, 진행할게요', value: 'yes' },
           { label: '아니요, 질문만 할게요', value: 'no' },
         ]
-      : [
-          { label: '월정액(PPM)', value: 'PPM' },
-          { label: '단건(PPV)', value: 'PPV' },
-        ]
+      : intent.kind === 'product'
+        ? [
+            { label: '월정액(PPM)', value: 'PPM' },
+            { label: '단건(PPV)', value: 'PPV' },
+          ]
+        : [
+            { label: '카피 추천받기', value: 'copy' },
+            { label: '노출 구좌 추천받기', value: 'placement' },
+            { label: '프로모션 자동화로 연결', value: 'handoff' },
+            { label: '조금 더 정리할게요', value: 'later' },
+          ]
 
   return (
     <div className="intent-chip">
@@ -51,6 +58,33 @@ function IntentChip({ msg }: { msg: ChatMessage }) {
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+/**
+ * 프로모션 뼈대 — 대화에서 모인 이벤트명·기간·스킴을 한눈에 보여 준다.
+ * 아직 모르는 칸은 지어내지 않고 '미정'으로 남긴다.
+ */
+function BriefCard({ brief }: { brief: PromotionBrief }) {
+  const rows: [string, string][] = [
+    ['상품', brief.product],
+    ['이벤트명', brief.name],
+    ['기간', brief.period],
+    ['스킴', brief.scheme],
+    ['구좌', brief.channel],
+  ]
+  return (
+    <div className="brief-card">
+      <span className="t">지금까지 정리된 프로모션</span>
+      <dl>
+        {rows.map(([k, v]) => (
+          <div key={k} className={v ? undefined : 'todo'}>
+            <dt>{k}</dt>
+            <dd>{v || '미정'}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   )
 }
@@ -72,6 +106,7 @@ function Message({ msg }: { msg: ChatMessage }) {
           ))}
         </div>
       )}
+      {msg.brief && <BriefCard brief={msg.brief} />}
       {msg.intent && <IntentChip msg={msg} />}
       {msg.intentAnswer && <div className="intent-answer">선택 · {msg.intentAnswer}</div>}
       {msg.answeredBy && <div className="by">답변 · {msg.answeredBy}</div>}

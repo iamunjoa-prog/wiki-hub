@@ -557,6 +557,23 @@ button.row:hover { background: var(--surface-subtle); }
 .campaign-card dt { color: var(--muted); }
 .campaign-card dd { margin: 0; color: var(--text); }
 
+/* 프로모션 뼈대 — 이벤트명·기간·스킴을 대화 중에 눈으로 확인한다 */
+.brief-card {
+  border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  padding: 9px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.brief-card .t { font: 600 12px var(--mono); color: var(--muted); }
+.brief-card dl { margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.brief-card dl > div { display: grid; grid-template-columns: 62px 1fr; gap: 8px; font: 12.5px var(--mono); }
+.brief-card dt { color: var(--muted); margin: 0; }
+.brief-card dd { margin: 0; color: var(--text); }
+.brief-card dl > div.todo dd { color: var(--muted); }
+
 /* 진행 의도 확인 — 조건 카드보다 가볍게, 답을 고르면 사라진다 */
 .intent-chip {
   border: 1px solid var(--accent);
