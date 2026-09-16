@@ -1,8 +1,12 @@
-import type { Category, DocCommit, WikiDoc } from '../types'
+import type { Category, DocCommit, RelatedSite, WikiDoc } from '../types'
 import { knowledgeDocs } from './knowledgeDocs'
 
+/**
+ * 위키에 노출하는 카테고리.
+ * 편성은 문서 대신 편성/스케줄 화면에서 다루기로 해 목록에서 감춘다 —
+ * `categoryShort`·`CategoryId`에는 남겨 두어 과거 문서가 깨지지 않게 한다.
+ */
 export const categories: Category[] = [
-  { id: 'programming', label: '편성' },
   { id: 'promotion', label: '프로모션' },
   { id: 'insight', label: '마케팅 인사이트' },
   { id: 'system', label: '시스템 매뉴얼' },
@@ -23,9 +27,23 @@ export const docs: WikiDoc[] = knowledgeDocs
 /** 문서별 수정 이력. 비어 있으면 WikiDoc 화면이 '문서 등록' 한 줄로 대체한다. */
 export const docCommits: Record<string, DocCommit[]> = {}
 
-export const relatedSites = [
-  { title: '편성 시스템', desc: '편성표 등록 · 확정', url: 'https://example.com/programming' },
-  { title: '프로모션 자동화', desc: 'Company A 프로모션 자동화 화면', url: 'https://btvcuration.github.io/campaign/' },
-  { title: '지표 대시보드', desc: '일별 시청 지표', url: 'https://example.com/metrics' },
-  { title: '컨플루언스', desc: '이관 예정 레거시 문서', url: 'https://example.com/wiki' },
+export const relatedSites: RelatedSite[] = [
+  {
+    title: '프로모션 자동화',
+    desc: 'Target 프로모션 등록 · 실행',
+    url: 'https://btvcuration.github.io/campaign/',
+    access: '로컬',
+  },
+  {
+    title: 'CBS',
+    desc: '콘텐츠 편성 · 승인요청',
+    url: 'http://btvcbs.skbroadband.com/',
+    access: '클라우드 PC',
+  },
+  {
+    title: 'ACS',
+    desc: '광고 소재 · 캠페인 관리',
+    url: 'http://114.202.130.40:9093/',
+    access: '로컬',
+  },
 ]

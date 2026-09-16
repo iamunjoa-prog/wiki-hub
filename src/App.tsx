@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { Approvals } from './pages/Approvals'
+import { BigBannerSchedule } from './pages/BigBannerSchedule'
 import { BtvSchedule } from './pages/BtvSchedule'
 import { CampaignApp } from './pages/CampaignApp'
 import { CampaignHandoff } from './pages/CampaignHandoff'
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/search" element={<SearchResults />} />
         <Route path="/sheets" element={<Sheets />} />
         <Route path="/sheets/btv" element={<BtvSchedule />} />
+        <Route path="/sheets/mobile/big-banner" element={<BigBannerSchedule />} />
         <Route path="/sheets/new" element={<SheetRegister />} />
         <Route path="/sheets/campaign" element={<CampaignApp />} />
         <Route path="/requests" element={<MyRequests />} />

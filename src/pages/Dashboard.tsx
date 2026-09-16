@@ -125,7 +125,10 @@ export function Dashboard() {
                 <div className="link-grid">
                   {relatedSites.map((s) => (
                     <a key={s.title} className="link-card" href={s.url} target="_blank" rel="noreferrer">
-                      <span className="t">{s.title} ↗</span>
+                      <span className="t">
+                        {s.title} ↗
+                        <span className={s.access === '로컬' ? 'net' : 'net cloud'}>{s.access}</span>
+                      </span>
                       <span>{s.desc}</span>
                     </a>
                   ))}
