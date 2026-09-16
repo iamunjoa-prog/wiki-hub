@@ -117,6 +117,8 @@ function WikiTree() {
 const HOME_LIST_URL = `/sheets?gnb=${encodeURIComponent('홈')}`
 // B tv는 목록이 아니라 Today B tv 스케줄링 화면으로 바로 간다
 const BTV_URL = '/sheets/btv'
+// 모바일 B tv는 하위에 빅배너 스케줄 화면을 둔다
+const BIG_BANNER_URL = '/sheets/mobile/big-banner'
 
 // 편성/스케줄 > 홈(B tv · 모바일 B tv) · 캠페인. 캠페인은 하위 없이 바로 웹앱 화면으로 간다.
 function ScheduleTree() {
@@ -128,7 +130,8 @@ function ScheduleTree() {
   const gnb = onList ? params.get('gnb') : null
   const platform = onList ? params.get('platform') : null
   const onBtv = location.pathname === '/sheets/btv'
-  const inHome = gnb === '홈' || onBtv
+  const onBigBanner = location.pathname === BIG_BANNER_URL
+  const inHome = gnb === '홈' || onBtv || onBigBanner
   const onCampaign = location.pathname === '/sheets/campaign'
   const rootOn = onList && !gnb
   const inSchedule = location.pathname.startsWith('/sheets')
@@ -145,7 +148,11 @@ function ScheduleTree() {
       </NavLink>
       <div className="nav-children">
         <div>
-          <div className={`nav-item sub has-toggle${inHome && !platform && !onBtv ? ' on' : inHome ? ' trail' : ''}`}>
+          <div
+            className={`nav-item sub has-toggle${
+              inHome && !platform && !onBtv && !onBigBanner ? ' on' : inHome ? ' trail' : ''
+            }`}
+          >
             <button
               className="nav-toggle"
               onClick={() => setHomeOpen((o) => !o)}
@@ -167,13 +174,27 @@ function ScheduleTree() {
           {homeOpen && (
             <div className="nav-children depth2">
               {(Object.keys(platformLabel) as SheetPlatform[]).map((p) => (
-                <button
-                  key={p}
-                  className={`nav-item sub leaf${(p === 'btv' ? onBtv : inHome && platform === p) ? ' on' : ''}`}
-                  onClick={() => navigate(p === 'btv' ? BTV_URL : `${HOME_LIST_URL}&platform=${p}`)}
-                >
-                  {platformLabel[p]}
-                </button>
+                <div key={p}>
+                  <button
+                    className={`nav-item sub leaf${
+                      (p === 'btv' ? onBtv : inHome && platform === p) ? ' on' : p === 'mobile' && onBigBanner ? ' trail' : ''
+                    }`}
+                    onClick={() => navigate(p === 'btv' ? BTV_URL : `${HOME_LIST_URL}&platform=${p}`)}
+                  >
+                    {platformLabel[p]}
+                  </button>
+                  {/* 모바일 B tv 아래 빅배너 스케줄 — 시트를 그대로 옮긴 화면이라 목록을 거치지 않는다 */}
+                  {p === 'mobile' && (
+                    <div className="nav-children depth3">
+                      <button
+                        className={`nav-item sub leaf${onBigBanner ? ' on' : ''}`}
+                        onClick={() => navigate(BIG_BANNER_URL)}
+                      >
+                        빅배너 스케줄
+                      </button>
+                    </div>
+                  )}
+                </div>
               ))}
             </div>
           )}

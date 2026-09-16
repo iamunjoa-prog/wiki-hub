@@ -204,6 +204,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   border-left: 1px solid var(--border);
 }
 .nav-children.depth2 { margin-left: 18px; }
+.nav-children.depth3 { margin-left: 36px; }
 
 .nav-item.has-toggle { padding: 0; gap: 0; }
 .nav-toggle {
@@ -418,7 +419,18 @@ button.row:hover { background: var(--surface-subtle); }
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 .link-card:hover { border-color: var(--line); color: var(--text); box-shadow: var(--shadow-hover); }
-.link-card .t { color: var(--text); font-weight: 600; }
+.link-card .t { color: var(--text); font-weight: 600; display: flex; align-items: center; gap: 6px; }
+.link-card .net {
+  margin-left: auto;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: 11px var(--mono);
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.link-card .net.cloud { border-color: var(--line); color: var(--text-2); }
 
 /* ---------- wiki doc ---------- */
 
@@ -974,3 +986,49 @@ button.row:hover { background: var(--surface-subtle); }
 .rail-only { font: 600 10.5px var(--mono); padding: 1px 5px; border-radius: 3px; border: 1px dashed var(--line); color: var(--muted); }
 .btv-day-cap { padding: 6px 10px 0; font-size: 10px; }
 .tl-bar.targeted { background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0 4px, transparent 4px 8px); }
+
+/* ---------- 빅배너 스케줄 (홈 › 모바일 B tv) ---------- */
+
+.big-cards { list-style: none; margin: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.big-card {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+.big-card.evt { border-left-color: var(--accent, var(--text-2)); }
+.big-order {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  display: grid;
+  place-items: center;
+  font: 600 11.5px var(--mono);
+  color: var(--text-2);
+}
+.big-body { min-width: 0; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.big-title { font: 600 13.5px var(--mono); color: var(--text); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.big-copy {
+  margin: 0;
+  font: 12.5px var(--mono);
+  color: var(--text-2);
+  line-height: 1.5;
+  white-space: pre-line;
+}
+.big-tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.big-tag {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font: 11px var(--mono);
+  color: var(--muted);
+}
+.big-meta { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; align-items: center; }
+.big-air { padding: 1px 5px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.big-air.on { color: var(--text-2); }
+.big-img { max-width: 260px; overflow: hidden; }

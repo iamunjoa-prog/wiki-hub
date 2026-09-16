@@ -139,3 +139,12 @@ export interface ChatMessage {
   intentAnswer?: string
   answeredBy?: string
 }
+
+/** 대시보드 '관련 사이트 바로가기' 카드 */
+export interface RelatedSite {
+  title: string
+  desc: string
+  url: string
+  /** 접속 가능한 망 — 로컬(사내 PC) / 클라우드 PC */
+  access: '로컬' | '클라우드 PC'
+}
