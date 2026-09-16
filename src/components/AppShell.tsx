@@ -115,6 +115,8 @@ function WikiTree() {
 }
 
 const HOME_LIST_URL = `/sheets?gnb=${encodeURIComponent('홈')}`
+// B tv는 목록이 아니라 Today B tv 스케줄링 화면으로 바로 간다
+const BTV_URL = '/sheets/btv'
 
 // 편성/스케줄 > 홈(B tv · 모바일 B tv) · 캠페인. 캠페인은 하위 없이 바로 웹앱 화면으로 간다.
 function ScheduleTree() {
@@ -125,7 +127,8 @@ function ScheduleTree() {
   const onList = location.pathname === '/sheets'
   const gnb = onList ? params.get('gnb') : null
   const platform = onList ? params.get('platform') : null
-  const inHome = gnb === '홈'
+  const onBtv = location.pathname === '/sheets/btv'
+  const inHome = gnb === '홈' || onBtv
   const onCampaign = location.pathname === '/sheets/campaign'
   const rootOn = onList && !gnb
   const inSchedule = location.pathname.startsWith('/sheets')
@@ -142,7 +145,7 @@ function ScheduleTree() {
       </NavLink>
       <div className="nav-children">
         <div>
-          <div className={`nav-item sub has-toggle${inHome && !platform ? ' on' : inHome ? ' trail' : ''}`}>
+          <div className={`nav-item sub has-toggle${inHome && !platform && !onBtv ? ' on' : inHome ? ' trail' : ''}`}>
             <button
               className="nav-toggle"
               onClick={() => setHomeOpen((o) => !o)}
@@ -166,8 +169,8 @@ function ScheduleTree() {
               {(Object.keys(platformLabel) as SheetPlatform[]).map((p) => (
                 <button
                   key={p}
-                  className={`nav-item sub leaf${inHome && platform === p ? ' on' : ''}`}
-                  onClick={() => navigate(`${HOME_LIST_URL}&platform=${p}`)}
+                  className={`nav-item sub leaf${(p === 'btv' ? onBtv : inHome && platform === p) ? ' on' : ''}`}
+                  onClick={() => navigate(p === 'btv' ? BTV_URL : `${HOME_LIST_URL}&platform=${p}`)}
                 >
                   {platformLabel[p]}
                 </button>
@@ -193,7 +196,7 @@ function Sidebar() {
     <aside className="sidebar">
       <div className="brand">
         <span className="dot" />
-        본부 지식 허브
+        플랫폼 담당 지식 허브
       </div>
       <nav className="nav">
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>

@@ -96,6 +96,18 @@ export interface CampaignDraft {
   note: string
 }
 
+/** PPC 상품 유형 — 어드민으로 넘기기 전에 이것만 확인한다 */
+export type ProductScope = 'PPM' | 'PPV'
+
+/**
+ * 프로모션 진행 의도 확인 — 조건 카드를 먼저 들이밀지 않고, 진행할 의사인지부터 묻는다.
+ * `confirm` 에 '네'가 오면 `product` 로 넘어가고, 상품 유형까지 고르면 어드민 화면으로 보낸다.
+ */
+export interface IntentPrompt {
+  kind: 'confirm' | 'product'
+  question: string
+}
+
 export interface SourceRef {
   docId: string
   label: string
@@ -119,5 +131,9 @@ export interface ChatMessage {
   text: string
   sources?: SourceRef[]
   campaign?: CampaignDraft
+  /** 이 답변에 붙는 진행 의도 확인 — 사용자가 답하면 사라진다 */
+  intent?: IntentPrompt
+  /** 확인에 이미 답했으면 그 답 (버튼 대신 선택한 값을 보여준다) */
+  intentAnswer?: string
   answeredBy?: string
 }

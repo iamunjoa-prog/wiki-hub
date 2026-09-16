@@ -7,10 +7,13 @@ import { loadEnv, type Plugin } from 'vite'
 import { readGeminiKey } from './env.js'
 import { askGemini, editGemini } from './gemini.js'
 import {
+  type AskInput,
+  buildAskRequest,
   buildDocsBlock,
   buildEditRequest,
   checkEditReply,
   EDIT_SCHEMA,
+  parseAskInput,
   parseEditInput,
   REPLY_SCHEMA,
   type CliReply,
@@ -191,9 +194,9 @@ async function codexJson(prompt: string, schema: object, timeoutMs?: number): Pr
   }
 }
 
-const askClaude = async (query: string) =>
+const askClaude = async (input: AskInput) =>
   (await claudeJson(
-    query,
+    buildAskRequest(input),
     [
       '--system-prompt-file', PROMPT_FILE,
       '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
@@ -202,18 +205,18 @@ const askClaude = async (query: string) =>
   )) as CliReply
 
 /** 위키 문서 전체(약 100KB)를 프롬프트에 넣는다 */
-const askCodex = async (query: string) =>
+const askCodex = async (input: AskInput) =>
   (await codexJson(
     [
       readFileSync(PROMPT_FILE, 'utf8'),
       '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
       `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
-      `## 질문\n\n${query}`,
+      buildAskRequest(input),
     ].join('\n\n'),
     REPLY_SCHEMA,
   )) as CliReply
 
-const ASK: Record<Engine, (query: string) => Promise<CliReply>> = { claude: askClaude, codex: askCodex }
+const ASK: Record<Engine, (input: AskInput) => Promise<CliReply>> = { claude: askClaude, codex: askCodex }
 
 const editClaude = async (input: EditInput) =>
   checkEditReply(
@@ -303,13 +306,14 @@ export function cliBridge(): Plugin {
         req.on('end', async () => {
           res.setHeader('Content-Type', 'application/json; charset=utf-8')
           try {
-            const { query, engine = 'claude' } = JSON.parse(body) as { query?: string; engine?: Engine | 'gemini' }
-            if (!query?.trim()) throw new Error('질문이 비어 있습니다')
+            const raw = JSON.parse(body) as { engine?: Engine | 'gemini' }
+            const engine = raw.engine ?? 'claude'
+            const input = parseAskInput(raw)
             const started = Date.now()
             let reply: CliReply
             if (engine === 'gemini') {
               if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
-              reply = await askGemini(query.trim(), {
+              reply = await askGemini(input, {
                 apiKey: geminiKey,
                 model: geminiModel,
                 knowledgeDir: KNOWLEDGE_DIR,
@@ -318,9 +322,12 @@ export function cliBridge(): Plugin {
             } else {
               if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)
               if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
-              reply = await ASK[engine](query.trim())
+              reply = await ASK[engine](input)
             }
-            log.info(`[cli-bridge] ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${query.trim()}`)
+            log.info(
+              `[cli-bridge] ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.query}` +
+                (input.history.length ? ` (이력 ${input.history.length}턴)` : ''),
+            )
             res.end(JSON.stringify(reply))
           } catch (err) {
             log.error(`[cli-bridge] ${(err as Error).message}`)

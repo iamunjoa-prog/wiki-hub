@@ -2,7 +2,7 @@
 chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
-title 본부 지식 허브
+title 플랫폼 담당 지식 허브
 
 rem 더블클릭 실행기: 세팅 점검(scripts\setup.ps1) -> 허브 실행 -> 브라우저 자동 열기
 rem   start-hub.bat --check : 설치·생성 없이 상태만 확인

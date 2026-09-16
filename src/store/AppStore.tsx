@@ -4,18 +4,30 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
-import { askAssistant, ENGINE_PRIORITY, fetchEngines, makeMessage, newId } from '../lib/assistant'
+import {
+  askAssistant,
+  buildCampaignDraft,
+  ENGINE_PRIORITY,
+  fetchEngines,
+  INTENT_PRODUCT_QUESTION,
+  makeMessage,
+  newId,
+  readSlots,
+} from '../lib/assistant'
+import { buildCampaignUrl } from '../lib/campaignLink'
 import type {
   CampaignDraft,
   CategoryId,
   ChatMessage,
   Engine,
   EngineStatus,
+  ProductScope,
   Promotion,
   Proposal,
   Role,
@@ -58,6 +70,8 @@ interface AppState {
   openDock: () => void
   closeDock: () => void
   ask: (query: string) => void
+  /** 진행 의도 확인에 답한다 — '네'면 상품 유형만 더 묻고 어드민 화면을 연다 */
+  resolveIntent: (messageId: string, choice: IntentChoice) => void
   setEngine: (engine: Engine) => void
   refreshEngines: () => Promise<void>
   setCampaignDraft: (draft: CampaignDraft | null) => void
@@ -73,6 +87,9 @@ interface AppState {
     opts: { category?: CategoryId; reason?: string },
   ) => Promise<void>
 }
+
+/** 진행 확인 버튼이 돌려주는 값 */
+export type IntentChoice = 'yes' | 'no' | ProductScope
 
 const Ctx = createContext<AppState | null>(null)
 
@@ -92,6 +109,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => localStorage.getItem(LS_DOCK) === '1',
   )
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  // ask 콜백이 매 메시지마다 새로 만들어지지 않도록 최신 대화는 ref로 읽는다
+  const messagesRef = useRef<ChatMessage[]>(messages)
+  messagesRef.current = messages
+  /** 진행 확인은 한 대화에 한 번만 띄운다 */
+  const intentAskedRef = useRef(false)
   const [pending, setPending] = useState(false)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
@@ -143,21 +165,85 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const q = query.trim()
     if (!q) return
     setDockOpen(true)
+    // 이번 질문 전까지의 대화를 이력으로 넘긴다 — 기획 상담은 여러 턴에 걸쳐 조건을 모은다
+    const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
     setMessages((prev) => [...prev, makeMessage('user', q)])
     setPending(true)
-    askAssistant(q, usableEngines).then((reply) => {
+    askAssistant(q, usableEngines, history, intentAskedRef.current).then((reply) => {
+      if (reply.intent) intentAskedRef.current = true
       setMessages((prev) => [
         ...prev,
         makeMessage('assistant', reply.text, {
           sources: reply.sources,
-          campaign: reply.campaign,
+          intent: reply.intent,
           answeredBy: reply.answeredBy,
         }),
       ])
-      if (reply.campaign) setCampaignDraft(reply.campaign)
       setPending(false)
     })
   }, [usableEngines])
+
+  /** 어드민(프로모션 자동화) 화면을 새 탭으로 연다. 대화에서 파악한 조건만 실어 보낸다. */
+  const openCampaignAdmin = useCallback((scope?: ProductScope) => {
+    const turns = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
+    const draft = buildCampaignDraft(turns, scope)
+    setCampaignDraft(draft)
+    window.open(buildCampaignUrl(draft), '_blank', 'noopener,noreferrer')
+    const filled = [draft.target, draft.periodStart && `${draft.periodStart} ~ ${draft.periodEnd}`, draft.targetCount]
+      .filter(Boolean)
+      .join(' · ')
+    setMessages((prev) => [
+      ...prev,
+      makeMessage(
+        'assistant',
+        filled
+          ? `프로모션 어드민 화면을 새 탭으로 열었습니다. 대화에서 확인한 조건(${filled})만 채워 보냈고, 나머지는 화면에서 입력하시면 됩니다.`
+          : '프로모션 어드민 화면을 새 탭으로 열었습니다. 조건은 화면에서 입력하시면 됩니다.',
+      ),
+    ])
+  }, [])
+
+  const resolveIntent = useCallback(
+    (messageId: string, choice: IntentChoice) => {
+      const answered =
+        choice === 'yes'
+          ? '네, 진행할게요'
+          : choice === 'no'
+            ? '아니요, 질문만 할게요'
+            : choice === 'PPM'
+              ? '월정액(PPM)'
+              : '단건(PPV)'
+      // 버튼을 누른 메시지의 확인은 접고, 고른 값만 남긴다
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, intent: undefined, intentAnswer: answered } : m)),
+      )
+      intentAskedRef.current = true
+
+      if (choice === 'no') {
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('assistant', '알겠습니다. 정책이나 시스템 관련해 궁금한 것을 물어봐 주세요.'),
+        ])
+        return
+      }
+      if (choice === 'yes') {
+        // 대화에서 이미 상품 유형을 말했으면 더 묻지 않고 바로 보낸다
+        const known = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).product
+        if (known) {
+          openCampaignAdmin(known.scope)
+          return
+        }
+        // 질문은 확인 칩이 들고 있다 — 본문에 또 쓰면 같은 문장이 두 번 보인다
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('assistant', '', { intent: { kind: 'product', question: INTENT_PRODUCT_QUESTION } }),
+        ])
+        return
+      }
+      openCampaignAdmin(choice)
+    },
+    [openCampaignAdmin],
+  )
 
   const submitProposal = useCallback(
     (docId: string, newBody: string, reason: string) => {
@@ -312,6 +398,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openDock: () => setDockOpen(true),
     closeDock: () => setDockOpen(false),
     ask,
+    resolveIntent,
     setEngine: setPreferredEngine,
     refreshEngines,
     setCampaignDraft,
