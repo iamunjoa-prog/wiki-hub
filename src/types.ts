@@ -106,8 +106,21 @@ export type ProductScope = 'PPM' | 'PPV'
  * `confirm` 에 '네'가 오면 `product` 로 넘어가고, 상품 유형까지 고르면 어드민 화면으로 보낸다.
  */
 export interface IntentPrompt {
-  kind: 'confirm' | 'product'
+  kind: 'confirm' | 'product' | 'next'
   question: string
+}
+
+/**
+ * 대화에서 모인 프로모션 뼈대. 어드민으로 넘기기 전에 **이 세 가지**를 눈으로 확인한다 —
+ * 이벤트명·기간·스킴. 확인하지 못한 칸은 빈 값으로 두고 '미정'으로 보여 준다.
+ */
+export interface PromotionBrief {
+  /** 상품 유형 라벨 (예: 'PPV(단건)') */
+  product: string
+  name: string
+  period: string
+  scheme: string
+  channel: string
 }
 
 export interface SourceRef {
@@ -133,6 +146,8 @@ export interface ChatMessage {
   text: string
   sources?: SourceRef[]
   campaign?: CampaignDraft
+  /** 지금까지 정리된 프로모션 뼈대 — 이벤트명·기간·스킴 */
+  brief?: PromotionBrief
   /** 이 답변에 붙는 진행 의도 확인 — 사용자가 답하면 사라진다 */
   intent?: IntentPrompt
   /** 확인에 이미 답했으면 그 답 (버튼 대신 선택한 값을 보여준다) */

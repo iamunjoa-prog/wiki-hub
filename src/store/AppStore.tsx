@@ -17,7 +17,9 @@ import {
   fetchEngines,
   INTENT_PRODUCT_QUESTION,
   makeMessage,
+  NEXT_STEP_QUESTION,
   newId,
+  readBrief,
   readSlots,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
@@ -88,8 +90,26 @@ interface AppState {
   ) => Promise<void>
 }
 
-/** 진행 확인 버튼이 돌려주는 값 */
-export type IntentChoice = 'yes' | 'no' | ProductScope
+/**
+ * 확인 버튼이 돌려주는 값.
+ * `yes`·`no`·상품 유형은 진행 의도 확인, 나머지는 방향을 정한 뒤의 다음 단계다.
+ */
+export type IntentChoice = 'yes' | 'no' | ProductScope | 'copy' | 'placement' | 'handoff' | 'later'
+
+const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
+  yes: '네, 진행할게요',
+  no: '아니요, 질문만 할게요',
+  PPM: '월정액(PPM)',
+  PPV: '단건(PPV)',
+  copy: '카피 추천 먼저',
+  placement: '노출 구좌 추천 먼저',
+  handoff: '프로모션 자동화로 연결',
+  later: '조금 더 정리할게요',
+}
+
+/** 추천 버튼이 대신 보내는 질문 — 근거 문서를 타도록 평소 질문과 같은 경로로 보낸다 */
+const COPY_REQUEST = '지금 정리한 프로모션 기준으로 카피 방향을 추천해줘'
+const PLACEMENT_REQUEST = '지금 정리한 프로모션 기준으로 노출 구좌를 추천해줘'
 
 const Ctx = createContext<AppState | null>(null)
 
@@ -114,6 +134,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   messagesRef.current = messages
   /** 진행 확인은 한 대화에 한 번만 띄운다 */
   const intentAskedRef = useRef(false)
+  /** 다음 단계 안내(카피·구좌·연결)도 한 번만 띄운다. 추천을 받으러 갔다 오면 다시 열어 준다. */
+  const nextAskedRef = useRef(false)
+  /** 추천 버튼으로 보낸 질문 — 답이 오면 다음 단계 안내를 다시 붙여 연결까지 이어 준다 */
+  const resumeNextRef = useRef(false)
   const [pending, setPending] = useState(false)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
@@ -169,13 +193,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
     setMessages((prev) => [...prev, makeMessage('user', q)])
     setPending(true)
-    askAssistant(q, usableEngines, history, intentAskedRef.current).then((reply) => {
-      if (reply.intent) intentAskedRef.current = true
+    askAssistant(q, usableEngines, history, intentAskedRef.current, nextAskedRef.current).then((reply) => {
+      // 추천을 받고 돌아왔으면 연결 버튼을 다시 붙인다 — 대화가 여기서 끊기지 않게 한다
+      if (resumeNextRef.current && !reply.intent) {
+        resumeNextRef.current = false
+        reply = {
+          ...reply,
+          intent: { kind: 'next', question: NEXT_STEP_QUESTION },
+          brief: readBrief(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))),
+        }
+      }
+      // 다음 단계 안내에는 연결 버튼이 들어 있다 — 뒤늦게 진행 의사를 또 묻지 않는다
+      if (reply.intent?.kind === 'next') {
+        nextAskedRef.current = true
+        intentAskedRef.current = true
+      } else if (reply.intent) intentAskedRef.current = true
       setMessages((prev) => [
         ...prev,
         makeMessage('assistant', reply.text, {
           sources: reply.sources,
           intent: reply.intent,
+          brief: reply.brief,
           answeredBy: reply.answeredBy,
         }),
       ])
@@ -183,10 +221,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     })
   }, [usableEngines])
 
+  /** resolveIntent 가 ask 를 다시 호출해야 해서 최신 ask 를 ref 로 들고 있는다 */
+  const askRef = useRef<((query: string) => void) | null>(null)
+  askRef.current = ask
+
   /** 어드민(프로모션 자동화) 화면을 새 탭으로 연다. 대화에서 파악한 조건만 실어 보낸다. */
   const openCampaignAdmin = useCallback((scope?: ProductScope) => {
     const turns = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
     const draft = buildCampaignDraft(turns, scope)
+    const brief = readBrief(turns, scope)
     setCampaignDraft(draft)
     window.open(buildCampaignUrl(draft), '_blank', 'noopener,noreferrer')
     const filled = [draft.target, draft.periodStart && `${draft.periodStart} ~ ${draft.periodEnd}`, draft.targetCount]
@@ -199,20 +242,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
         filled
           ? `프로모션 어드민 화면을 새 탭으로 열었습니다. 대화에서 확인한 조건(${filled})만 채워 보냈고, 나머지는 화면에서 입력하시면 됩니다.`
           : '프로모션 어드민 화면을 새 탭으로 열었습니다. 조건은 화면에서 입력하시면 됩니다.',
+        { brief },
       ),
     ])
   }, [])
 
   const resolveIntent = useCallback(
     (messageId: string, choice: IntentChoice) => {
-      const answered =
-        choice === 'yes'
-          ? '네, 진행할게요'
-          : choice === 'no'
-            ? '아니요, 질문만 할게요'
-            : choice === 'PPM'
-              ? '월정액(PPM)'
-              : '단건(PPV)'
+      const answered = INTENT_ANSWER_LABEL[choice]
       // 버튼을 누른 메시지의 확인은 접고, 고른 값만 남긴다
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, intent: undefined, intentAnswer: answered } : m)),
@@ -234,6 +271,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
           return
         }
         // 질문은 확인 칩이 들고 있다 — 본문에 또 쓰면 같은 문장이 두 번 보인다
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('assistant', '', { intent: { kind: 'product', question: INTENT_PRODUCT_QUESTION } }),
+        ])
+        return
+      }
+      // 방향을 정한 뒤의 다음 단계 — 추천을 먼저 받거나, 프로모션 자동화로 넘긴다
+      if (choice === 'copy' || choice === 'placement') {
+        // 추천을 받고 나면 다시 물어봐야 하므로 안내를 열어 둔다
+        nextAskedRef.current = false
+        resumeNextRef.current = true
+        askRef.current?.(choice === 'copy' ? COPY_REQUEST : PLACEMENT_REQUEST)
+        return
+      }
+      if (choice === 'later') {
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('assistant', '알겠습니다. 이벤트명·기간·스킴이 정해지면 이어서 말씀해 주세요.'),
+        ])
+        return
+      }
+      if (choice === 'handoff') {
+        const known = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).product
+        if (known) {
+          openCampaignAdmin(known.scope)
+          return
+        }
         setMessages((prev) => [
           ...prev,
           makeMessage('assistant', '', { intent: { kind: 'product', question: INTENT_PRODUCT_QUESTION } }),
