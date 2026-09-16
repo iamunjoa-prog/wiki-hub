@@ -119,6 +119,40 @@ export function EngineToggle({ label = '답변 엔진', busy = false }: { label?
   )
 }
 
+/** 바로가기 버튼 아이콘 — 라벨 왼쪽에 붙는 14px 선 아이콘 */
+function QuickIcon({ name }: { name: 'tv' | 'calendar' | 'spark' }) {
+  const paths = {
+    tv: (
+      <>
+        <rect x="2" y="7" width="20" height="13" rx="2" />
+        <path d="m7 3 5 4 5-4" />
+      </>
+    ),
+    calendar: (
+      <>
+        <rect x="3" y="5" width="18" height="16" rx="2" />
+        <path d="M3 10h18M8 3v4M16 3v4" />
+      </>
+    ),
+    spark: <path d="M12 3v4M12 17v4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M3 12h4M17 12h4M5.6 18.4l2.8-2.8M15.6 8.4l2.8-2.8" />,
+  }
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {paths[name]}
+    </svg>
+  )
+}
+
 /**
  * 바로가기 — 챗봇 안에서 편성 스케줄·캠페인 현황을 열고, 프로모션 기획도 바로 시작한다.
  * 화면을 보면서 이어서 물어볼 수 있게 이동해도 독은 닫지 않는다.
@@ -130,10 +164,14 @@ function QuickActions({ onPlan }: { onPlan: () => void }) {
     <div className="dock-quick">
       <span className="label">바로 확인하기</span>
       <div className="suggest">
-        <button onClick={() => navigate('/sheets/btv')}>홈 편성 스케줄 (B tv)</button>
-        <button onClick={() => navigate('/sheets/campaign')}>캠페인 신청 캘린더</button>
+        <button onClick={() => navigate('/sheets/btv')}>
+          <QuickIcon name="tv" />홈 편성 스케줄 (B tv)
+        </button>
+        <button onClick={() => navigate('/sheets/campaign')}>
+          <QuickIcon name="calendar" />캠페인 신청 캘린더
+        </button>
         <button className="go" onClick={onPlan}>
-          프로모션 기획 시작하기
+          <QuickIcon name="spark" />프로모션 기획 시작하기
         </button>
       </div>
     </div>

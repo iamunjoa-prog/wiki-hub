@@ -512,7 +512,11 @@ button.row:hover { background: var(--surface-subtle); }
 .dock-scope { padding: 9px 12px; font: 11.5px/1.5 var(--mono); color: var(--muted); border-bottom: 1px solid var(--border); }
 .dock-quick { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .dock-quick .label { font: 11.5px var(--mono); color: var(--muted); }
+.dock-quick .suggest button { display: inline-flex; align-items: center; gap: 5px; }
+.dock-quick .suggest button svg { flex: none; opacity: .75; }
+.dock-quick .suggest button:hover svg { opacity: 1; }
 .dock-quick .suggest button.go { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.dock-quick .suggest button.go svg { opacity: 1; }
 
 .dock-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
