@@ -569,15 +569,7 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .dock-quick .suggest button { display: inline-flex; align-items: center; gap: 5px; }
 .dock-quick .suggest button svg { flex: none; opacity: .75; }
 .dock-quick .suggest button:hover svg { opacity: 1; }
-/* 시작 버튼은 **선택지가 아니라 실행 버튼**이다 — 테두리만 강조하면 골라 둔 항목처럼 보인다 */
-.dock-quick .suggest button.go {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-  font-weight: 600;
-}
-.dock-quick .suggest button.go:hover { background: #c60026; border-color: #c60026; color: #fff; }
-.dock-quick .suggest button.go svg { opacity: 1; }
+/* 세 바로가기는 모두 같은 무게로 둔다 — 하나만 강조하면 기본값으로 골라 둔 것처럼 보인다 */
 
 .dock-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }

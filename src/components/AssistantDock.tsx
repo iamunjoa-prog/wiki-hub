@@ -205,7 +205,7 @@ function QuickActions({ onPlan }: { onPlan: () => void }) {
         <button onClick={() => navigate('/sheets/campaign')}>
           <QuickIcon name="calendar" />캠페인 신청 캘린더
         </button>
-        <button className="go" onClick={onPlan}>
+        <button onClick={onPlan}>
           <QuickIcon name="spark" />프로모션 기획 시작하기
         </button>
       </div>
