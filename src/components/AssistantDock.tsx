@@ -119,22 +119,19 @@ export function EngineToggle({ label = '답변 엔진', busy = false }: { label?
   )
 }
 
-/** 바로가기 — 챗봇 안에서 편성 스케줄·캠페인 현황을 열고, 프로모션 기획도 바로 시작한다. */
+/**
+ * 바로가기 — 챗봇 안에서 편성 스케줄·캠페인 현황을 열고, 프로모션 기획도 바로 시작한다.
+ * 화면을 보면서 이어서 물어볼 수 있게 이동해도 독은 닫지 않는다.
+ */
 function QuickActions({ onPlan }: { onPlan: () => void }) {
   const navigate = useNavigate()
-  const { closeDock } = useApp()
-
-  const go = (to: string) => {
-    navigate(to)
-    closeDock()
-  }
 
   return (
     <div className="dock-quick">
       <span className="label">바로 확인하기</span>
       <div className="suggest">
-        <button onClick={() => go('/sheets/btv')}>홈 편성 스케줄 (B tv)</button>
-        <button onClick={() => go('/sheets/campaign')}>캠페인 신청 캘린더</button>
+        <button onClick={() => navigate('/sheets/btv')}>홈 편성 스케줄 (B tv)</button>
+        <button onClick={() => navigate('/sheets/campaign')}>캠페인 신청 캘린더</button>
         <button className="go" onClick={onPlan}>
           프로모션 기획 시작하기
         </button>
