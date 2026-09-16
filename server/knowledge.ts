@@ -64,9 +64,11 @@ export function buildAskRequest({ query, history }: AskInput): string {
   const transcript = history.map((t) => `${t.role === 'user' ? '사용자' : '어시스턴트'}: ${t.text}`).join('\n\n')
   return [
     '## 지금까지의 대화',
-    '이미 답을 들은 항목은 다시 묻지 말고, 아직 비어 있는 조건만 이어서 물어라.',
+    // 되물은 문장이 사용자의 조건으로 굳어지면 PPV 질문에 PPM 정책이 딸려 나온다
+    '맥락으로만 쓴다. 사용자가 직접 말한 것만 확정된 조건이고, 어시스턴트가 되물은 문장은 조건이 아니다.',
+    '이미 답을 들은 것은 다시 묻지 않는다.',
     transcript,
-    `## 이번 질문\n\n${query}`,
+    `## 이번 질문\n\n이 질문에 답하라. 앞 대화는 이 질문을 이해하는 데 필요한 만큼만 참고한다.\n\n${query}`,
   ].join('\n\n')
 }
 

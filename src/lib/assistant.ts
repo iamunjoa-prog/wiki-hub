@@ -8,7 +8,7 @@ import type {
   SourceRef,
   WikiDoc,
 } from '../types'
-import { extractSentences, searchDocs } from './retrieval'
+import { extractSentences, searchDocs, type SearchInput } from './retrieval'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
 const PRODUCTS: { keywords: string[]; label: string; scope: 'PPM' | 'PPV'; policyCode: string }[] = [
@@ -28,6 +28,24 @@ const CHANNELS: { keywords: string[]; label: string }[] = [
 const CAMPAIGN_NOUNS = ['프로모션', '캠페인', '쿠폰', '이벤트', '배너']
 /** 앞으로 무언가를 하겠다는 서술 — 사실 질문("품의 결재선은?")과 가르는 기준 */
 const PLAN_VERBS = ['기획', '진행', '하고 싶', '하고싶', '하려', '할까', '돌리', '띄우', '만들', '준비', '집행']
+
+/**
+ * 판단·제안을 요청하는 발화. 사실 조회("결재선은?")와 답변 모양이 달라야 한다 —
+ * 문장을 나열하는 대신 무엇이 걸리는지부터 짚고, 문서에 없는 영역은 없다고 밝힌다.
+ */
+const ADVICE_CUES = [
+  '방안', '방법', '전략', '효과적', '추천해', '제안해', '좋을까', '괜찮을까',
+  '어떻게 하', '어떻게 해', '어떻게 진행', '어떤 게 좋', '어떤걸 좋', '뭐가 좋', '잘하려', '잘 하려',
+]
+
+/**
+ * 판단 요청으로 볼지. 프로모션 이야기일 때만 본다 — "CBS 승인요청 방법"은
+ * 문서에 절차가 그대로 있는 사실 질문이라 판단 요청으로 다루면 안 된다.
+ */
+function wantsAdvice(query: string): boolean {
+  if (!ADVICE_CUES.some((k) => query.includes(k))) return false
+  return CAMPAIGN_NOUNS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
+}
 
 let seq = 0
 export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${seq++}`
@@ -192,9 +210,16 @@ export async function requestLogin(engine: CliEngine): Promise<{ opened: boolean
   }
 }
 
+/** 사용자 발화만 이어 붙인다 — 어시스턴트가 되물은 문장이 다음 검색어로 새지 않게 한다. */
+function userText(turns: ChatTurn[]): string {
+  return turns
+    .filter((t) => t.role === 'user')
+    .map((t) => t.text)
+    .join('\n')
+}
+
 export function answer(query: string, history: ChatTurn[] = [], intentAsked = false): AssistantReply {
   const turns: ChatTurn[] = [...history, { role: 'user', text: query }]
-  const conversation = turns.map((t) => t.text).join('\n')
   const intent = intentPromptFor(query, intentAsked)
 
   // 진행 의도만 던진 발화에는 정책을 쏟아내지 않는다 — 무엇을 만들지 모르니 어떤 정책이 걸리는지도 아직 알 수 없다.
@@ -206,7 +231,18 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     return { text: lead, sources: [], intent }
   }
 
-  const hits = searchDocs(conversation).slice(0, 3)
+  const slots = readSlots(turns)
+  /**
+   * 이번 발화를 가장 무겁게 보고, 앞선 **사용자** 발화만 보조 맥락으로 쓴다.
+   * 대화 전체를 한 덩어리로 검색하면 어시스턴트가 되물은 "월정액(PPM)인가요?" 때문에
+   * PPV 질문에 PPM 정책이 근거로 올라온다.
+   */
+  const search: SearchInput = {
+    query,
+    context: userText(history),
+    scope: slots.product?.scope ?? null,
+  }
+  const hits = searchDocs(search).slice(0, 3)
 
   if (hits.length === 0) {
     return {
@@ -217,15 +253,44 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     }
   }
 
+  // 결론부터 한 줄 — 무엇을 기준으로 답했는지 먼저 밝힌다.
+  const advice = wantsAdvice(query)
   const lines: string[] = []
+  if (slots.product) {
+    lines.push(
+      advice
+        ? `${slots.product.label} 기준으로, 위키에 적힌 제약부터 짚어 드립니다.`
+        : `${slots.product.label} 기준입니다.`,
+    )
+  }
+
+  // 실제로 문장을 뽑아낸 문서만 근거로 남긴다 — 본문에 인용하지 않은 문서를 출처로 붙이지 않는다.
+  const used: typeof hits = []
   for (const hit of hits.slice(0, 2)) {
-    const sentences = extractSentences(hit.doc, conversation, 2)
+    const sentences = extractSentences(hit.doc, search, 2)
     if (sentences.length === 0) continue
+    used.push(hit)
     lines.push(`**${hit.doc.title}** (${hit.doc.code})`)
     for (const s of sentences) lines.push(`· ${s}`)
   }
 
-  const sources: SourceRef[] = hits.map((h) => ({
+  if (used.length === 0) {
+    return {
+      text:
+        '관련 문서는 찾았지만 질문에 바로 맞는 문장을 뽑지 못했습니다.\n' +
+        `문서 코드(${hits.map((h) => h.doc.code).join(' · ')})로 다시 물어보시거나 문서를 직접 열어 확인해 주세요.`,
+      sources: hits.map((h) => ({ docId: h.doc.id, label: `출처 · ${h.doc.title}` })),
+    }
+  }
+
+  // 위키가 담는 것은 정책·설정 기준이다. 성과를 끌어올리는 실행 방안은 범위 밖이라 그렇다고 밝힌다.
+  if (advice) {
+    lines.push(
+      '위키에 적힌 근거는 여기까지(정책·시스템 설정 기준)입니다. 크리에이티브·구좌 구성 같은 실행 방안은 문서 범위 밖이라, 진행하실 거면 프로모션 자동화 화면에서 이어가시는 편이 빠릅니다.',
+    )
+  }
+
+  const sources: SourceRef[] = used.map((h) => ({
     docId: h.doc.id,
     label: `출처 · ${h.doc.title}`,
   }))
