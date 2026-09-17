@@ -3,6 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
 import { DiffView } from '../components/DiffView'
 import { categories } from '../data/docs'
+import { systemGroups } from '../data/systems'
 import { useApp } from '../store/AppStore'
 import type { CategoryId } from '../types'
 
@@ -44,8 +45,18 @@ function RejectModal({
 }
 
 export function Approvals() {
-  const { session, docs, sheets, proposals, promotions, decideProposal, decidePromotion } = useApp()
-  const [tab, setTab] = useState<'docs' | 'sheets' | 'admin'>('docs')
+  const {
+    session,
+    docs,
+    sheets,
+    proposals,
+    promotions,
+    systemRequests,
+    decideProposal,
+    decidePromotion,
+    decideSystemRequest,
+  } = useApp()
+  const [tab, setTab] = useState<'docs' | 'sheets' | 'systems' | 'admin'>('docs')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [category, setCategory] = useState<CategoryId>('promotion')
   const [busy, setBusy] = useState(false)
@@ -53,7 +64,8 @@ export function Approvals() {
 
   const pendingDocs = proposals.filter((p) => p.status === 'pending')
   const pendingSheets = promotions.filter((p) => p.status === 'pending')
-  const list = tab === 'docs' ? pendingDocs : pendingSheets
+  const pendingSystems = systemRequests.filter((r) => r.status === 'pending')
+  const list = tab === 'docs' ? pendingDocs : tab === 'systems' ? pendingSystems : pendingSheets
 
   useEffect(() => {
     setSelectedId(list[0]?.id ?? null)
@@ -63,6 +75,7 @@ export function Approvals() {
 
   const proposal = pendingDocs.find((p) => p.id === selectedId)
   const promotion = pendingSheets.find((p) => p.id === selectedId)
+  const systemRequest = pendingSystems.find((r) => r.id === selectedId)
   const doc = proposal ? docs.find((d) => d.id === proposal.docId) : undefined
   const sheet = promotion ? sheets.find((s) => s.id === promotion.sheetId) : undefined
 
@@ -70,6 +83,7 @@ export function Approvals() {
     setBusy(true)
     if (proposal) await decideProposal(proposal.id, 'approved')
     else if (promotion) await decidePromotion(promotion.id, 'approved', { category })
+    else if (systemRequest) await decideSystemRequest(systemRequest.id, 'approved')
     setBusy(false)
   }
 
@@ -78,6 +92,7 @@ export function Approvals() {
     setBusy(true)
     if (proposal) await decideProposal(proposal.id, 'rejected', reason)
     else if (promotion) await decidePromotion(promotion.id, 'rejected', { reason })
+    else if (systemRequest) await decideSystemRequest(systemRequest.id, 'rejected', reason)
     setBusy(false)
   }
 
@@ -89,7 +104,7 @@ export function Approvals() {
           <span className="label strong">승인 관리</span>
           <span className="tag solid">관리자 전용</span>
           <span className="mono" style={{ marginLeft: 'auto', fontSize: 11 }}>
-            대기 {pendingDocs.length + pendingSheets.length}건
+            대기 {pendingDocs.length + pendingSheets.length + pendingSystems.length}건
           </span>
         </div>
 
@@ -99,6 +114,9 @@ export function Approvals() {
           </button>
           <button className={`tab${tab === 'sheets' ? ' on' : ''}`} onClick={() => setTab('sheets')}>
             편성표 승격 {pendingSheets.length}
+          </button>
+          <button className={`tab${tab === 'systems' ? ' on' : ''}`} onClick={() => setTab('systems')}>
+            시스템 등록 {pendingSystems.length}
           </button>
           <button className={`tab${tab === 'admin' ? ' on' : ''}`} onClick={() => setTab('admin')}>
             카테고리·권한
@@ -131,7 +149,9 @@ export function Approvals() {
                   className={`approve-item${item.id === selectedId ? ' on' : ''}`}
                   onClick={() => setSelectedId(item.id)}
                 >
-                  <span>{'docTitle' in item ? item.docTitle : item.sheetName}</span>
+                  <span>
+                    {'docTitle' in item ? item.docTitle : 'sheetName' in item ? item.sheetName : item.name}
+                  </span>
                   <span className="who">
                     {item.requestedBy} · {item.requestedAt.slice(5)}
                   </span>
@@ -194,12 +214,36 @@ export function Approvals() {
                 </>
               )}
 
-              {(proposal || promotion) && (
+              {systemRequest && (
                 <>
-                  <div className="hint">
-                    승인 시 커밋 생성 → 위키트리 즉시 반영. 편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로
-                    생성됩니다
+                  <div>
+                    <div style={{ font: '700 14px var(--mono)' }}>{systemRequest.name} 등록</div>
+                    <div className="mono muted" style={{ fontSize: 10.5, marginTop: 5 }}>
+                      {systemRequest.requestedBy} · {systemRequest.requestedAt} ·{' '}
+                      {systemGroups.find((g) => g.id === systemRequest.group)?.label} · {systemRequest.access}
+                    </div>
                   </div>
+                  <div className="hint">{systemRequest.desc}</div>
+                  <div className="hint">
+                    접속 주소 —{' '}
+                    <a href={systemRequest.url} target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>
+                      {systemRequest.url} ↗
+                    </a>
+                    <br />
+                    승인하면 <b>{systemGroups.find((g) => g.id === systemRequest.group)?.label}</b> 섹션에 모두에게
+                    보이는 카드로 추가됩니다.
+                  </div>
+                </>
+              )}
+
+              {(proposal || promotion || systemRequest) && (
+                <>
+                  {!systemRequest && (
+                    <div className="hint">
+                      승인 시 커밋 생성 → 위키트리 즉시 반영. 편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로
+                      생성됩니다
+                    </div>
+                  )}
                   <div className="form-actions" style={{ marginTop: 'auto' }}>
                     <button className="btn primary" disabled={busy} onClick={approve}>
                       {busy ? '처리 중…' : '승인'}
@@ -211,7 +255,7 @@ export function Approvals() {
                 </>
               )}
 
-              {!proposal && !promotion && (
+              {!proposal && !promotion && !systemRequest && (
                 <div className="empty">
                   <div className="box" />
                   좌측에서 요청을 선택하세요

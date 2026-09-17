@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
+import { defaultFavoriteSystems, systems as seedSystems } from '../data/systems'
 import {
   askAssistant,
   buildCampaignDraft,
@@ -35,10 +36,13 @@ import type {
   Role,
   Session,
   Sheet,
+  SystemEntry,
+  SystemRequest,
   WikiDoc,
 } from '../types'
 
 const LS_ROLE = 'wikihub.role'
+const LS_FAVORITE_SYSTEMS = 'wikihub.favoriteSystems'
 const LS_DOCK = 'wikihub.dockOpen'
 const LS_ENGINE = 'wikihub.engine'
 
@@ -63,6 +67,10 @@ interface AppState {
   sheets: Sheet[]
   proposals: Proposal[]
   promotions: Promotion[]
+  systems: SystemEntry[]
+  systemRequests: SystemRequest[]
+  /** 대시보드 '자주 사용하는 시스템'에 올릴 시스템 id */
+  favoriteSystems: string[]
   assistant: AssistantState
   toast: string | null
 
@@ -80,6 +88,17 @@ interface AppState {
 
   submitProposal: (docId: string, newBody: string, reason: string) => void
   decideProposal: (id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
+
+  /** 별표 토글 — 켜는 순간 대시보드에 올라간다 */
+  toggleFavoriteSystem: (id: string) => void
+  submitSystemRequest: (
+    input: Omit<SystemRequest, 'id' | 'status' | 'requestedBy' | 'requestedAt'>,
+  ) => void
+  decideSystemRequest: (
+    id: string,
+    decision: 'approved' | 'rejected',
+    reason?: string,
+  ) => Promise<void>
 
   addSheet: (sheet: Omit<Sheet, 'id' | 'ownerId' | 'ownerName' | 'lastCheckedAt'>) => void
   requestPromotion: (sheetId: string) => void
@@ -123,6 +142,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sheets, setSheets] = useState<Sheet[]>(seedSheets)
   const [proposals, setProposals] = useState<Proposal[]>(initialProposals)
   const [promotions, setPromotions] = useState<Promotion[]>(initialPromotions)
+  const [systems, setSystems] = useState<SystemEntry[]>(seedSystems)
+  const [systemRequests, setSystemRequests] = useState<SystemRequest[]>([])
+  const [favoriteSystems, setFavoriteSystems] = useState<string[]>(() => {
+    const saved = localStorage.getItem(LS_FAVORITE_SYSTEMS)
+    // 저장된 값이 없을 때만 기본값을 쓴다 — 전부 해제한 상태는 그 자체로 존중한다
+    if (saved === null) return defaultFavoriteSystems
+    try {
+      const parsed = JSON.parse(saved)
+      return Array.isArray(parsed) ? (parsed as string[]) : defaultFavoriteSystems
+    } catch {
+      return defaultFavoriteSystems
+    }
+  })
   const [toast, setToast] = useState<string | null>(null)
 
   const [dockOpen, setDockOpen] = useState<boolean>(
@@ -156,6 +188,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => localStorage.setItem(LS_ROLE, role), [role])
+  useEffect(
+    () => localStorage.setItem(LS_FAVORITE_SYSTEMS, JSON.stringify(favoriteSystems)),
+    [favoriteSystems],
+  )
   useEffect(() => localStorage.setItem(LS_DOCK, dockOpen ? '1' : '0'), [dockOpen])
   useEffect(() => localStorage.setItem(LS_ENGINE, preferredEngine), [preferredEngine])
   useEffect(() => {
@@ -364,6 +400,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [proposals],
   )
 
+  const toggleFavoriteSystem = useCallback(
+    (id: string) => {
+      const on = favoriteSystems.includes(id)
+      setFavoriteSystems((prev) => (on ? prev.filter((f) => f !== id) : [...prev, id]))
+      setToast(on ? '자주 사용하는 시스템에서 뺐습니다' : '자주 사용하는 시스템에 담았습니다')
+    },
+    [favoriteSystems],
+  )
+
+  const submitSystemRequest = useCallback(
+    (input: Omit<SystemRequest, 'id' | 'status' | 'requestedBy' | 'requestedAt'>) => {
+      setSystemRequests((prev) => [
+        {
+          ...input,
+          id: newId('sy'),
+          status: 'pending',
+          requestedBy: session.name,
+          requestedAt: today(),
+        },
+        ...prev,
+      ])
+      setToast('시스템 등록을 요청했습니다 · 승인 대기')
+    },
+    [session.name],
+  )
+
+  const decideSystemRequest = useCallback(
+    async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
+      await new Promise((r) => setTimeout(r, 600))
+      const request = systemRequests.find((r) => r.id === id)
+      setSystemRequests((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, status: decision, rejectReason: reason } : r)),
+      )
+      if (decision === 'approved' && request) {
+        setSystems((prev) => [
+          ...prev,
+          {
+            id: request.id,
+            name: request.name,
+            desc: request.desc,
+            url: request.url || undefined,
+            access: request.access,
+            group: request.group,
+          },
+        ])
+        setToast('승인 완료 · 시스템 목록에 추가했습니다')
+      } else if (decision === 'rejected') {
+        setToast('반려 처리했습니다')
+      }
+    },
+    [systemRequests],
+  )
+
   const addSheet = useCallback(
     (input: Omit<Sheet, 'id' | 'ownerId' | 'ownerName' | 'lastCheckedAt'>) => {
       setSheets((prev) => [
@@ -455,6 +544,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     sheets,
     proposals,
     promotions,
+    systems,
+    systemRequests,
+    favoriteSystems,
     assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine, usableEngines },
     toast,
     setRole: setRoleState,
@@ -466,6 +558,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setEngine: setPreferredEngine,
     refreshEngines,
     setCampaignDraft,
+    toggleFavoriteSystem,
+    submitSystemRequest,
+    decideSystemRequest,
     submitProposal,
     decideProposal,
     addSheet,

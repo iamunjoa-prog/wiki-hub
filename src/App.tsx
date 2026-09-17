@@ -13,6 +13,7 @@ import { ScheduleSoon } from './pages/ScheduleSoon'
 import { SearchResults } from './pages/SearchResults'
 import { SheetRegister } from './pages/SheetRegister'
 import { Sheets } from './pages/Sheets'
+import { Systems } from './pages/Systems'
 import { WikiDoc } from './pages/WikiDoc'
 import { WikiIndex } from './pages/WikiIndex'
 
@@ -38,6 +39,7 @@ export default function App() {
             element={<ScheduleSoon label={l.label} path={l.path} state={l.soon!} />}
           />
         ))}
+        <Route path="/systems" element={<Systems />} />
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/handoff" element={<CampaignHandoff />} />

@@ -462,6 +462,36 @@ button.row:hover { background: var(--surface-subtle); }
 }
 .link-card .net.cloud { border-color: var(--line); color: var(--text-2); }
 
+/* ---------- 시스템 카드 ---------- */
+
+/* 별표를 카드 위에 겹쳐 두어 링크 영역을 쪼개지 않는다 */
+.sys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
+/* 대시보드 오른쪽 열은 폭이 좁아 두 칸으로 나누면 시스템명이 줄바꿈된다 */
+.right .sys-grid { grid-template-columns: 1fr; }
+.sys-card { position: relative; }
+.sys-card .sys-main { height: 100%; padding-right: 30px; }
+.sys-card .link-card.off { color: var(--muted); cursor: default; }
+.sys-card .link-card.off:hover { border-color: var(--border); box-shadow: none; }
+.sys-star {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 1;
+  display: inline-flex;
+  padding: 4px;
+  border: 0;
+  background: none;
+  color: var(--line);
+  line-height: 0;
+  border-radius: 4px;
+}
+.sys-star:hover { color: var(--text-2); }
+.sys-star.on { color: var(--accent); }
+
+.sys-form { max-width: 560px; }
+.sys-form-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
+.sys-pending { border-top: 1px solid var(--border); }
+
 /* ---------- wiki doc ---------- */
 
 .doc-layout { display: flex; gap: 18px; align-items: flex-start; padding: 16px 18px; }
