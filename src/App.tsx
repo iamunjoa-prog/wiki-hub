@@ -8,6 +8,7 @@ import { CampaignApp } from './pages/CampaignApp'
 import { CampaignHandoff } from './pages/CampaignHandoff'
 import { Dashboard } from './pages/Dashboard'
 import { MyRequests } from './pages/MyRequests'
+import { NewDoc } from './pages/NewDoc'
 import { ProposeEdit } from './pages/ProposeEdit'
 import { ScheduleSoon } from './pages/ScheduleSoon'
 import { SearchResults } from './pages/SearchResults'
@@ -23,6 +24,7 @@ export default function App() {
       <Route element={<AppShell />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/wiki" element={<WikiIndex />} />
+        <Route path="/wiki/new" element={<NewDoc />} />
         <Route path="/wiki/:docId" element={<WikiDoc />} />
         <Route path="/wiki/:docId/propose" element={<ProposeEdit />} />
         <Route path="/search" element={<SearchResults />} />

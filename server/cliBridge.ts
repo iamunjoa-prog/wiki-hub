@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
-import { readGeminiKey } from './env.js'
+import { readGeminiKey, readGithubToken } from './env.js'
+import { createDocPR, parseCreateDocInput } from './github.js'
 import {
   isShared,
   readSystemsFile,
@@ -264,11 +265,13 @@ export function cliBridge(): Plugin {
       const env = loadEnv(server.config.mode, server.config.root, '')
       const geminiKey = readGeminiKey(env) || readGeminiKey()
       const geminiModel = env.GEMINI_MODEL || process.env.GEMINI_MODEL
+      // "새 문서" 기능(브랜치·PR 생성)이 쓸 토큰 — 없으면 그 버튼만 안내 메시지로 대체된다
+      const githubToken = readGithubToken(env) || readGithubToken()
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
       getEngineStatus().then((s) => {
         const mark = (e: Engine) => (!s[e].installed ? '✗ 미설치' : s[e].loggedIn ? '✓' : '⚠ 로그인 필요')
         log.info(
-          `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'}`,
+          `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'} · github ${githubToken ? '✓ 토큰' : '✗ 토큰 없음(새 문서 비활성)'}`,
         )
       })
 
@@ -449,6 +452,35 @@ export function cliBridge(): Plugin {
             log.error(`[cli-bridge] edit ${(err as Error).message}`)
             res.statusCode = 502
             res.end(JSON.stringify({ error: (err as Error).message }))
+          }
+        })
+      })
+
+      // 위키 문서 목록의 "+ 새 문서" — GitHub API로 브랜치·PR을 만든다 (로컬도 배포와 같은 경로)
+      server.middlewares.use('/api/createDoc', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        if (!githubToken) {
+          res.statusCode = 503
+          res.end(JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았습니다 (.env.local)' }))
+          return
+        }
+        let body = ''
+        req.on('data', (c) => (body += c))
+        req.on('end', async () => {
+          try {
+            const input = parseCreateDocInput(JSON.parse(body || '{}'))
+            const result = await createDocPR(input, { token: githubToken })
+            log.info(`[cli-bridge] createDoc ${result.code} · ${input.title} · ${input.requestedBy}`)
+            res.end(JSON.stringify(result))
+          } catch (err) {
+            log.error(`[cli-bridge] createDoc ${(err as Error).message}`)
+            res.statusCode = err instanceof SyntaxError ? 400 : 502
+            res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
           }
         })
       })
