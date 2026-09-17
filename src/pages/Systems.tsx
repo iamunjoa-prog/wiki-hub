@@ -113,7 +113,7 @@ function RegisterForm({ onDone }: { onDone: () => void }) {
 }
 
 export function Systems() {
-  const { systems, systemRequests, session } = useApp()
+  const { systems, systemRequests, systemsStorage, session } = useApp()
   const [registering, setRegistering] = useState(false)
 
   // 내가 올린 요청만 내 화면에 보인다 — 관리자는 대기 중인 요청 전부를 함께 본다
@@ -141,6 +141,21 @@ export function Systems() {
         <div className="hint" style={{ marginBottom: 14 }}>
           별표를 누르면 대시보드 <b>자주 사용하는 시스템</b>에 올라갑니다. 접속 망이 다르면 해당 PC에서만
           열립니다.
+          {/* 승인 결과가 팀에 공유되는지 — 아니면 눈에 보이게 적어 둔다 */}
+          {systemsStorage === 'local' && (
+            <>
+              <br />
+              <b>이 PC에만 저장 중</b> — 팀과 함께 보려면 허브 폴더 <code>.env.local</code> 에{' '}
+              <code>HUB_SYSTEMS_FILE</code> 로 공유 드라이브 경로를 적어 주세요.
+            </>
+          )}
+          {systemsStorage === 'memory' && (
+            <>
+              <br />
+              <b>저장되지 않는 화면</b> — 배포본에는 공용 저장소가 없어 등록·승인 결과가 새로고침하면
+              사라집니다. 로컬 허브에서 등록해 주세요.
+            </>
+          )}
         </div>
 
         {registering && (
