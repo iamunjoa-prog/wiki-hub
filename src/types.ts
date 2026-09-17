@@ -7,10 +7,16 @@ export interface Session {
   role: Role
 }
 
-export type CategoryId = 'programming' | 'promotion' | 'insight' | 'system' | 'guide'
+export type CategoryId = 'programming' | 'promotion' | 'system' | 'guide'
 
 export interface Category {
   id: CategoryId
+  label: string
+}
+
+/** 카테고리 아래 2단 메뉴 — 서브메뉴가 없는 카테고리(시스템·이용 안내)는 등록하지 않는다 */
+export interface Subcategory {
+  id: string
   label: string
 }
 
@@ -19,6 +25,8 @@ export interface WikiDoc {
   path: string
   title: string
   category: CategoryId
+  /** 카테고리 아래 서브메뉴. 서브메뉴가 없는 카테고리 소속이면 null */
+  subcategory: string | null
   /** 문서 코드 — 챗봇 근거 정책 참조에 사용 (예: MKT-P-03) */
   code: string
   /** 적용 상품 — 프론트매터 `scope`. 챗봇이 반대 상품 문서를 근거로 집지 않게 하는 데 쓴다 */

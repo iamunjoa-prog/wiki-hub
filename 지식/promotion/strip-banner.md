@@ -1,10 +1,11 @@
 ---
 title: 띠배너
 code: MKI-B-06
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,9 +15,9 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/strip-banner.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 
-## 요약
+## 이 문서는
 
 프리뷰 없이 **가로 전체 면적**을 차지하는 얇은 띠 형태 배너.
 
@@ -52,4 +53,4 @@ source: "AX 마케팅 자동화 지식베이스 · placements/strip-banner.md"
 
 ## 관련 문서
 
-[노출 구좌 개요](MKI-B-00) · [TV 팝업](MKI-B-09) · [캠페인 플레이북](MKI-05)
+[노출 구좌 개요](MKI-B-00) · [TV팝업 규격](MKI-B-09) · [캠페인 플레이북](MKI-05)

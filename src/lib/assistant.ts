@@ -362,15 +362,15 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     query,
     context: userText(history),
     scope: slots.product?.scope ?? null,
-    // 판단을 물으면 정책 문서보다 마케팅 인사이트가 답에 가깝다
-    preferCategory: advice ? 'insight' : null,
+    // 판단을 물으면 정책 문서보다 참조(카피·타겟팅·플레이북 등)가 답에 가깝다
+    preferSubcategory: advice ? 'reference' : null,
   }
   const hits = searchDocs(search).slice(0, 3)
 
   if (hits.length === 0) {
     return {
       text:
-        '담당 범위(프로모션 정책·업무, 마케팅 인사이트, ACS·CBS·Swing 시스템 매뉴얼, 등록된 편성표) 안에서 근거 문서를 찾지 못했습니다.\n' +
+        '담당 범위(프로모션 정책·노출·인사이트, ACS·CBS·Swing 시스템 매뉴얼, 등록된 편성표) 안에서 근거 문서를 찾지 못했습니다.\n' +
         '상품 유형(PPM·PPV)이나 문서 코드(예: PPC-P-02)를 함께 넣어 다시 물어봐 주세요.',
       sources: [],
     }
@@ -409,12 +409,12 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   if (advice) {
     const more = hits
       .slice(0, 3)
-      .filter((h) => h.doc.category === 'insight' && !used.includes(h))
+      .filter((h) => h.doc.subcategory === 'reference' && !used.includes(h))
       .map((h) => `${h.doc.title}(${h.doc.code})`)
     lines.push(
       more.length
-        ? `구좌 구성과 카피 방향은 마케팅 인사이트의 ${more.join(' · ')}에 더 정리되어 있습니다.`
-        : '구좌 구성·카피 방향·과거 실적은 마케팅 인사이트 메뉴에서 더 볼 수 있습니다.',
+        ? `구좌 구성과 카피 방향은 참조의 ${more.join(' · ')}에 더 정리되어 있습니다.`
+        : '구좌 구성·카피 방향·과거 실적은 프로모션 > 참조 메뉴에서 더 볼 수 있습니다.',
     )
   }
 

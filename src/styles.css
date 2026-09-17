@@ -144,6 +144,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .sidebar {
   width: var(--w-sidebar);
   flex: none;
+  position: relative;
   border-right: 1px solid var(--border);
   background: var(--surface-subtle);
   display: flex;
@@ -151,6 +152,32 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   min-height: 0;
 }
 .sidebar.narrow { width: var(--w-sidebar-doc); }
+/* 오른쪽 경계를 끌어 너비 조절 — 선은 1px이지만 잡는 영역은 7px로 넉넉하게 */
+.sidebar-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -4px;
+  width: 7px;
+  z-index: 5;
+  cursor: col-resize;
+  background: none;
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 3px;
+  width: 1px;
+  background: var(--accent);
+  opacity: 0;
+  transition: opacity .12s;
+}
+.sidebar-resizer:hover::after,
+.sidebar-resizer:focus-visible::after,
+.sidebar-resizer.on::after { opacity: 1; }
+.sidebar-resizer:focus-visible { outline: none; }
 
 .brand {
   display: flex;
@@ -413,9 +440,14 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .kpi .sub { font: 13px var(--mono); color: var(--text-2); }
 button.kpi:hover { background: var(--surface-subtle); }
 
-.dash-cols { display: flex; gap: 14px; align-items: flex-start; margin-top: 14px; }
+.dash-cols { display: flex; gap: 14px; align-items: stretch; margin-top: 14px; }
 .dash-cols .left { flex: 1.6; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .dash-cols .right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* 오른쪽 열의 마지막 패널이 남는 세로 공간을 채워서 왼쪽 열과 바닥선이 맞도록 한다 */
+.dash-cols .right > .panel:last-child { flex: 1; display: flex; flex-direction: column; }
+.dash-cols .right > .panel:last-child .sys-grid,
+.dash-cols .right > .panel:last-child .empty { flex: 1; }
+.dash-cols .right > .panel:last-child .empty { justify-content: center; }
 
 .row {
   display: flex;

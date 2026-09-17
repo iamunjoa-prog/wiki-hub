@@ -586,6 +586,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               path: `${category}/${sheet.id}.md`,
               title: `${sheet.name} 요약`,
               category,
+              subcategory: null,
               code: `SUM-${sheet.id.toUpperCase()}`,
               version: 1,
               updatedBy: session.name,

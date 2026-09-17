@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
-import { categories } from '../data/docs'
+import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
 import { useApp } from '../store/AppStore'
@@ -37,22 +37,41 @@ function WikiTree() {
   const activeDocId = location.pathname.startsWith('/wiki/') ? location.pathname.split('/')[2] : null
   const activeDoc = docs.find((d) => d.id === activeDocId)
   const activeCategory = location.pathname === '/wiki' ? params.get('category') : null
+  const activeSub = location.pathname === '/wiki' ? params.get('sub') : null
   const currentCategory = activeDoc?.category ?? activeCategory
+  const currentSub = activeDoc?.subcategory ?? activeSub
 
   /**
    * 카테고리는 한 번에 하나만 펼친다.
-   * 누르는 족족 쌓이면 문서가 많은 인사이트·프로모션에서 목록이 화면을 넘겨
-   * 정작 찾던 문서가 스크롤 밖으로 밀린다.
+   * 누르는 족족 쌓이면 문서가 많은 프로모션에서 목록이 화면을 넘겨
+   * 정작 찾던 문서가 스크롤 밖으로 밀린다. 서브메뉴도 카테고리 안에서 하나만 펼친다.
    */
   const [openCategory, setOpenCategory] = useState<string | null>(currentCategory ?? null)
+  const [openSub, setOpenSub] = useState<string | null>(currentSub ?? null)
 
   useEffect(() => {
     if (currentCategory) setOpenCategory(currentCategory)
   }, [currentCategory])
 
+  useEffect(() => {
+    if (currentSub) setOpenSub(currentSub)
+  }, [currentSub])
+
   const toggle = (id: string) => setOpenCategory((prev) => (prev === id ? null : id))
+  const toggleSub = (id: string) => setOpenSub((prev) => (prev === id ? null : id))
 
   const rootOn = location.pathname === '/wiki' && !activeCategory
+
+  const docLeaf = (d: (typeof docs)[number]) => (
+    <button
+      key={d.id}
+      className={`nav-item sub leaf${d.id === activeDocId ? ' on' : ''}`}
+      onClick={() => navigate(`/wiki/${d.id}`)}
+      title={d.title}
+    >
+      <span className="nav-ellipsis">{d.title}</span>
+    </button>
+  )
 
   return (
     <div className="nav-group">
@@ -67,8 +86,13 @@ function WikiTree() {
         {categories.map((c) => {
           const open = openCategory === c.id
           const children = docs.filter((d) => d.category === c.id)
-          const catOn = activeCategory === c.id
+          const catOn = activeCategory === c.id && !activeSub
           const catTrail = activeDoc?.category === c.id
+          const subs = subcategories[c.id]
+          // 서브메뉴가 있는 카테고리인데 소속이 없는 문서(예: 편성표 승격 문서)는 '기타'로 묶어 놓치지 않는다
+          const unassigned = subs.length > 0 ? children.filter((d) => !subs.some((s) => s.id === d.subcategory)) : []
+          const subsWithOthers = unassigned.length > 0 ? [...subs, { id: '__unassigned__', label: '기타' }] : subs
+
           return (
             <div key={c.id}>
               <div className={`nav-item sub has-toggle${catOn ? ' on' : catTrail ? ' trail' : ''}`}>
@@ -91,22 +115,56 @@ function WikiTree() {
                 </button>
                 <span className="nav-count">{children.length}</span>
               </div>
-              {open && (
+              {open && subs.length === 0 && (
                 <div className="nav-children depth2">
                   {children.length === 0 ? (
                     <div className="nav-empty">문서 없음</div>
                   ) : (
-                    children.map((d) => (
-                      <button
-                        key={d.id}
-                        className={`nav-item sub leaf${d.id === activeDocId ? ' on' : ''}`}
-                        onClick={() => navigate(`/wiki/${d.id}`)}
-                        title={d.title}
-                      >
-                        <span className="nav-ellipsis">{d.title}</span>
-                      </button>
-                    ))
+                    children.map(docLeaf)
                   )}
+                </div>
+              )}
+              {open && subsWithOthers.length > 0 && (
+                <div className="nav-children depth2">
+                  {subsWithOthers.map((s) => {
+                    const subOpen = openSub === s.id
+                    const subChildren = s.id === '__unassigned__' ? unassigned : children.filter((d) => d.subcategory === s.id)
+                    const subOn = activeCategory === c.id && activeSub === s.id
+                    const subTrail = activeDoc?.category === c.id && activeDoc?.subcategory === s.id
+                    return (
+                      <div key={s.id}>
+                        <div className={`nav-item sub has-toggle${subOn ? ' on' : subTrail ? ' trail' : ''}`}>
+                          <button
+                            className="nav-toggle"
+                            onClick={() => toggleSub(s.id)}
+                            aria-expanded={subOpen}
+                            aria-label={`${s.label} ${subOpen ? '접기' : '펼치기'}`}
+                          >
+                            <Chevron open={subOpen} />
+                          </button>
+                          <button
+                            className="nav-label"
+                            onClick={() => {
+                              navigate(`/wiki?category=${c.id}&sub=${s.id}`)
+                              if (!subOpen) toggleSub(s.id)
+                            }}
+                          >
+                            {s.label}
+                          </button>
+                          <span className="nav-count">{subChildren.length}</span>
+                        </div>
+                        {subOpen && (
+                          <div className="nav-children depth3">
+                            {subChildren.length === 0 ? (
+                              <div className="nav-empty">문서 없음</div>
+                            ) : (
+                              subChildren.map(docLeaf)
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -213,15 +271,87 @@ function ScheduleTree() {
   )
 }
 
+/* ---------- 사이드바 너비 조절 ---------- */
+
+const SIDEBAR_W_KEY = 'sidebar-width'
+const SIDEBAR_W_MIN = 200
+const SIDEBAR_W_MAX = 420
+const clampSidebarWidth = (w: number) => Math.min(Math.max(w, SIDEBAR_W_MIN), SIDEBAR_W_MAX)
+
+function readStoredSidebarWidth() {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_W_KEY)
+    if (raw) return clampSidebarWidth(Number(raw))
+  } catch {
+    /* 저장소를 못 쓰는 브라우저면 기본값으로 */
+  }
+  return 248
+}
+
+/** 오른쪽 경계를 마우스로 끌어 사이드바 너비를 바꾼다. 드래그 중엔 본문이 선택되지 않게 body에 클래스를 건다. */
+function useSidebarResize() {
+  const [width, setWidth] = useState(readStoredSidebarWidth)
+  const [dragging, setDragging] = useState(false)
+
+  useEffect(() => {
+    if (!dragging) return
+    const onMove = (e: PointerEvent) => setWidth(clampSidebarWidth(e.clientX))
+    const onUp = () => setDragging(false)
+    document.body.classList.add('resizing-x')
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      document.body.classList.remove('resizing-x')
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [dragging])
+
+  useEffect(() => {
+    if (dragging) return
+    try {
+      localStorage.setItem(SIDEBAR_W_KEY, String(width))
+    } catch {
+      /* 저장 못 해도 이번 세션 너비는 유지된다 */
+    }
+  }, [dragging, width])
+
+  /** 키보드로도 조절 — 화살표 16px, 홈/엔드로 최소·최대 */
+  const onKeyDown = useCallback((e: React.KeyboardEvent) => {
+    const step = e.shiftKey ? 64 : 16
+    if (e.key === 'ArrowLeft') setWidth((w) => clampSidebarWidth(w - step))
+    else if (e.key === 'ArrowRight') setWidth((w) => clampSidebarWidth(w + step))
+    else if (e.key === 'Home') setWidth(SIDEBAR_W_MIN)
+    else if (e.key === 'End') setWidth(SIDEBAR_W_MAX)
+    else return
+    e.preventDefault()
+  }, [])
+
+  return { width, dragging, startDrag: () => setDragging(true), onKeyDown }
+}
+
 function Sidebar() {
   const { session, setRole, proposals, promotions, systemRequests } = useApp()
   const pendingCount =
     proposals.filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
     systemRequests.filter((r) => r.status === 'pending').length
+  const { width, dragging, startDrag, onKeyDown } = useSidebarResize()
 
   return (
-    <aside className="sidebar">
+    <aside className="sidebar" style={{ width }}>
+      <div
+        className={`sidebar-resizer${dragging ? ' on' : ''}`}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="메뉴 너비 조절"
+        tabIndex={0}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          startDrag()
+        }}
+        onKeyDown={onKeyDown}
+      />
       <div className="brand">
         <span className="dot" />
         플랫폼 담당 지식 허브

@@ -319,7 +319,7 @@ export function AssistantDock() {
         </button>
       </div>
       <div className="dock-scope">
-        프로모션 정책·업무, 마케팅 인사이트, ACS·CBS·Swing 매뉴얼, 편성표까지 — 자세한 내용을 챗봇이 문서 근거로 정리해 드립니다
+        프로모션 정책·노출·인사이트, ACS·CBS·Swing 매뉴얼, 편성표까지 — 자세한 내용을 챗봇이 문서 근거로 정리해 드립니다
       </div>
       <QuickActions onPlan={() => send(PLAN_STARTER)} />
 
