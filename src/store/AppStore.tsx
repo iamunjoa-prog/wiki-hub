@@ -67,10 +67,6 @@ interface AssistantState {
   engine: Engine | null
   /** 선택한 엔진 → 나머지 순으로 시도할 엔진 목록 */
   usableEngines: Engine[]
-  /** 사용자가 고정한 엔진. 고른 적이 없으면 null이고 우선순위대로 자동으로 정해진다 */
-  preferred: Engine | null
-  /** 로컬 CLI 감지가 아직 안 끝났는지 */
-  detecting: boolean
 }
 
 interface AppState {
@@ -196,10 +192,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resumeNextRef = useRef(false)
   const [pending, setPending] = useState(false)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
-  // 고른 적이 없으면 null — 우선순위대로 자동으로 고른다. 대부분의 담당자는 CLI가 없어
-  // 자동 선택이 곧 Gemini API이고, 화면에는 그게 '기본'으로 표시된다.
-  const [preferredEngine, setPreferredEngine] = useState<Engine | null>(
-    () => (localStorage.getItem(LS_ENGINE) as Engine) || null,
+  const [preferredEngine, setPreferredEngine] = useState<Engine>(
+    () => (localStorage.getItem(LS_ENGINE) as Engine) || 'claude',
   )
   const [engineStatus, setEngineStatus] = useState<Partial<Record<Engine, EngineStatus>> | null | undefined>(undefined)
   const refreshEngines = useCallback(() => fetchEngines().then(setEngineStatus), [])
@@ -220,9 +214,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => localStorage.setItem(LS_DOCK, dockOpen ? '1' : '0'), [dockOpen])
-  useEffect(() => {
-    if (preferredEngine) localStorage.setItem(LS_ENGINE, preferredEngine)
-  }, [preferredEngine])
+  useEffect(() => localStorage.setItem(LS_ENGINE, preferredEngine), [preferredEngine])
   useEffect(() => {
     refreshEngines()
   }, [refreshEngines])
@@ -257,10 +249,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const usableEngines = useMemo<Engine[]>(
     () =>
       engines
-        ? (preferredEngine
-            ? [preferredEngine, ...ENGINE_PRIORITY.filter((e) => e !== preferredEngine)]
-            : ENGINE_PRIORITY
-          ).filter((e) => engines[e])
+        ? [preferredEngine, ...ENGINE_PRIORITY.filter((e) => e !== preferredEngine)].filter((e) => engines[e])
         : [],
     [engines, preferredEngine],
   )
@@ -624,18 +613,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     systemRequests,
     favoriteSystems,
     systemsStorage: remote ? (remote.shared ? 'shared' : 'local') : 'memory',
-    assistant: {
-      open: dockOpen,
-      messages,
-      pending,
-      campaignDraft,
-      engineStatus,
-      engines,
-      engine,
-      usableEngines,
-      preferred: preferredEngine,
-      detecting: engineStatus === undefined,
-    },
+    assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine, usableEngines },
     toast,
     setRole: setRoleState,
     showToast,

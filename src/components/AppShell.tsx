@@ -61,7 +61,7 @@ function WikiTree() {
         end
         className={`nav-item${rootOn ? ' on' : inWiki ? ' trail' : ''}`}
       >
-        전체 문서
+        위키 문서
       </NavLink>
       <div className="nav-children">
         {categories.map((c) => {
@@ -153,7 +153,7 @@ function ScheduleTree() {
   return (
     <div className="nav-group">
       <NavLink to="/sheets" end className={`nav-item${rootOn ? ' on' : inSchedule ? ' trail' : ''}`}>
-        전체 편성표
+        편성/스케줄
       </NavLink>
       <div className="nav-children">
         {scheduleNav.map((platform) => {
@@ -226,34 +226,29 @@ function Sidebar() {
         <span className="dot" />
         플랫폼 담당 지식 허브
       </div>
-      {/* 「내 업무」와 「지식」을 갈라 둔다 — 평면으로 늘어놓으면 처리할 일과 찾아볼 것이 섞인다 */}
       <nav className="nav">
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           대시보드
         </NavLink>
 
-        <p className="nav-section">내 업무</p>
-        {session.role === 'admin' && (
-          <NavLink to="/approvals" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-            승인 대기
-            {/* 강조 뱃지는 여기 하나뿐이다. 같은 수치를 세 군데에 띄우지 않는다 */}
-            <span className="count">{pendingCount}</span>
-          </NavLink>
-        )}
+        <WikiTree />
+
+        <ScheduleTree />
+
+        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+          시스템
+        </NavLink>
+
         <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           내 요청 현황
         </NavLink>
 
-        <p className="nav-section">지식</p>
-        <WikiTree />
-
-        <p className="nav-section">편성 / 스케줄</p>
-        <ScheduleTree />
-
-        <p className="nav-section">연결</p>
-        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          시스템 · 답변 엔진
-        </NavLink>
+        {session.role === 'admin' && (
+          <NavLink to="/approvals" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+            승인 관리
+            <span className="count">{pendingCount}</span>
+          </NavLink>
+        )}
       </nav>
 
       <div className="sidebar-foot">
@@ -322,7 +317,7 @@ export function AppShell() {
   const { assistant, openDock, toast } = useApp()
 
   return (
-    <div className={`shell${assistant.open ? ' dock-open' : ''}`}>
+    <div className="shell">
       <Sidebar />
       <div className="main">
         <Outlet />
