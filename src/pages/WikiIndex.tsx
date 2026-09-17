@@ -29,6 +29,18 @@ export function WikiIndex() {
           <span className="muted mono" style={{ fontSize: 11 }}>
             {list.length}건
           </span>
+          <button
+            className="btn sm primary"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => {
+              const q = new URLSearchParams()
+              if (active) q.set('category', active)
+              if (activeSub) q.set('sub', activeSub)
+              navigate(`/wiki/new${q.toString() ? `?${q}` : ''}`)
+            }}
+          >
+            + 새 문서
+          </button>
         </div>
 
         <div className="filter-bar">
