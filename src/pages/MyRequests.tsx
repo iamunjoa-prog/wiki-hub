@@ -48,7 +48,10 @@ export function MyRequests() {
               <div key={r.id} className="row" style={{ alignItems: 'flex-start' }}>
                 <span className="tag">시스템</span>
                 <span className="grow" style={{ whiteSpace: 'normal' }}>
-                  <span style={{ color: 'var(--text)' }}>{r.name}</span>
+                  <span style={{ color: 'var(--text)' }}>
+                    {r.name}
+                    {r.targetSystemId && ' 접속 주소'}
+                  </span>
                   <div className="mono muted" style={{ fontSize: 10.5, marginTop: 4 }}>
                     {r.desc} · {r.access} · {r.url}
                   </div>

@@ -488,6 +488,26 @@ button.row:hover { background: var(--surface-subtle); }
 .sys-star:hover { color: var(--text-2); }
 .sys-star.on { color: var(--accent); }
 
+.sys-card .link-card.editing { gap: 6px; cursor: default; }
+.sys-card .link-card.editing .field { font-size: 13px; padding: 5px 7px; }
+.sys-url-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 11.5px var(--mono);
+  color: var(--muted);
+}
+.sys-url-edit, .sys-url-add {
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: 600 11.5px var(--mono);
+  color: var(--text-2);
+  text-decoration: underline;
+}
+.sys-url-edit:hover, .sys-url-add:hover { color: var(--text); }
+
 .sys-form { max-width: 560px; }
 .sys-form-body { display: flex; flex-direction: column; gap: 12px; padding: 14px; }
 .sys-pending { border-top: 1px solid var(--border); }

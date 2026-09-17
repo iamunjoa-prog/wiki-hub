@@ -36,7 +36,7 @@ export function Dashboard() {
   const requests = [
     ...proposals.map((p) => ({ id: p.id, kind: '문서', title: p.docTitle, by: p.requestedBy, at: p.requestedAt, status: p.status })),
     ...promotions.map((p) => ({ id: p.id, kind: '편성표', title: `${p.sheetName} 승격`, by: p.requestedBy, at: p.requestedAt, status: p.status })),
-    ...systemRequests.map((r) => ({ id: r.id, kind: '시스템', title: `${r.name} 등록`, by: r.requestedBy, at: r.requestedAt, status: r.status })),
+    ...systemRequests.map((r) => ({ id: r.id, kind: '시스템', title: `${r.name} ${r.targetSystemId ? '접속 주소' : ''} 등록`, by: r.requestedBy, at: r.requestedAt, status: r.status })),
   ]
     .filter((r) => (isAdmin ? r.status === 'pending' : r.by === session.name))
     .sort((a, b) => b.at.localeCompare(a.at))

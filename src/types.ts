@@ -173,11 +173,15 @@ export interface SystemEntry {
 }
 
 /**
- * 담당자가 직접 올린 시스템 등록 요청.
- * 승인되면 공용 목록(`systems`)에 그대로 합쳐져 모두에게 보인다.
+ * 담당자가 직접 올린 시스템 등록 요청. 승인되면 공용 목록(`systems`)에 합쳐져 모두에게 보인다.
+ *
+ * 사내 시스템 주소는 저장소에 두지 않기로 해서, 주소는 코드가 아니라 이 요청으로만 들어온다.
+ * `targetSystemId` 가 있으면 새 카드가 아니라 그 시스템의 주소를 채우는 요청이다.
  */
 export interface SystemRequest {
   id: string
+  /** 주소만 채우는 요청이면 그 시스템 id */
+  targetSystemId?: string
   name: string
   desc: string
   url: string

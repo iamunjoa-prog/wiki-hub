@@ -217,7 +217,9 @@ export function Approvals() {
               {systemRequest && (
                 <>
                   <div>
-                    <div style={{ font: '700 14px var(--mono)' }}>{systemRequest.name} 등록</div>
+                    <div style={{ font: '700 14px var(--mono)' }}>
+                      {systemRequest.name} {systemRequest.targetSystemId ? '접속 주소 등록' : '등록'}
+                    </div>
                     <div className="mono muted" style={{ fontSize: 10.5, marginTop: 5 }}>
                       {systemRequest.requestedBy} · {systemRequest.requestedAt} ·{' '}
                       {systemGroups.find((g) => g.id === systemRequest.group)?.label} · {systemRequest.access}
@@ -230,8 +232,16 @@ export function Approvals() {
                       {systemRequest.url} ↗
                     </a>
                     <br />
-                    승인하면 <b>{systemGroups.find((g) => g.id === systemRequest.group)?.label}</b> 섹션에 모두에게
-                    보이는 카드로 추가됩니다.
+                    {systemRequest.targetSystemId ? (
+                      <>
+                        승인하면 <b>{systemRequest.name}</b> 카드에 접속 주소가 붙어 모두에게 보입니다.
+                      </>
+                    ) : (
+                      <>
+                        승인하면 <b>{systemGroups.find((g) => g.id === systemRequest.group)?.label}</b> 섹션에
+                        모두에게 보이는 카드로 추가됩니다.
+                      </>
+                    )}
                   </div>
                 </>
               )}

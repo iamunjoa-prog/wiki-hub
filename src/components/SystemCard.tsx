@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { SystemEntry } from '../types'
 import { useApp } from '../store/AppStore'
 
@@ -26,8 +27,20 @@ function Star({ on }: { on: boolean }) {
  * 별표만 버튼으로 두고, 카드 본문은 새 탭으로 여는 링크로 둔다.
  */
 export function SystemCard({ system }: { system: SystemEntry }) {
-  const { favoriteSystems, toggleFavoriteSystem } = useApp()
+  const { favoriteSystems, toggleFavoriteSystem, requestSystemUrl, systemRequests } = useApp()
   const fav = favoriteSystems.includes(system.id)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  // 주소는 모두가 함께 쓰는 값이라 승인을 거친다 — 대기 중이면 또 넣지 않게 막는다
+  const urlPending = systemRequests.some(
+    (r) => r.targetSystemId === system.id && r.status === 'pending',
+  )
+
+  const save = () => {
+    if (!/^https?:\/\//.test(draft.trim())) return
+    requestSystemUrl(system.id, draft)
+    setEditing(false)
+  }
 
   const body = (
     <>
@@ -50,15 +63,55 @@ export function SystemCard({ system }: { system: SystemEntry }) {
       >
         <Star on={fav} />
       </button>
-      {system.url ? (
+      {editing ? (
+        <div className="link-card sys-main editing">
+          <span className="t">{system.name}</span>
+          <input
+            className="field"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') save()
+              if (e.key === 'Escape') setEditing(false)
+            }}
+            placeholder="http://"
+            autoFocus
+          />
+          <span className="sys-url-note">승인되면 모두에게 보입니다</span>
+          <span className="form-actions">
+            <button
+              className="btn sm primary"
+              disabled={!/^https?:\/\//.test(draft.trim())}
+              onClick={save}
+            >
+              등록 요청
+            </button>
+            <button className="btn sm" onClick={() => setEditing(false)}>
+              취소
+            </button>
+          </span>
+        </div>
+      ) : system.url ? (
         <a className="link-card sys-main" href={system.url} target="_blank" rel="noreferrer">
           {body}
         </a>
       ) : (
         // 주소를 아직 못 받은 시스템 — 눌러도 아무 일이 없으면 고장으로 읽으므로 이유를 적어 둔다
-        <div className="link-card sys-main off" title="접속 주소가 등록되지 않았습니다">
+        <div className="link-card sys-main off">
           {body}
-          <span className="muted">URL 미등록</span>
+          {urlPending ? (
+            <span className="sys-url-note">접속 주소 승인 대기</span>
+          ) : (
+            <button
+              className="sys-url-add"
+              onClick={() => {
+                setDraft('')
+                setEditing(true)
+              }}
+            >
+              URL 입력
+            </button>
+          )}
         </div>
       )}
     </div>

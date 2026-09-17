@@ -174,7 +174,10 @@ export function Systems() {
                     <div key={r.id} className="row">
                       <span className="grow">
                         {r.name}
-                        <span className="muted"> · {r.desc}</span>
+                        <span className="muted">
+                          {' · '}
+                          {r.targetSystemId ? `접속 주소 ${r.url}` : r.desc}
+                        </span>
                       </span>
                       <span className="muted">{r.access}</span>
                       <span className="muted">{r.requestedBy}</span>

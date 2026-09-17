@@ -91,6 +91,8 @@ interface AppState {
 
   /** 별표 토글 — 켜는 순간 대시보드에 올라간다 */
   toggleFavoriteSystem: (id: string) => void
+  /** 주소가 빈 시스템에 접속 주소를 채워 달라고 요청한다 — 승인되면 모두에게 보인다 */
+  requestSystemUrl: (systemId: string, url: string) => void
   submitSystemRequest: (
     input: Omit<SystemRequest, 'id' | 'status' | 'requestedBy' | 'requestedAt'>,
   ) => void
@@ -192,6 +194,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => localStorage.setItem(LS_FAVORITE_SYSTEMS, JSON.stringify(favoriteSystems)),
     [favoriteSystems],
   )
+
   useEffect(() => localStorage.setItem(LS_DOCK, dockOpen ? '1' : '0'), [dockOpen])
   useEffect(() => localStorage.setItem(LS_ENGINE, preferredEngine), [preferredEngine])
   useEffect(() => {
@@ -409,6 +412,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [favoriteSystems],
   )
 
+  const requestSystemUrl = useCallback(
+    (systemId: string, url: string) => {
+      const system = systems.find((s) => s.id === systemId)
+      if (!system) return
+      if (systemRequests.some((r) => r.targetSystemId === systemId && r.status === 'pending')) {
+        setToast('이미 주소 등록 요청이 대기 중입니다')
+        return
+      }
+      setSystemRequests((prev) => [
+        {
+          id: newId('sy'),
+          targetSystemId: systemId,
+          name: system.name,
+          desc: system.desc,
+          url: url.trim(),
+          access: system.access,
+          group: system.group,
+          status: 'pending',
+          requestedBy: session.name,
+          requestedAt: today(),
+        },
+        ...prev,
+      ])
+      setToast('접속 주소 등록을 요청했습니다 · 승인 대기')
+    },
+    [session.name, systemRequests, systems],
+  )
+
   const submitSystemRequest = useCallback(
     (input: Omit<SystemRequest, 'id' | 'status' | 'requestedBy' | 'requestedAt'>) => {
       setSystemRequests((prev) => [
@@ -434,18 +465,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         prev.map((r) => (r.id === id ? { ...r, status: decision, rejectReason: reason } : r)),
       )
       if (decision === 'approved' && request) {
-        setSystems((prev) => [
-          ...prev,
-          {
-            id: request.id,
-            name: request.name,
-            desc: request.desc,
-            url: request.url || undefined,
-            access: request.access,
-            group: request.group,
-          },
-        ])
-        setToast('승인 완료 · 시스템 목록에 추가했습니다')
+        if (request.targetSystemId) {
+          const target = request.targetSystemId
+          setSystems((prev) => prev.map((s) => (s.id === target ? { ...s, url: request.url } : s)))
+          setToast('승인 완료 · 접속 주소를 모두에게 공개했습니다')
+        } else {
+          setSystems((prev) => [
+            ...prev,
+            {
+              id: request.id,
+              name: request.name,
+              desc: request.desc,
+              url: request.url || undefined,
+              access: request.access,
+              group: request.group,
+            },
+          ])
+          setToast('승인 완료 · 시스템 목록에 추가했습니다')
+        }
       } else if (decision === 'rejected') {
         setToast('반려 처리했습니다')
       }
@@ -559,6 +596,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshEngines,
     setCampaignDraft,
     toggleFavoriteSystem,
+    requestSystemUrl,
     submitSystemRequest,
     decideSystemRequest,
     submitProposal,
