@@ -5,6 +5,13 @@ import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
 import { readGeminiKey } from './env.js'
+import {
+  isShared,
+  readSystemsFile,
+  systemsFilePath,
+  updateSystemsFile,
+  type StoredRequest,
+} from './systemsFile.js'
 import { askGemini, editGemini } from './gemini.js'
 import {
   type AskInput,
@@ -263,6 +270,72 @@ export function cliBridge(): Plugin {
         log.info(
           `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'}`,
         )
+      })
+
+      /**
+       * 시스템 목록 공용 저장 — 팀 공유 드라이브의 JSON 파일 하나를 읽고 쓴다.
+       * 배포본(Vercel)에는 이 경로가 없어 프론트엔드가 메모리 상태로 대체한다.
+       */
+      const systemsPath = systemsFilePath(env)
+      const systemsShared = isShared(env)
+      log.info(
+        `[cli-bridge] 시스템 목록 ${systemsShared ? '공유' : '이 PC에만'} 저장 · ${systemsPath}`,
+      )
+
+      server.middlewares.use('/api/systems', (req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        if (req.method === 'GET') {
+          res.end(JSON.stringify({ ...readSystemsFile(systemsPath), shared: systemsShared }))
+          return
+        }
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        let body = ''
+        req.on('data', (c) => (body += c))
+        req.on('end', () => {
+          try {
+            const action = JSON.parse(body || '{}') as
+              | { kind: 'request'; request: StoredRequest }
+              | { kind: 'decide'; id: string; decision: 'approved' | 'rejected'; reason?: string }
+            const next = updateSystemsFile(systemsPath, (data) => {
+              if (action.kind === 'request') {
+                return { ...data, requests: [action.request, ...data.requests] }
+              }
+              const target = data.requests.find((r) => r.id === action.id)
+              const requests = data.requests.map((r) =>
+                r.id === action.id ? { ...r, status: action.decision, rejectReason: action.reason } : r,
+              )
+              if (!target || action.decision !== 'approved') return { ...data, requests }
+              // 승인된 요청만 목록에 반영한다 — 주소만 채우는 요청과 새 시스템을 나눠 담는다
+              if (target.targetSystemId) {
+                return { ...data, requests, urls: { ...data.urls, [target.targetSystemId]: target.url } }
+              }
+              return {
+                ...data,
+                requests,
+                added: [
+                  ...data.added,
+                  {
+                    id: target.id,
+                    name: target.name,
+                    desc: target.desc,
+                    url: target.url || undefined,
+                    access: target.access,
+                    group: target.group,
+                  },
+                ],
+              }
+            })
+            res.end(JSON.stringify({ ...next, shared: systemsShared }))
+          } catch (err) {
+            log.error(`[cli-bridge] 시스템 목록 저장 실패 — ${(err as Error).message}`)
+            res.statusCode = 500
+            res.end(JSON.stringify({ error: (err as Error).message }))
+          }
+        })
       })
 
       server.middlewares.use('/api/engines', async (_req, res) => {

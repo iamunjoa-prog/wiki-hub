@@ -24,6 +24,14 @@ import {
   readSlots,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
+import {
+  EMPTY_SYSTEMS_STATE,
+  fetchSystemsState,
+  postSystemsAction,
+  reduceSystems,
+  type SystemsAction,
+  type SystemsState,
+} from '../lib/systemsStore'
 import type {
   CampaignDraft,
   CategoryId,
@@ -71,6 +79,11 @@ interface AppState {
   systemRequests: SystemRequest[]
   /** 대시보드 '자주 사용하는 시스템'에 올릴 시스템 id */
   favoriteSystems: string[]
+  /**
+   * 시스템 목록이 어디에 쌓이는지.
+   * `shared` 팀 공유 파일 · `local` 이 PC 파일(공유 안 됨) · `memory` 저장 없음(새로고침하면 사라짐)
+   */
+  systemsStorage: 'shared' | 'local' | 'memory'
   assistant: AssistantState
   toast: string | null
 
@@ -144,8 +157,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [sheets, setSheets] = useState<Sheet[]>(seedSheets)
   const [proposals, setProposals] = useState<Proposal[]>(initialProposals)
   const [promotions, setPromotions] = useState<Promotion[]>(initialPromotions)
-  const [systems, setSystems] = useState<SystemEntry[]>(seedSystems)
-  const [systemRequests, setSystemRequests] = useState<SystemRequest[]>([])
+  /**
+   * 시스템 목록은 팀 공유 파일 하나에 모인다 (로컬 허브가 읽고 쓴다).
+   * 저장소가 없는 배포본에서는 `remote` 가 null 로 남고 메모리 상태로 같은 화면을 보여 준다.
+   */
+  const [remote, setRemote] = useState<SystemsState | null>(null)
+  const [memory, setMemory] = useState<SystemsState>(EMPTY_SYSTEMS_STATE)
+  const systemsState = remote ?? memory
   const [favoriteSystems, setFavoriteSystems] = useState<string[]>(() => {
     const saved = localStorage.getItem(LS_FAVORITE_SYSTEMS)
     // 저장된 값이 없을 때만 기본값을 쓴다 — 전부 해제한 상태는 그 자체로 존중한다
@@ -200,6 +218,32 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     refreshEngines()
   }, [refreshEngines])
+
+  useEffect(() => {
+    fetchSystemsState().then((state) => state && setRemote(state))
+  }, [])
+
+  // 코드에 있는 시스템 + 승인돼 올라온 시스템. 접속 주소는 코드가 아니라 저장소에서 온다.
+  const systems = useMemo<SystemEntry[]>(
+    () => [
+      ...seedSystems.map((s) =>
+        systemsState.urls[s.id] ? { ...s, url: systemsState.urls[s.id] } : s,
+      ),
+      ...systemsState.added,
+    ],
+    [systemsState],
+  )
+  const systemRequests = systemsState.requests
+
+  /** 요청·승인을 저장소에 반영한다. 저장소가 없으면 같은 규칙으로 메모리에만 반영한다. */
+  const applySystemsAction = useCallback(
+    async (action: SystemsAction) => {
+      const next = await postSystemsAction(action)
+      if (next) setRemote(next)
+      else setMemory((prev) => reduceSystems(prev, action))
+    },
+    [],
+  )
 
   // 선택한 엔진을 먼저, 나머지는 CLI → Gemini 순으로 시도한다
   const usableEngines = useMemo<Engine[]>(
@@ -420,8 +464,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setToast('이미 주소 등록 요청이 대기 중입니다')
         return
       }
-      setSystemRequests((prev) => [
-        {
+      applySystemsAction({
+        kind: 'request',
+        request: {
           id: newId('sy'),
           targetSystemId: systemId,
           name: system.name,
@@ -433,61 +478,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedBy: session.name,
           requestedAt: today(),
         },
-        ...prev,
-      ])
+      })
       setToast('접속 주소 등록을 요청했습니다 · 승인 대기')
     },
-    [session.name, systemRequests, systems],
+    [applySystemsAction, session.name, systemRequests, systems],
   )
 
   const submitSystemRequest = useCallback(
     (input: Omit<SystemRequest, 'id' | 'status' | 'requestedBy' | 'requestedAt'>) => {
-      setSystemRequests((prev) => [
-        {
+      applySystemsAction({
+        kind: 'request',
+        request: {
           ...input,
           id: newId('sy'),
           status: 'pending',
           requestedBy: session.name,
           requestedAt: today(),
         },
-        ...prev,
-      ])
+      })
       setToast('시스템 등록을 요청했습니다 · 승인 대기')
     },
-    [session.name],
+    [applySystemsAction, session.name],
   )
 
   const decideSystemRequest = useCallback(
     async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
-      await new Promise((r) => setTimeout(r, 600))
       const request = systemRequests.find((r) => r.id === id)
-      setSystemRequests((prev) =>
-        prev.map((r) => (r.id === id ? { ...r, status: decision, rejectReason: reason } : r)),
-      )
-      if (decision === 'approved' && request) {
-        if (request.targetSystemId) {
-          const target = request.targetSystemId
-          setSystems((prev) => prev.map((s) => (s.id === target ? { ...s, url: request.url } : s)))
-          setToast('승인 완료 · 접속 주소를 모두에게 공개했습니다')
-        } else {
-          setSystems((prev) => [
-            ...prev,
-            {
-              id: request.id,
-              name: request.name,
-              desc: request.desc,
-              url: request.url || undefined,
-              access: request.access,
-              group: request.group,
-            },
-          ])
-          setToast('승인 완료 · 시스템 목록에 추가했습니다')
-        }
-      } else if (decision === 'rejected') {
+      await applySystemsAction({ kind: 'decide', id, decision, reason })
+      if (decision !== 'approved') {
         setToast('반려 처리했습니다')
+        return
       }
+      setToast(
+        request?.targetSystemId
+          ? '승인 완료 · 접속 주소를 모두에게 공개했습니다'
+          : '승인 완료 · 시스템 목록에 추가했습니다',
+      )
     },
-    [systemRequests],
+    [applySystemsAction, systemRequests],
   )
 
   const addSheet = useCallback(
@@ -584,6 +612,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     systems,
     systemRequests,
     favoriteSystems,
+    systemsStorage: remote ? (remote.shared ? 'shared' : 'local') : 'memory',
     assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine, usableEngines },
     toast,
     setRole: setRoleState,
