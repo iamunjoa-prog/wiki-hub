@@ -2,7 +2,7 @@
 title: 실적 벤치마크
 code: MKI-04
 category: promotion
-subcategory: reference
+subcategory: insight
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

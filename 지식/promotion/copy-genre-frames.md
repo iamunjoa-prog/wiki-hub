@@ -2,7 +2,7 @@
 title: 장르별 후킹 프레임
 code: MKI-C-03
 category: promotion
-subcategory: reference
+subcategory: copy-guide
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

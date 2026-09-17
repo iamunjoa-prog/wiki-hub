@@ -1,9 +1,9 @@
 ---
 
 title: 배너·TV팝업·스마트알림 운영 기준
-code: PPC-P-04
+code: PPC-R-06
 category: promotion
-subcategory: spec
+subcategory: ops-reference
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17
@@ -11,7 +11,7 @@ ownerId: ppc-team
 scope: 공통
 systems: [ACS, EUXP, NCMS, CBS]
 parent: null
-order: 40
+order: 100
 status: 정리완료
 source: "Confluence · PPC 프로모션 정책 및 업무 프로세스 메뉴얼"
 ---

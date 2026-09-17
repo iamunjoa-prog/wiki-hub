@@ -88,10 +88,10 @@ export interface SearchInput {
   /** 사용자가 밝힌 상품 유형. 지정하면 반대 상품 전용 문서는 근거에서 뺀다 */
   scope?: ProductScope | null
   /**
-   * 이 서브메뉴의 문서를 먼저 본다. 판단을 묻는 질문에는 정책 문서보다
+   * 이 서브메뉴들의 문서를 먼저 본다. 판단을 묻는 질문에는 정책 문서보다
    * 프로모션 인사이트가 답에 가깝다 — 같은 점수면 이쪽을 위로 올린다.
    */
-  preferSubcategory?: string | null
+  preferSubcategory?: string[] | null
 }
 
 /** 선호 메뉴 가산 — 순위를 뒤집을 만큼은 올리되, 관련 없는 문서를 끌어올리지는 않는 배수 */
@@ -173,7 +173,8 @@ export function searchDocs(input: string | SearchInput, pool: WikiDoc[] = docs):
       score += countOccurrences(doc.code.toLowerCase(), t) * 10 * weight
       score += Math.min(countOccurrences(body, t), 6) * 2 * weight
     }
-    if (search.preferSubcategory && doc.subcategory === search.preferSubcategory) score *= PREFERRED_CATEGORY_BOOST
+    if (search.preferSubcategory && doc.subcategory && search.preferSubcategory.includes(doc.subcategory))
+      score *= PREFERRED_CATEGORY_BOOST
     if (score > 0) scored.push({ doc, score, excerpt: bestParagraph(doc.body, terms) })
   }
   return scored.sort((a, b) => b.score - a.score)

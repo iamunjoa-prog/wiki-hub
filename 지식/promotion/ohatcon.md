@@ -2,7 +2,7 @@
 title: 오핫콘 (오늘 핫한 콘텐츠)
 code: MKI-B-11
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

@@ -2,7 +2,7 @@
 title: 용어 사전
 code: PPC-R-03
 category: promotion
-subcategory: reference
+subcategory: ops-reference
 version: 3
 updatedBy: 구*화
 updatedAt: 2026-09-17
@@ -75,7 +75,7 @@ source: "Confluence · PPC 프로모션 정책 및 업무 프로세스 메뉴얼
 | **SEG ID** | 타겟 배너 노출 고객군 식별자. 같은 SEG ID면 모든 배너 동시 노출 |
 | **MASS 배너** | 타겟 한정이 아닌 전체 노출 배너 |
 | **Today B tv / Today B tv+** | 홈 화면 배너 영역. Today B tv+는 B tv+ 가입자 전용 → [Today B tv+ 배너](MKI-B-12) |
-| **스마트알림** | 쿠폰·B캐시 발급·만료 시 자동 발송되는 토스트 팝업 → [배너·TV팝업·스마트알림 운영 기준](PPC-P-04) |
+| **스마트알림** | 쿠폰·B캐시 발급·만료 시 자동 발송되는 토스트 팝업 → [배너·TV팝업·스마트알림 운영 기준](PPC-R-06) |
 | **OAP** | ACS 채널 'TV 팝업 / OAP' — **확인 필요** |
 
 ## 시스템

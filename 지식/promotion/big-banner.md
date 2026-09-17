@@ -2,7 +2,7 @@
 title: 빅배너 · 월정액 가입 빅배너
 code: MKI-B-05
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

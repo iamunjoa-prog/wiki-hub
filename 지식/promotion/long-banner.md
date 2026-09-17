@@ -2,7 +2,7 @@
 title: 롱배너
 code: MKI-B-04
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

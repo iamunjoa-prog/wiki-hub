@@ -2,7 +2,7 @@
 title: 시놉시스 배너
 code: MKI-B-08
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

@@ -2,7 +2,7 @@
 title: 담당자·결재 라인
 code: PPC-R-02
 category: promotion
-subcategory: reference
+subcategory: ops-reference
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

@@ -2,7 +2,7 @@
 title: Today B tv 배너
 code: MKI-B-02
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17
@@ -52,7 +52,7 @@ TV를 켜자마자 첫 화면에 노출되어 **효율이 가장 높다.** 중�
 
 **주의**
 
-- TARGET 캠페인은 **타겟 조건, 모수, 배너 Capa, 쿠폰 Capa를 별도 검증**한다. → [배너·TV팝업·스마트알림 운영 기준](PPC-P-04)
+- TARGET 캠페인은 **타겟 조건, 모수, 배너 Capa, 쿠폰 Capa를 별도 검증**한다. → [배너·TV팝업·스마트알림 운영 기준](PPC-R-06)
 - 개인화 영역의 과거 평균을 현재 성과로 보장하지 않는다.
 - 타겟 조건을 카피에 직접 노출하지 않는다. → [타겟팅 기준](MKI-02)
 

@@ -2,7 +2,7 @@
 title: 상품 트랙 (PPV · PPM · B tv+)
 code: MKI-01
 category: promotion
-subcategory: reference
+subcategory: insight
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

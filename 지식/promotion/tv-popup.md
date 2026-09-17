@@ -2,7 +2,7 @@
 title: TV팝업 규격
 code: MKI-B-09
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17
@@ -15,7 +15,7 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/tv-popup.md · 08-kb-audit.md 정정 반영"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01) · 발송 Capa는 [배너·TV팝업·스마트알림 운영 기준](PPC-P-04)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01) · 발송 Capa는 [배너·TV팝업·스마트알림 운영 기준](PPC-R-06)
 
 ## 이 문서는
 

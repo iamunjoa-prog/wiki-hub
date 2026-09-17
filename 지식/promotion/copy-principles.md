@@ -2,7 +2,7 @@
 title: 카피 작성 원칙
 code: MKI-C-01
 category: promotion
-subcategory: reference
+subcategory: copy-guide
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

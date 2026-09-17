@@ -2,7 +2,7 @@
 title: 배너 규격
 code: MKI-B-01
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17
