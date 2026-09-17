@@ -1,7 +1,8 @@
 import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
 import { CliStatus } from '../components/CliStatus'
-import { categories, categoryShort, relatedSites } from '../data/docs'
+import { SystemCard } from '../components/SystemCard'
+import { categories, categoryShort } from '../data/docs'
 import { useApp } from '../store/AppStore'
 import type { ProposalStatus } from '../types'
 
@@ -12,7 +13,7 @@ function StatusTag({ status }: { status: ProposalStatus }) {
 }
 
 export function Dashboard() {
-  const { docs, sheets, proposals, promotions, session } = useApp()
+  const { docs, sheets, proposals, promotions, systems, systemRequests, favoriteSystems, session } = useApp()
   const navigate = useNavigate()
   const isAdmin = session.role === 'admin'
 
@@ -22,7 +23,11 @@ export function Dashboard() {
   }))
   const pending =
     proposals.filter((p) => p.status === 'pending').length +
-    promotions.filter((p) => p.status === 'pending').length
+    promotions.filter((p) => p.status === 'pending').length +
+    systemRequests.filter((r) => r.status === 'pending').length
+
+  // 별표를 켠 시스템만 — 순서는 시스템 화면과 같게 목록 순서를 따른다
+  const favorites = systems.filter((s) => favoriteSystems.includes(s.id))
 
   const recent = [...docs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 7)
   const weekly = docs.filter((d) => d.updatedAt >= '2026-08-25').length
@@ -31,6 +36,7 @@ export function Dashboard() {
   const requests = [
     ...proposals.map((p) => ({ id: p.id, kind: '문서', title: p.docTitle, by: p.requestedBy, at: p.requestedAt, status: p.status })),
     ...promotions.map((p) => ({ id: p.id, kind: '편성표', title: `${p.sheetName} 승격`, by: p.requestedBy, at: p.requestedAt, status: p.status })),
+    ...systemRequests.map((r) => ({ id: r.id, kind: '시스템', title: `${r.name} 등록`, by: r.requestedBy, at: r.requestedAt, status: r.status })),
   ]
     .filter((r) => (isAdmin ? r.status === 'pending' : r.by === session.name))
     .sort((a, b) => b.at.localeCompare(a.at))
@@ -120,19 +126,23 @@ export function Dashboard() {
 
               <div className="panel">
                 <div className="panel-head">
-                  <span className="label strong">관련 사이트 바로가기</span>
+                  <span className="label strong">자주 사용하는 시스템</span>
+                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/systems')}>
+                    전체 보기 →
+                  </button>
                 </div>
-                <div className="link-grid">
-                  {relatedSites.map((s) => (
-                    <a key={s.title} className="link-card" href={s.url} target="_blank" rel="noreferrer">
-                      <span className="t">
-                        {s.title} ↗
-                        <span className={s.access === '로컬' ? 'net' : 'net cloud'}>{s.access}</span>
-                      </span>
-                      <span>{s.desc}</span>
-                    </a>
-                  ))}
-                </div>
+                {favorites.length > 0 ? (
+                  <div className="sys-grid">
+                    {favorites.map((s) => (
+                      <SystemCard key={s.id} system={s} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty">
+                    <div className="box" />
+                    시스템 화면에서 별표를 누르면 여기에 모입니다
+                  </div>
+                )}
               </div>
 
               <div className="panel">

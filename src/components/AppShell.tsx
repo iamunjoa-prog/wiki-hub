@@ -214,10 +214,11 @@ function ScheduleTree() {
 }
 
 function Sidebar() {
-  const { session, setRole, proposals, promotions } = useApp()
+  const { session, setRole, proposals, promotions, systemRequests } = useApp()
   const pendingCount =
     proposals.filter((p) => p.status === 'pending').length +
-    promotions.filter((p) => p.status === 'pending').length
+    promotions.filter((p) => p.status === 'pending').length +
+    systemRequests.filter((r) => r.status === 'pending').length
 
   return (
     <aside className="sidebar">
@@ -233,6 +234,11 @@ function Sidebar() {
         <WikiTree />
 
         <ScheduleTree />
+
+        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+          시스템
+        </NavLink>
+
         <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           내 요청 현황
         </NavLink>

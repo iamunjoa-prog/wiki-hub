@@ -1,4 +1,4 @@
-import type { Category, DocCommit, RelatedSite, WikiDoc } from '../types'
+import type { Category, DocCommit, WikiDoc } from '../types'
 import { knowledgeDocs } from './knowledgeDocs'
 
 /**
@@ -26,24 +26,3 @@ export const docs: WikiDoc[] = knowledgeDocs
 
 /** 문서별 수정 이력. 비어 있으면 WikiDoc 화면이 '문서 등록' 한 줄로 대체한다. */
 export const docCommits: Record<string, DocCommit[]> = {}
-
-export const relatedSites: RelatedSite[] = [
-  {
-    title: '프로모션 자동화',
-    desc: 'Target 프로모션 등록 · 실행',
-    url: 'https://btvcuration.github.io/campaign/',
-    access: '로컬',
-  },
-  {
-    title: 'CBS',
-    desc: '콘텐츠 편성 · 승인요청',
-    url: 'http://btvcbs.skbroadband.com/',
-    access: '클라우드 PC',
-  },
-  {
-    title: 'ACS',
-    desc: '광고 소재 · 캠페인 관리',
-    url: 'http://114.202.130.40:9093/',
-    access: '로컬',
-  },
-]

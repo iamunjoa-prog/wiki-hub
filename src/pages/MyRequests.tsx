@@ -11,12 +11,13 @@ function StatusTag({ status }: { status: ProposalStatus }) {
 }
 
 export function MyRequests() {
-  const { proposals, promotions, session } = useApp()
+  const { proposals, promotions, systemRequests, session } = useApp()
   const navigate = useNavigate()
-  const [tab, setTab] = useState<'docs' | 'sheets'>('docs')
+  const [tab, setTab] = useState<'docs' | 'sheets' | 'systems'>('docs')
 
   const myProposals = proposals.filter((p) => p.requestedBy === session.name)
   const myPromotions = promotions.filter((p) => p.requestedBy === session.name)
+  const mySystems = systemRequests.filter((r) => r.requestedBy === session.name)
 
   return (
     <>
@@ -36,9 +37,50 @@ export function MyRequests() {
           <button className={`tab${tab === 'sheets' ? ' on' : ''}`} onClick={() => setTab('sheets')}>
             편성표 승격 요청 {myPromotions.length}
           </button>
+          <button className={`tab${tab === 'systems' ? ' on' : ''}`} onClick={() => setTab('systems')}>
+            시스템 등록 요청 {mySystems.length}
+          </button>
         </div>
 
-        {tab === 'docs' ? (
+        {tab === 'systems' ? (
+          <div>
+            {mySystems.map((r) => (
+              <div key={r.id} className="row" style={{ alignItems: 'flex-start' }}>
+                <span className="tag">시스템</span>
+                <span className="grow" style={{ whiteSpace: 'normal' }}>
+                  <span style={{ color: 'var(--text)' }}>{r.name}</span>
+                  <div className="mono muted" style={{ fontSize: 10.5, marginTop: 4 }}>
+                    {r.desc} · {r.access} · {r.url}
+                  </div>
+                  {r.status === 'rejected' && r.rejectReason && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        padding: '7px 9px',
+                        border: '1px solid var(--danger)',
+                        font: '11px var(--mono)',
+                        color: 'var(--danger)',
+                      }}
+                    >
+                      반려 — {r.rejectReason}
+                    </div>
+                  )}
+                </span>
+                <span className="muted">{r.requestedAt.slice(5)}</span>
+                <StatusTag status={r.status} />
+              </div>
+            ))}
+            {mySystems.length === 0 && (
+              <div className="empty">
+                <div className="box" />
+                제출한 시스템 등록 요청이 없습니다
+                <button className="btn sm" onClick={() => navigate('/systems')}>
+                  시스템 화면에서 등록하기
+                </button>
+              </div>
+            )}
+          </div>
+        ) : tab === 'docs' ? (
           <div>
             {myProposals.map((p) => (
               <div key={p.id} className="row" style={{ alignItems: 'flex-start' }}>

@@ -155,11 +155,36 @@ export interface ChatMessage {
   answeredBy?: string
 }
 
-/** 대시보드 '관련 사이트 바로가기' 카드 */
-export interface RelatedSite {
-  title: string
+/** 시스템 메뉴의 구분 — 편성 관련 / 마케팅 관련 */
+export type SystemGroupId = 'programming' | 'marketing'
+
+/** 시스템에 접속할 수 있는 망 — 둘 중 하나에서만 열린다 */
+export type SystemAccess = '로컬 전용' | '클라우드 전용'
+
+/** 시스템 메뉴 카드 — 즐겨찾기하면 대시보드 '자주 사용하는 시스템'에 올라간다 */
+export interface SystemEntry {
+  id: string
+  name: string
+  desc: string
+  access: SystemAccess
+  group: SystemGroupId
+  /** 주소를 아직 못 받은 시스템은 비워 둔다 — 카드가 링크 대신 'URL 미등록'으로 뜬다 */
+  url?: string
+}
+
+/**
+ * 담당자가 직접 올린 시스템 등록 요청.
+ * 승인되면 공용 목록(`systems`)에 그대로 합쳐져 모두에게 보인다.
+ */
+export interface SystemRequest {
+  id: string
+  name: string
   desc: string
   url: string
-  /** 접속 가능한 망 — 로컬(사내 PC) / 클라우드 PC */
-  access: '로컬' | '클라우드 PC'
+  access: SystemAccess
+  group: SystemGroupId
+  status: ProposalStatus
+  rejectReason?: string
+  requestedBy: string
+  requestedAt: string
 }
