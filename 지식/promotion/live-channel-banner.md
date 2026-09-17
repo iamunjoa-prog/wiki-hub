@@ -1,10 +1,11 @@
 ---
 title: 실시간 채널 배너 (미니 EPG · 편성표 · WING UI)
 code: MKI-B-10
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,11 +15,11 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/live-channel-banners.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 >
 > **셋 다 타겟팅이 불가능하다.** TARGET 캠페인에 넣지 않는다. → [타겟팅 기준](MKI-02)
 
-## 요약
+## 이 문서는
 
 실시간 채널 시청 중에만 노출되는 3종 배너. 카피 영역이 매우 작고 **모두 타겟팅이 불가능**하다.
 
@@ -53,4 +54,4 @@ source: "AX 마케팅 자동화 지식베이스 · placements/live-channel-banne
 
 ## 관련 문서
 
-[노출 구좌 개요](MKI-B-00) · [배너 규격 및 특성](MKI-B-01) · [타겟팅 기준](MKI-02)
+[노출 구좌 개요](MKI-B-00) · [배너 규격](MKI-B-01) · [타겟팅 기준](MKI-02)

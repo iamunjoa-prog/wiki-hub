@@ -1,10 +1,11 @@
 ---
 title: 오핫콘 (오늘 핫한 콘텐츠)
 code: MKI-B-11
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -18,7 +19,7 @@ source: "AX 마케팅 자동화 지식베이스 · placements/ohatcon.md"
 >
 > 이 구좌는 **배너 시안을 만들지 않는다.** 별도의 배너 이미지나 카피를 제작하지 않는 콘텐츠 노출 영역이다.
 
-## 요약
+## 이 문서는
 
 고객이 콘텐츠를 선택하면 해당 작품의 시놉시스 화면으로 바로 연결되는 노출 영역이다.
 

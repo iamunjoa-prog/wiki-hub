@@ -1,10 +1,11 @@
 ---
 title: 2단 배너
 code: MKI-B-03
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,9 +15,9 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/general-banner-2col.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 
-## 요약
+## 이 문서는
 
 B tv의 **가장 기본적인 배너**. 콘텐츠 블록 앞뒤에 편성하거나 여러 개를 모아 이벤트블록으로 구성할 수 있다. 좌 프리뷰 / 우 프리뷰 / 배너의 3단 구성이다.
 

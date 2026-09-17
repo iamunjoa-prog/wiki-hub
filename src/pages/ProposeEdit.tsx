@@ -231,7 +231,7 @@ export function ProposeEdit() {
                 />
               ) : (
                 <div className="md" style={{ minHeight: 380 }}>
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{body}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{body}</ReactMarkdown>
                 </div>
               )}
 

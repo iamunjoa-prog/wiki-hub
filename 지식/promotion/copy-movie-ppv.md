@@ -1,10 +1,11 @@
 ---
 title: 영화 PPV 카피 가이드
 code: MKI-C-02
-category: insight
-version: 1
+category: promotion
+subcategory: reference
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: PPV
 systems: []
@@ -20,9 +21,9 @@ source: "AX 마케팅 자동화 지식베이스 · copywriting/movie-ppv.md"
 >
 > 이 문서는 **작품 분석과 카피 작성에만** 쓴다. 구좌 추천·랜딩 방식·유저플로우 판단은 [노출 구좌 개요](MKI-B-00)를 따른다. 구좌가 정해진 다음에 그 지면에 맞는 카피를 쓴다.
 
-## 요약
+## 이 문서는
 
-영화 PPV 프로모션에서 **작품 고유의 매력을 어떻게 카피로 만드는지**에 대한 규칙이다.
+영화 PPV 프로모션에서 **작품 고유의 매력을 어떻게 카피로 만드는지**에 대한 규칙입니다.
 
 영화 카피는 작품마다 달라야 한다. 그런데 정보 없이 쓰면 "압도적 몰입감의 화제작" 같은 아무 영화에나 붙는 문장이 나온다. 이 문서는 그걸 막고, 동시에 **확인되지 않은 내용을 지어내는 것도** 막는다. 공통 문체는 [카피 작성 원칙](MKI-C-01)을 따르고, 여기서는 영화 특유의 작품 정보 수집·활용 규칙만 다룬다.
 

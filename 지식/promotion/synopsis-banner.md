@@ -1,10 +1,11 @@
 ---
 title: 시놉시스 배너
 code: MKI-B-08
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,9 +15,9 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/synopsis-banner.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 
-## 요약
+## 이 문서는
 
 특정 콘텐츠의 **시놉시스(상세) 화면 안에 편성하는 배너**. 고객의 최종 구매 결정 직전에 노출된다.
 
@@ -37,7 +38,7 @@ source: "AX 마케팅 자동화 지식베이스 · placements/synopsis-banner.md
 
 **단점** — 영역이 작다. 최대 2줄, 8자 제한.
 
-**랜딩 특이사항** — `쿠폰받기` 랜딩은 **UI 5.4.2 이상**에서만 동작한다. → [UI 버전별 기능 지원 현황표](PPC-R-01)
+**랜딩 특이사항** — `쿠폰받기` 랜딩은 **UI 5.4.2 이상**에서만 동작한다. → [UI 버전별 지원 현황표](PPC-R-01)
 
 ## 작성 기준
 

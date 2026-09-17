@@ -48,6 +48,7 @@ const parsed: ParsedDoc[] = Object.entries(files)
       path,
       title: fm.title ?? path,
       category: (fm.category as WikiDoc['category']) || 'promotion',
+      subcategory: fm.subcategory || null,
       code: fm.code,
       scope: fm.scope === 'PPM' || fm.scope === 'PPV' ? fm.scope : '공통',
       body,

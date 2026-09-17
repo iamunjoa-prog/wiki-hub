@@ -1,10 +1,11 @@
 ---
 title: 풀페이지(풀프로모션) 배너
 code: MKI-B-07
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,11 +15,11 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/full-promo-banner.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 >
 > **풀페이지는 최초 노출 구좌가 아니다.** Today B tv 또는 2단 배너 등을 클릭한 고객이 진입하는 **2차 랜딩**이다. 진입 구좌 없이 단독으로 시작하는 유저플로우를 만들지 않는다.
 
-## 요약
+## 이 문서는
 
 B tv 화면 **전면(100% 영역)** 을 활용하는 배너. 배경 1개 + 카드 배너 3개를 **세트로 구성**해야 한다.
 

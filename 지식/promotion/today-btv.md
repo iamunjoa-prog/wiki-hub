@@ -1,10 +1,11 @@
 ---
 title: Today B tv 배너
 code: MKI-B-02
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,9 +15,9 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/today-btv.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 
-## 요약
+## 이 문서는
 
 B tv 첫 화면의 80% 이상을 차지하는 **메인 배너**. MASS(전고객)와 TARGET(조건 추출) 두 가지 편성 방식이 있다.
 

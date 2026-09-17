@@ -1,10 +1,11 @@
 ---
 title: 빅배너 · 월정액 가입 빅배너
 code: MKI-B-05
-category: insight
-version: 1
+category: promotion
+subcategory: spec
+version: 2
 updatedBy: 구*화
-updatedAt: 2026-09-16
+updatedAt: 2026-09-17
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -14,9 +15,9 @@ status: 정리완료
 source: "AX 마케팅 자동화 지식베이스 · placements/big-banner.md"
 ---
 
-> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격 및 특성](MKI-B-01)
+> 적용대상 **공통** · 관련 시스템 ACS · 규격은 [배너 규격](MKI-B-01)
 
-## 요약
+## 이 문서는
 
 특정 GNB의 **최상단에만** 편성할 수 있는, 좌 텍스트 / 우 이미지 구성 배너. 용도가 다른 세 가지 변형이 있다.
 
@@ -67,4 +68,4 @@ GNB 최상단은 해당 카테고리 진입 고객이 반드시 지나치는 자
 
 ## 관련 문서
 
-[노출 구좌 개요](MKI-B-00) · [배너 규격 및 특성](MKI-B-01) · [캠페인 플레이북](MKI-05)
+[노출 구좌 개요](MKI-B-00) · [배너 규격](MKI-B-01) · [캠페인 플레이북](MKI-05)
