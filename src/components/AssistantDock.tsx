@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ENGINE_LABEL, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import { EngineSelector } from './EngineSelector'
 import type { ChatMessage, Engine, PromotionBrief } from '../types'
 
 function RichText({ text }: { text: string }) {
@@ -218,8 +217,6 @@ function QuickActions({ onPlan }: { onPlan: () => void }) {
 
 const DOCK_W_KEY = 'dock-width'
 const DOCK_W_MIN = 320
-/** 디자인 확정 폭. 더 넓히고 싶으면 왼쪽 경계를 끌면 된다 */
-const DOCK_W_DEFAULT = 420
 /** 사이드바(248px) + 본문 최소 480px는 남겨 둔다 — 챗봇을 넓혀도 화면을 다 먹지 않게 */
 const DOCK_W_RESERVE = 728
 const clampDockWidth = (w: number) =>
@@ -232,7 +229,7 @@ function readStoredDockWidth() {
   } catch {
     /* 저장소를 못 쓰는 브라우저면 기본값으로 */
   }
-  return clampDockWidth(DOCK_W_DEFAULT)
+  return clampDockWidth(Math.round(window.innerWidth * 0.33))
 }
 
 /**
@@ -287,8 +284,7 @@ function useDockResize() {
 }
 
 export function AssistantDock() {
-  const { assistant, closeDock, ask, showToast } = useApp()
-  const { preferred, engine } = assistant
+  const { assistant, closeDock, ask } = useApp()
   const [input, setInput] = useState('')
   const { width, dragging, startDrag, onKeyDown } = useDockResize()
   const logRef = useRef<HTMLDivElement>(null)
@@ -297,29 +293,13 @@ export function AssistantDock() {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' })
   }, [assistant.messages, assistant.pending])
 
-  // Esc로 닫는다. 엔진 드롭다운이 열려 있으면 그쪽이 먼저 먹는다(capture 단계에서 멈춤).
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeDock()
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [closeDock])
-
   const send = (text: string) => {
     ask(text)
     setInput('')
   }
 
-  const fellBack = preferred && engine && preferred !== engine
-
   return (
     <aside className="dock" style={{ width }}>
-      {fellBack && (
-        <p className="dock-fallback">
-          {ENGINE_LABEL[preferred]} 연결 안 됨 → {ENGINE_LABEL[engine]}로 답변합니다
-        </p>
-      )}
       <div
         className={`dock-resizer${dragging ? ' on' : ''}`}
         role="separator"
@@ -332,20 +312,20 @@ export function AssistantDock() {
         }}
         onKeyDown={onKeyDown}
       />
-      {/* 헤더 — 드로어 안에서도 엔진을 바꿀 수 있어야 한다 */}
       <div className="dock-head">
-        <EngineSelector variant="drawer" />
-        <button className="dock-full" onClick={() => showToast('전용 대화 화면은 준비 중입니다')}>
-          전체 화면
-        </button>
-        <button className="dock-x" onClick={closeDock} aria-label="대화 닫기">
-          ✕
+        <span className="t">무엇이든 물어보세요</span>
+        <button onClick={closeDock} aria-label="어시스턴트 닫기">
+          ▸
         </button>
       </div>
+      <div className="dock-scope">
+        프로모션 정책·업무, 마케팅 인사이트, ACS·CBS·Swing 매뉴얼, 편성표까지 — 자세한 내용을 챗봇이 문서 근거로 정리해 드립니다
+      </div>
+      <QuickActions onPlan={() => send(PLAN_STARTER)} />
 
       <div className="dock-log" ref={logRef}>
         {assistant.messages.length === 0 && (
-          <div className="dock-intro">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="label">이렇게 물어보세요</span>
             <div className="suggest">
               {SUGGESTED_QUESTIONS.map((q) => (
@@ -354,7 +334,6 @@ export function AssistantDock() {
                 </button>
               ))}
             </div>
-            <QuickActions onPlan={() => send(PLAN_STARTER)} />
           </div>
         )}
         {assistant.messages.map((m) => (
@@ -370,6 +349,7 @@ export function AssistantDock() {
       </div>
 
       <div className="dock-foot">
+        <EngineToggle />
         <form
           className="composer"
           onSubmit={(e) => {
@@ -381,7 +361,7 @@ export function AssistantDock() {
             className="field"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="이어서 질문…"
+            placeholder="질문 입력…"
             aria-label="어시스턴트에게 질문"
           />
           <button className="btn accent" disabled={!input.trim()}>
