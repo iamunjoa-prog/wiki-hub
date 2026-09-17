@@ -2,7 +2,7 @@
 title: 마케팅 인사이트 개요
 code: MKI-00
 category: promotion
-subcategory: reference
+subcategory: insight
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

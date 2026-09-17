@@ -26,7 +26,9 @@ export const categoryShort: Record<Category['id'], string> = {
  * 편성, 그리고 프로모션의 업무 프로세스는 아직 문서가 없는 빈 서브메뉴다 —
  * 자리만 먼저 잡아 두고 문서가 채워지면 그대로 나타난다.
  *
- * 프로모션 서브메뉴는 비공개 참고 위키(ax-promotion-wiki)의 1~6번 목차를 그대로 따른다.
+ * 프로모션 서브메뉴 앞 4단(시작하기~시스템 매뉴얼)은 비공개 참고 위키(ax-promotion-wiki)의
+ * 목차를 따르고, 뒤 4단(배너 규격~운영 참고자료)은 옛 '규격·제약'·'참조' 2개 서브메뉴에
+ * 섞여 있던 문서를 성격별로 다시 나눈 것이다.
  */
 export const subcategories: Record<Category['id'], Subcategory[]> = {
   programming: [
@@ -41,8 +43,10 @@ export const subcategories: Record<Category['id'], Subcategory[]> = {
     { id: 'policy', label: '정책' },
     { id: 'process', label: '업무 프로세스' },
     { id: 'system', label: '시스템 매뉴얼' },
-    { id: 'spec', label: '규격·제약' },
-    { id: 'reference', label: '참조' },
+    { id: 'banner-spec', label: '배너 규격' },
+    { id: 'insight', label: '마케팅 인사이트' },
+    { id: 'copy-guide', label: '카피 가이드' },
+    { id: 'ops-reference', label: '운영 참고자료' },
   ],
   system: [],
   guide: [],

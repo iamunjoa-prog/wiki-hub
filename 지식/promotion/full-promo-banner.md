@@ -2,7 +2,7 @@
 title: 풀페이지(풀프로모션) 배너
 code: MKI-B-07
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

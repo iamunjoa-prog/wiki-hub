@@ -2,7 +2,7 @@
 title: 프로모션 혜택 스킴
 code: MKI-03
 category: promotion
-subcategory: reference
+subcategory: insight
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

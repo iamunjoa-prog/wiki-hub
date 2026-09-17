@@ -2,7 +2,7 @@
 title: 2단 배너
 code: MKI-B-03
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

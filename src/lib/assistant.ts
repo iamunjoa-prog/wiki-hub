@@ -220,7 +220,7 @@ export function buildCampaignDraft(turns: ChatTurn[], scope?: ProductScope): Cam
   const product = PRODUCTS.find((p) => p.scope === scope) ?? slots.product
   const channel = slots.channel ?? ''
 
-  const policyRefs = ['PPC-P-01', product?.policyCode, channel && 'PPC-P-04'].filter(
+  const policyRefs = ['PPC-P-01', product?.policyCode, channel && 'PPC-R-06'].filter(
     (c): c is string => Boolean(c) && docs.some((d) => d.code === c),
   )
 
@@ -362,8 +362,8 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     query,
     context: userText(history),
     scope: slots.product?.scope ?? null,
-    // 판단을 물으면 정책 문서보다 참조(카피·타겟팅·플레이북 등)가 답에 가깝다
-    preferSubcategory: advice ? 'reference' : null,
+    // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
+    preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
   }
   const hits = searchDocs(search).slice(0, 3)
 
@@ -409,12 +409,12 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   if (advice) {
     const more = hits
       .slice(0, 3)
-      .filter((h) => h.doc.subcategory === 'reference' && !used.includes(h))
+      .filter((h) => ['insight', 'copy-guide'].includes(h.doc.subcategory ?? '') && !used.includes(h))
       .map((h) => `${h.doc.title}(${h.doc.code})`)
     lines.push(
       more.length
-        ? `구좌 구성과 카피 방향은 참조의 ${more.join(' · ')}에 더 정리되어 있습니다.`
-        : '구좌 구성·카피 방향·과거 실적은 프로모션 > 참조 메뉴에서 더 볼 수 있습니다.',
+        ? `구좌 구성과 카피 방향은 ${more.join(' · ')}에 더 정리되어 있습니다.`
+        : '구좌 구성·카피 방향·과거 실적은 프로모션 > 마케팅 인사이트 · 카피 가이드 메뉴에서 더 볼 수 있습니다.',
     )
   }
 

@@ -2,7 +2,7 @@
 title: 캠페인 플레이북 (상품 × 목표별 표준 조합)
 code: MKI-05
 category: promotion
-subcategory: reference
+subcategory: insight
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

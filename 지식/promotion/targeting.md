@@ -2,7 +2,7 @@
 title: 타겟팅 기준
 code: MKI-02
 category: promotion
-subcategory: reference
+subcategory: insight
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17
@@ -32,7 +32,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/targeting.md"
 | 구좌 | Today B tv MASS 등 | Today B tv TARGET 등 |
 | 추가 검증 | 불필요 | **타겟 조건, 모수, 배너 Capa, 쿠폰 Capa 별도 검증 필수** |
 
-TARGET 캠페인의 모수가 **80만 명을 초과하면 80만 단위로 분할**한다. 발송 Capa 기준은 [배너·TV팝업·스마트알림 운영 기준](PPC-P-04)을 따른다.
+TARGET 캠페인의 모수가 **80만 명을 초과하면 80만 단위로 분할**한다. 발송 Capa 기준은 [배너·TV팝업·스마트알림 운영 기준](PPC-R-06)을 따른다.
 
 ## B tv+ 검증 타겟 그룹
 

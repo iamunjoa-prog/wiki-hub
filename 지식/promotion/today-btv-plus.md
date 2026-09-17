@@ -2,7 +2,7 @@
 title: Today B tv+ 배너
 code: MKI-B-12
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 1
 updatedBy: 구*화
 updatedAt: 2026-09-17

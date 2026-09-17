@@ -2,7 +2,7 @@
 title: 영화 PPV 카피 가이드
 code: MKI-C-02
 category: promotion
-subcategory: reference
+subcategory: copy-guide
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17

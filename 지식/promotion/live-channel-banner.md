@@ -2,7 +2,7 @@
 title: 실시간 채널 배너 (미니 EPG · 편성표 · WING UI)
 code: MKI-B-10
 category: promotion
-subcategory: spec
+subcategory: banner-spec
 version: 2
 updatedBy: 구*화
 updatedAt: 2026-09-17
