@@ -1,168 +1,351 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { TopBar } from '../components/AppShell'
-import { CliStatus } from '../components/CliStatus'
-import { SystemCard } from '../components/SystemCard'
-import { categories, categoryShort } from '../data/docs'
+import { EngineSelector } from '../components/EngineSelector'
+import { RejectModal } from '../components/RejectModal'
 import { useApp } from '../store/AppStore'
-import type { ProposalStatus } from '../types'
 
-function StatusTag({ status }: { status: ProposalStatus }) {
-  if (status === 'approved') return <span className="tag ok">승인됨</span>
-  if (status === 'rejected') return <span className="tag no">반려됨</span>
-  return <span className="tag wait">대기 중</span>
+/** 히어로에 거는 예시 질문 — 실제로 문서에 답이 있는 것만 올린다 */
+const EXAMPLE_QUESTIONS = [
+  '판촉용 쿠폰 품의 결재선',
+  'CBS 승인요청 버튼 오류',
+  '전환동의 팝업 적용 버전',
+]
+
+/** 이번 주 월요일. 「이번 주 갱신」이 「전체 문서」와 같은 값이 되던 원인이 기준 부재였다 */
+function startOfWeek(now = new Date()): string {
+  const d = new Date(now)
+  const day = (d.getDay() + 6) % 7 // 월요일 = 0
+  d.setDate(d.getDate() - day)
+  d.setHours(0, 0, 0, 0)
+  return d.toISOString().slice(0, 10)
+}
+
+/** 경과일 — 절대 날짜보다 "며칠 묵었는지"가 승인 판단에 쓰인다 */
+function daysAgo(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+  if (days <= 0) return '오늘'
+  if (days === 1) return '어제'
+  return `${days}일 경과`
+}
+
+type Group = '오늘' | '이번 주' | '이전'
+
+function groupOf(updatedAt: string, today: string, monday: string): Group {
+  if (updatedAt >= today) return '오늘'
+  if (updatedAt >= monday) return '이번 주'
+  return '이전'
+}
+
+/** 청사진 카드 — 면을 채우지 않고 네 꼭지에 등록 마크를 남긴다 */
+function Card({
+  title,
+  aside,
+  children,
+}: {
+  title: string
+  aside?: React.ReactNode
+  children: React.ReactNode
+}) {
+  return (
+    <section className="card blueprint">
+      <i className="corner tl" />
+      <i className="corner tr" />
+      <i className="corner bl" />
+      <i className="corner br" />
+      <header className="card-head">
+        <h2>{title}</h2>
+        {aside}
+      </header>
+      {children}
+    </section>
+  )
 }
 
 export function Dashboard() {
-  const { docs, sheets, proposals, promotions, systems, systemRequests, favoriteSystems, session } = useApp()
+  const {
+    docs,
+    sheets,
+    proposals,
+    promotions,
+    systems,
+    systemRequests,
+    session,
+    assistant,
+    ask,
+    showToast,
+    decideProposal,
+    decidePromotion,
+    decideSystemRequest,
+  } = useApp()
   const navigate = useNavigate()
-  const isAdmin = session.role === 'admin'
+  const canApprove = session.role === 'admin'
 
-  const byCategory = categories.map((c) => ({
-    label: c.label,
-    count: docs.filter((d) => d.category === c.id).length,
-  }))
-  const pending =
-    proposals.filter((p) => p.status === 'pending').length +
-    promotions.filter((p) => p.status === 'pending').length +
-    systemRequests.filter((r) => r.status === 'pending').length
+  const [mode, setMode] = useState<'ask' | 'search'>('ask')
+  const [query, setQuery] = useState('')
+  const [rejecting, setRejecting] = useState<string | null>(null)
+  const input = useRef<HTMLInputElement>(null)
 
-  // 별표를 켠 시스템만 — 순서는 시스템 화면과 같게 목록 순서를 따른다
-  const favorites = systems.filter((s) => favoriteSystems.includes(s.id))
+  // ⌘K / Ctrl+K — 어느 화면에서든 히어로 입력으로 들어온다
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        input.current?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
 
-  const recent = [...docs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 7)
-  const weekly = docs.filter((d) => d.updatedAt >= '2026-08-25').length
+  const today = new Date().toISOString().slice(0, 10)
+  const monday = startOfWeek()
+  const updatedThisWeek = docs.filter((d) => d.updatedAt >= monday).length
 
-  // 관리자는 전체 대기 건, 실무자는 본인 요청을 최신순으로
-  const requests = [
-    ...proposals.map((p) => ({ id: p.id, kind: '문서', title: p.docTitle, by: p.requestedBy, at: p.requestedAt, status: p.status })),
-    ...promotions.map((p) => ({ id: p.id, kind: '편성표', title: `${p.sheetName} 승격`, by: p.requestedBy, at: p.requestedAt, status: p.status })),
-    ...systemRequests.map((r) => ({ id: r.id, kind: '시스템', title: `${r.name} ${r.targetSystemId ? '접속 주소' : ''} 등록`, by: r.requestedBy, at: r.requestedAt, status: r.status })),
-  ]
-    .filter((r) => (isAdmin ? r.status === 'pending' : r.by === session.name))
-    .sort((a, b) => b.at.localeCompare(a.at))
-    .slice(0, 4)
-  const requestsPath = isAdmin ? '/approvals' : '/requests'
+  // 승인 대기 — 문서·편성표·시스템 세 종류를 한 줄로 합쳐 오래 묵은 순으로 본다
+  const approvals = useMemo(
+    () =>
+      [
+        ...proposals
+          .filter((p) => p.status === 'pending')
+          .map((p) => ({ id: p.id, kind: 'proposal' as const, title: p.docTitle, at: p.requestedAt })),
+        ...promotions
+          .filter((p) => p.status === 'pending')
+          .map((p) => ({ id: p.id, kind: 'promotion' as const, title: `${p.sheetName} 승격`, at: p.requestedAt })),
+        ...systemRequests
+          .filter((r) => r.status === 'pending')
+          .map((r) => ({ id: r.id, kind: 'system' as const, title: `${r.name} 등록`, at: r.requestedAt })),
+      ].sort((a, b) => a.at.localeCompare(b.at)),
+    [proposals, promotions, systemRequests],
+  )
+  const shown = approvals.slice(0, 3)
+
+  // 최근 갱신 — 태그·작성자·날짜 열을 빼고 날짜 그룹 + 제목만 남긴다
+  const recent = useMemo(() => {
+    const sorted = [...docs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 7)
+    const out: { group: Group; items: typeof sorted }[] = []
+    for (const d of sorted) {
+      const g = groupOf(d.updatedAt, today, monday)
+      const last = out[out.length - 1]
+      if (last && last.group === g) last.items.push(d)
+      else out.push({ group: g, items: [d] })
+    }
+    return out
+  }, [docs, today, monday])
+
+  const decide = async (
+    item: (typeof approvals)[number],
+    decision: 'approved' | 'rejected',
+    reason?: string,
+  ) => {
+    if (item.kind === 'proposal') await decideProposal(item.id, decision, reason)
+    else if (item.kind === 'promotion') await decidePromotion(item.id, decision, { reason })
+    else await decideSystemRequest(item.id, decision, reason)
+    showToast(decision === 'approved' ? '승인했습니다' : '반려했습니다')
+  }
+
+  const submit = (text: string) => {
+    const q = text.trim()
+    if (!q) return
+    if (mode === 'search') {
+      navigate(`/search?q=${encodeURIComponent(q)}`)
+      return
+    }
+    // 질문은 우측 드로어로 — 대시보드는 그대로 두고 승인·문서 작업과 나란히 본다
+    ask(q)
+    setQuery('')
+  }
+
+  const rejectingItem = approvals.find((a) => a.id === rejecting)
 
   return (
-    <>
-      <TopBar>
-        <span className="btn sm">알림 3</span>
-      </TopBar>
-      <div className="content">
-        <div className="dash-wrap">
-          <div className="kpi-grid">
-            <div className="kpi">
-              <span className="label">전체 문서</span>
-              <b>{docs.length}</b>
-            </div>
-            <div className="kpi">
-              <span className="label">카테고리별</span>
-              <span className="sub">
-                {byCategory.map((c) => `${c.label} ${c.count}`).join(' / ')}
-              </span>
-            </div>
-            <div className="kpi">
-              <span className="label">이번 주 업데이트</span>
-              <b>{weekly}</b>
-            </div>
-            {isAdmin ? (
-              <button className="kpi" onClick={() => navigate('/approvals')}>
-                <span className="label strong">승인 대기</span>
-                <b>{pending}</b>
-                <span className="sub muted">승인 관리 →</span>
+    <div className="content dash">
+      {/* ---------- 히어로: 질문/검색 단일 진입 ---------- */}
+      <section className="hero">
+        <p className="hero-kicker">ASK · SEARCH</p>
+        <h1 className="hero-title">문서를 찾거나, 문서에 물어보세요</h1>
+
+        <form
+          className="hero-bar"
+          onSubmit={(e) => {
+            e.preventDefault()
+            submit(query)
+          }}
+        >
+          <div className="hero-seg" role="tablist">
+            {(['ask', 'search'] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                role="tab"
+                aria-selected={mode === m}
+                className={mode === m ? 'on' : ''}
+                onClick={() => setMode(m)}
+              >
+                {m === 'ask' ? '질문' : '검색'}
               </button>
-            ) : (
-              <button className="kpi" onClick={() => navigate('/requests')}>
-                <span className="label">내 대기 요청</span>
-                <b>{proposals.filter((p) => p.status === 'pending').length}</b>
-                <span className="sub muted">내 요청 현황 →</span>
-              </button>
-            )}
+            ))}
           </div>
 
-          <div className="dash-cols">
-            <div className="left">
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="label strong">최근 업데이트 문서</span>
-                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/wiki')}>
-                    전체 보기 →
-                  </button>
-                </div>
-                {recent.map((d) => (
-                  <button key={d.id} className="row" onClick={() => navigate(`/wiki/${d.id}`)}>
-                    <span className="tag">{categoryShort[d.category]}</span>
-                    <span className="grow">{d.title}</span>
-                    <span className="muted">{d.updatedBy}</span>
-                    <span className="muted">{d.updatedAt.slice(5)}</span>
-                  </button>
-                ))}
-              </div>
+          <EngineSelector />
 
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="label strong">{isAdmin ? '승인 대기 요청' : '내 최근 요청'}</span>
-                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate(requestsPath)}>
-                    {isAdmin ? '승인 관리' : '전체 보기'} →
-                  </button>
-                </div>
-                {requests.map((r) => (
-                  <button key={r.id} className="row" onClick={() => navigate(requestsPath)}>
-                    <span className="tag">{r.kind}</span>
-                    <span className="grow">{r.title}</span>
-                    {isAdmin && <span className="muted">{r.by}</span>}
-                    <span className="muted">{r.at.slice(5, 10)}</span>
-                    <StatusTag status={r.status} />
-                  </button>
-                ))}
-                {requests.length === 0 && (
-                  <div className="row muted">{isAdmin ? '대기 중인 요청이 없습니다' : '제출한 요청이 없습니다'}</div>
-                )}
-              </div>
-            </div>
+          <input
+            ref={input}
+            className="hero-input"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={
+              mode === 'ask' ? '월정액 할인 쿠폰 프로모션 배너 진행 가능해?' : '문서 제목·내용 검색'
+            }
+            aria-label={mode === 'ask' ? '문서에 질문' : '문서 검색'}
+          />
 
-            <div className="right">
-              <CliStatus />
+          <button className="btn primary hero-submit" type="submit" disabled={assistant.pending}>
+            {mode === 'ask' ? '질문' : '검색'}
+          </button>
+        </form>
 
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="label strong">자주 사용하는 시스템</span>
-                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/systems')}>
-                    전체 보기 →
-                  </button>
-                </div>
-                {favorites.length > 0 ? (
-                  <div className="sys-grid">
-                    {favorites.map((s) => (
-                      <SystemCard key={s.id} system={s} />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="empty">
-                    <div className="box" />
-                    시스템 화면에서 별표를 누르면 여기에 모입니다
-                  </div>
-                )}
-              </div>
+        {mode === 'ask' && (
+          <div className="hero-chips">
+            {EXAMPLE_QUESTIONS.map((q) => (
+              <button key={q} type="button" onClick={() => submit(q)}>
+                {q}
+              </button>
+            ))}
+          </div>
+        )}
 
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="label strong">자주 쓰는 편성/스케줄</span>
-                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/sheets')}>
-                    전체 보기 →
-                  </button>
-                </div>
-                {sheets.slice(0, 4).map((s) => (
-                  <button key={s.id} className="row" onClick={() => navigate(`/sheets?id=${s.id}`)}>
-                    <span className="grow">{s.name}</span>
-                    <span className="muted">→</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+        <p className="hero-meta">답변에 근거 문서 표시 · 엔진은 왼쪽에서 전환</p>
+      </section>
+
+      {/* ---------- KPI + 주 액션 ---------- */}
+      <div className="kpi-bar">
+        <div className="kpi-set">
+          <div className="kpi-item">
+            <b>{docs.length}</b>
+            <span>전체 문서</span>
+          </div>
+          <div className="kpi-item">
+            <b className="accent">{updatedThisWeek}</b>
+            <span>이번 주 갱신</span>
+          </div>
+          <div className="kpi-item">
+            <b>{approvals.length}</b>
+            <span>내 승인 대기</span>
           </div>
         </div>
+        <div className="kpi-actions">
+          <button className="btn primary blueprint" onClick={() => navigate('/wiki')}>
+            <i className="corner tl" />
+            <i className="corner tr" />
+            <i className="corner bl" />
+            <i className="corner br" />+ 새 문서
+          </button>
+          <button className="btn" onClick={() => navigate('/requests')}>
+            요청 등록
+          </button>
+        </div>
       </div>
-    </>
+
+      {/* ---------- 3열 ---------- */}
+      <div className="dash-grid">
+        <Card
+          title="내 승인 대기"
+          aside={approvals.length > 0 ? <span className="tag tag-accent">{approvals.length}</span> : undefined}
+        >
+          {shown.length === 0 && <p className="card-empty">처리할 승인 건이 없습니다</p>}
+          {shown.map((a) => (
+            <div key={a.id} className="approval-row">
+              <span className="t">{a.title}</span>
+              <div className="approval-act">
+                {canApprove ? (
+                  <>
+                    <button className="btn primary xs" onClick={() => decide(a, 'approved')}>
+                      승인
+                    </button>
+                    <button className="btn ghost xs" onClick={() => setRejecting(a.id)}>
+                      반려
+                    </button>
+                  </>
+                ) : (
+                  <span className="muted">승인 권한 없음</span>
+                )}
+                <span className="muted">{daysAgo(a.at)}</span>
+              </div>
+            </div>
+          ))}
+        </Card>
+
+        <Card
+          title="최근 업데이트"
+          aside={
+            <button className="card-link" onClick={() => navigate('/wiki')}>
+              전체
+            </button>
+          }
+        >
+          {recent.length === 0 && (
+            <p className="card-empty">
+              최근 7일 갱신 문서가 없습니다
+              <button className="btn ghost xs" onClick={() => navigate('/wiki')}>
+                + 새 문서
+              </button>
+            </p>
+          )}
+          {recent.map((g) => (
+            <div key={g.group} className="recent-group">
+              <h3>{g.group}</h3>
+              {g.items.map((d) => (
+                <button key={d.id} className="recent-item" onClick={() => navigate(`/wiki/${d.id}`)}>
+                  {d.title}
+                </button>
+              ))}
+            </div>
+          ))}
+        </Card>
+
+        <div className="dash-col">
+          <Card title="바로 열기">
+            <div className="quick-grid">
+              {sheets.slice(0, 4).map((s) => (
+                <button key={s.id} className="quick-chip" onClick={() => navigate(`/sheets?id=${s.id}`)}>
+                  {s.name}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          <Card title="외부 시스템">
+            {systems.slice(0, 3).map((s) => (
+              <a
+                key={s.id}
+                className="ext-row"
+                href={s.url || undefined}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => {
+                  if (!s.url) {
+                    e.preventDefault()
+                    navigate('/systems')
+                  }
+                }}
+              >
+                <span className="t">{s.name} ↗</span>
+                <span className="muted">{s.access === '클라우드 전용' ? '클라우드' : '로컬'}</span>
+              </a>
+            ))}
+          </Card>
+        </div>
+      </div>
+
+      {rejectingItem && (
+        <RejectModal
+          onCancel={() => setRejecting(null)}
+          onConfirm={async (reason) => {
+            setRejecting(null)
+            await decide(rejectingItem, 'rejected', reason)
+          }}
+        />
+      )}
+    </div>
   )
 }
