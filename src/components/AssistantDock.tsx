@@ -118,7 +118,7 @@ function engineTitle(e: Engine, usable: boolean, installed: boolean): string {
   if (e === 'gemini') return usable ? 'Gemini API로 답변' : 'Gemini API 키가 설정되지 않았습니다'
   if (usable) return `${ENGINE_LABEL[e]} CLI로 답변`
   return installed
-    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 대시보드에서 로그인`
+    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 메인에서 로그인`
     : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
 }
 

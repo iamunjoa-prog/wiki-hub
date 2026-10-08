@@ -360,7 +360,7 @@ function Sidebar() {
       </div>
       <nav className="nav">
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          대시보드
+          메인
         </NavLink>
 
         <WikiTree />
