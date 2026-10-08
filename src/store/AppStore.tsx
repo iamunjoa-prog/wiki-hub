@@ -15,6 +15,9 @@ import { defaultFavoriteSystems, systems as seedSystems } from '../data/systems'
 import {
   askAssistant,
   buildCampaignDraft,
+  detectEventName,
+  detectPeriod,
+  detectScheme,
   ENGINE_PRIORITY,
   fetchEngines,
   INTENT_PRODUCT_QUESTION,
@@ -25,6 +28,17 @@ import {
   readSlots,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
+import {
+  applyAnswer,
+  planBrief,
+  planQuestion,
+  planScope,
+  recommendRequest,
+  startPlan,
+  TEXT_STEPS,
+  TRACK_LABEL,
+  type PlanState,
+} from '../lib/planner'
 import {
   applyWrites,
   emptyRecords,
@@ -108,6 +122,8 @@ interface AppState {
   ask: (query: string) => void
   /** 진행 의도 확인에 답한다 — '네'면 상품 유형만 더 묻고 어드민 화면을 연다 */
   resolveIntent: (messageId: string, choice: IntentChoice) => void
+  /** "여기서 기획부터"의 단계별 질문에 답한다 — value 가 빈 문자열이면 건너뛰기 */
+  answerPlan: (messageId: string, value: string, label: string) => void
   setEngine: (engine: Engine) => void
   refreshEngines: () => Promise<void>
   setCampaignDraft: (draft: CampaignDraft | null) => void
@@ -157,8 +173,6 @@ const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
 
 /** 추천 버튼이 대신 보내는 질문 — 근거 문서를 타도록 평소 질문과 같은 경로로 보낸다 */
 const COPY_REQUEST = '지금 정리한 프로모션 기준으로 카피 방향을 추천해줘'
-/** "기획부터"를 고르면 대신 보내는 질문 — 앞 대화의 프로모션을 인사이트·정책 기준으로 설계한다 */
-const PLAN_REQUEST = '위키의 인사이트·정책 기준으로 이 프로모션의 기획 방향과 전략부터 잡아줘'
 const PLACEMENT_REQUEST = '지금 정리한 프로모션 기준으로 노출 구좌를 추천해줘'
 
 const Ctx = createContext<AppState | null>(null)
@@ -223,6 +237,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const nextAskedRef = useRef(false)
   /** 추천 버튼으로 보낸 질문 — 답이 오면 다음 단계 안내를 다시 붙여 연결까지 이어 준다 */
   const resumeNextRef = useRef(false)
+  /** "여기서 기획부터"로 채우는 중인 프로모션 뼈대 — 정리 카드와 어드민 연결이 이 값을 쓴다 */
+  const planRef = useRef<PlanState | null>(null)
   const [pending, setPending] = useState(false)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
@@ -344,6 +360,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const q = query.trim()
     if (!q) return
     setDockOpen(true)
+    // 기획 단계별 질문(형태·기간·이벤트명)에는 입력창에 적은 말을 답으로 받는다. 물음표가 있으면 질문으로 본다.
+    const plan = planRef.current
+    if (plan && TEXT_STEPS.includes(plan.step) && !q.includes('?')) {
+      setMessages((prev) => [
+        ...prev.map((m) => (m.intent?.kind === 'plan' ? { ...m, intent: undefined } : m)),
+        makeMessage('user', q),
+      ])
+      advancePlanRef.current?.(applyAnswer(plan, q))
+      return
+    }
     // 이번 질문 전까지의 대화를 이력으로 넘긴다 — 기획 상담은 여러 턴에 걸쳐 조건을 모은다
     const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
     setMessages((prev) => [...prev, makeMessage('user', q)])
@@ -358,6 +384,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           brief: readBrief(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))),
         }
       }
+      // 기획 중이면 정리 카드는 단계별로 받은 값으로 보여 준다
+      if (planRef.current && reply.brief) reply = { ...reply, brief: planBrief(planRef.current) }
       // 다음 단계 안내에는 연결 버튼이 들어 있다 — 뒤늦게 진행 의사를 또 묻지 않는다
       if (reply.intent?.kind === 'next') {
         nextAskedRef.current = true
@@ -383,8 +411,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 어드민(프로모션 자동화) 화면을 새 탭으로 연다. 대화에서 파악한 조건만 실어 보낸다. */
   const openCampaignAdmin = useCallback((scope?: ProductScope) => {
     const turns = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
-    const draft = buildCampaignDraft(turns, scope)
-    const brief = readBrief(turns, scope)
+    const plan = planRef.current
+    let draft = buildCampaignDraft(turns, scope)
+    // 기획부터 정리한 값이 있으면 그것을 실어 보낸다 — 기간은 읽을 수 있는 형식일 때만 날짜 칸에 넣는다
+    if (plan) {
+      const period = plan.period ? detectPeriod(plan.period) : null
+      draft = {
+        ...draft,
+        target: draft.target || (plan.track ? TRACK_LABEL[plan.track] : ''),
+        periodStart: period?.start ?? draft.periodStart,
+        periodEnd: period?.end ?? draft.periodEnd,
+        note: [plan.name && `이벤트명 ${plan.name}`, plan.form && `형태 ${plan.form}`, !period && plan.period && `기간 ${plan.period}`, draft.note]
+          .filter(Boolean)
+          .join(' · '),
+      }
+    }
+    const brief = plan ? planBrief(plan) : readBrief(turns, scope)
     setCampaignDraft(draft)
     window.open(buildCampaignUrl(draft), '_blank', 'noopener,noreferrer')
     const filled = [draft.target, draft.periodStart && `${draft.periodStart} ~ ${draft.periodEnd}`, draft.targetCount]
@@ -411,11 +453,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
       intentAskedRef.current = true
 
-      // 기획부터 — 인사이트·정책을 근거로 방향을 잡고, 답 아래에 다음 단계(카피·구좌·자동화 연결)를 붙인다
+      // 기획부터 — 상품 → 형태 → 기간 → 이벤트명을 하나씩 묻는다. 앞 대화에서 말한 값은 건너뛴다
       if (choice === 'plan') {
-        nextAskedRef.current = false
-        resumeNextRef.current = true
-        askRef.current?.(PLAN_REQUEST)
+        const turns = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
+        const said = turns.filter((t) => t.role === 'user').map((t) => t.text).join('\n')
+        const slots = readSlots(turns)
+        const period = slots.period ? `${slots.period.start} ~ ${slots.period.end}` : undefined
+        advancePlanRef.current?.(
+          startPlan({
+            track: slots.product?.scope ?? (/b\s*tv\s*\+|비티비플러스/i.test(said) ? 'BTV+' : undefined),
+            form: detectScheme(said) ?? undefined,
+            period,
+            name: detectEventName(said) ?? undefined,
+          }),
+          '좋습니다. 몇 가지만 정하고 가겠습니다.',
+        )
         return
       }
       if (choice === 'no') {
@@ -455,6 +507,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return
       }
       if (choice === 'handoff') {
+        // 기획부터 상품을 정했으면 그대로 넘긴다 (B tv+는 어드민에 고를 칸이 없어 상품 없이 연다)
+        if (planRef.current?.track) {
+          openCampaignAdmin(planScope(planRef.current))
+          return
+        }
         const known = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).product
         if (known) {
           openCampaignAdmin(known.scope)
@@ -469,6 +526,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
       openCampaignAdmin(choice)
     },
     [openCampaignAdmin],
+  )
+
+  /** 다음 기획 질문을 띄운다. 다 모였으면 정리 카드와 함께 추천을 받을지 묻는다 */
+  const advancePlan = useCallback((plan: PlanState, lead = '') => {
+    planRef.current = plan
+    const review = plan.step === 'review'
+    setMessages((prev) => [
+      ...prev,
+      makeMessage('assistant', review ? '여기까지 정리했습니다.' : lead, {
+        intent: planQuestion(plan),
+        brief: review ? planBrief(plan) : undefined,
+      }),
+    ])
+  }, [])
+  const advancePlanRef = useRef(advancePlan)
+  advancePlanRef.current = advancePlan
+
+  const answerPlan = useCallback(
+    (messageId: string, value: string, label: string) => {
+      const plan = planRef.current
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, intent: undefined, intentAnswer: label } : m)),
+      )
+      if (!plan) return
+      if (plan.step !== 'review') {
+        advancePlan(applyAnswer(plan, value))
+        return
+      }
+      // 정리 뒤 — 추천을 받거나, 자동화로 넘기거나, 더 정리한다
+      if (value === 'recommend') {
+        nextAskedRef.current = false
+        resumeNextRef.current = true
+        askRef.current?.(recommendRequest(plan))
+      } else if (value === 'handoff') {
+        openCampaignAdmin(planScope(plan))
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('assistant', '알겠습니다. 바꿀 내용이나 궁금한 정책·인사이트를 물어봐 주세요. 정리되면 프로모션 자동화로 이어서 작업하시면 됩니다.'),
+        ])
+      }
+    },
+    [advancePlan, openCampaignAdmin],
   )
 
   /** 저장에 실패하면 이유를 알린다 — 승인 버튼이 멈춘 채로 남지 않게 던지지 않는다 */
@@ -688,6 +788,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeDock: () => setDockOpen(false),
     ask,
     resolveIntent,
+    answerPlan,
     setEngine: setPreferredEngine,
     refreshEngines,
     setCampaignDraft,

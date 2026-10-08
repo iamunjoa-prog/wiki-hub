@@ -116,8 +116,10 @@ export type ProductScope = 'PPM' | 'PPV'
  * `confirm` 에 '네'가 오면 `product` 로 넘어가고, 상품 유형까지 고르면 어드민 화면으로 보낸다.
  */
 export interface IntentPrompt {
-  kind: 'confirm' | 'product' | 'next'
+  /** `plan` 은 "여기서 기획부터"의 단계별 질문 — 선택지를 질문이 직접 들고 온다 */
+  kind: 'confirm' | 'product' | 'next' | 'plan'
   question: string
+  choices?: { label: string; value: string }[]
 }
 
 /**

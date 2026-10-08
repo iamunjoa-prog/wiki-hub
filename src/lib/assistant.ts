@@ -121,7 +121,7 @@ const SCHEMES: { keywords: string[]; label: string }[] = [
   { keywords: ['경품', '응모', '추첨', '굿즈', 'b캐시'], label: '구매자 경품' },
 ]
 
-function detectScheme(text: string): string | null {
+export function detectScheme(text: string): string | null {
   const q = text.toLowerCase()
   const hit = SCHEMES.filter((s) => s.keywords.some((k) => q.includes(k)))
   if (hit.length === 0) return null
@@ -129,7 +129,7 @@ function detectScheme(text: string): string | null {
 }
 
 /** 따옴표로 묶었거나 "이벤트명은 ~" 형태로 말한 것만 이벤트명으로 본다. 작품명을 멋대로 만들지 않는다. */
-function detectEventName(text: string): string | null {
+export function detectEventName(text: string): string | null {
   const quoted = text.match(/[「『《'"\u201c\u2018]([^」』》'"\u201d\u2019\n]{2,40})[」』》'"\u201d\u2019]/)
   if (quoted) return quoted[1].trim()
   const named = text.match(/(?:이벤트명|프로모션명|행사명)\s*(?:은|는|:)?\s*([^\n,.]{2,40})/)
@@ -150,7 +150,7 @@ export function detectDecision(query: string): boolean {
 }
 
 /** "10월 1일 ~ 10월 14일", "2026-10-01~2026-10-14" 처럼 명시된 기간만 읽는다. */
-function detectPeriod(query: string): { start: string; end: string } | null {
+export function detectPeriod(query: string): { start: string; end: string } | null {
   const iso = query.match(/(\d{4}-\d{2}-\d{2})\s*[~\-–]\s*(\d{4}-\d{2}-\d{2})/)
   if (iso) return { start: iso[1], end: iso[2] }
 
@@ -219,7 +219,7 @@ export function missingBriefFields(brief: PromotionBrief): string[] {
 }
 
 export const NEXT_STEP_QUESTION =
-  '이대로 프로모션 자동화 페이지로 넘겨 드릴까요? 그 전에 카피나 노출 구좌 추천이 필요하면 먼저 골라 주세요.'
+  '어느 정도 정리됐으면 프로모션 자동화로 연결해 구체적인 작업을 이어가세요. 그 전에 카피나 노출 구좌 추천을 더 받아도 됩니다.'
 
 /**
  * 방향을 정한 턴에 붙이는 다음 단계 안내. 뼈대를 카드로 보여 주고, 카피·구좌 추천과
