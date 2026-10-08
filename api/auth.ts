@@ -5,6 +5,7 @@ import {
   getAccount,
   hashPassword,
   isLocked,
+  missingSettings,
   normalizeLoginId,
   passwordProblem,
   recordFailure,
@@ -22,7 +23,8 @@ import { clearCookie, currentAccount, requireUser, sameOrigin, sessionCookie } f
 const error = (status: number, message: string) => Response.json({ error: message }, { status })
 
 export async function GET(request: Request): Promise<Response> {
-  if (!accountsEnabled()) return Response.json({ enabled: false, user: null })
+  // 꺼져 있으면 무엇이 빠졌는지 이름만 알려 준다 — 배포에 환경변수가 안 실렸을 때 바로 짚을 수 있게
+  if (!accountsEnabled()) return Response.json({ enabled: false, user: null, missing: missingSettings() })
   const account = await currentAccount(request)
   return Response.json({ enabled: true, user: account ? toPublic(account) : null })
 }

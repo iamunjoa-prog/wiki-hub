@@ -38,7 +38,15 @@ function readRedis(env: Env) {
 
 /** 계정 기능을 켤지 — 세션 서명 키와 저장소가 모두 있어야 한다. 하나라도 없으면 지금처럼 데모 계정으로 돈다 */
 export function accountsEnabled(env: Env = process.env): boolean {
-  return Boolean(env.HUB_AUTH_SECRET?.trim() && readRedis(env))
+  return missingSettings(env).length === 0
+}
+
+/** 계정 기능을 켜는 데 빠진 설정 이름 — 배포 점검용. 값은 절대 내보내지 않는다 */
+export function missingSettings(env: Env = process.env): string[] {
+  const missing: string[] = []
+  if (!env.HUB_AUTH_SECRET?.trim()) missing.push('HUB_AUTH_SECRET')
+  if (!readRedis(env)) missing.push('KV_REST_API_URL / KV_REST_API_TOKEN')
+  return missing
 }
 
 async function redis<T = unknown>(command: (string | number)[], env: Env = process.env): Promise<T> {
