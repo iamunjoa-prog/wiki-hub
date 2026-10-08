@@ -141,10 +141,11 @@ interface AppState {
  * 확인 버튼이 돌려주는 값.
  * `yes`·`no`·상품 유형은 진행 의도 확인, 나머지는 방향을 정한 뒤의 다음 단계다.
  */
-export type IntentChoice = 'yes' | 'no' | ProductScope | 'copy' | 'placement' | 'handoff' | 'later'
+export type IntentChoice = 'plan' | 'yes' | 'no' | ProductScope | 'copy' | 'placement' | 'handoff' | 'later'
 
 const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
-  yes: '네, 진행할게요',
+  plan: '여기서 기획부터 할게요',
+  yes: '바로 어드민으로 갈게요',
   no: '아니요, 질문만 할게요',
   PPM: '월정액(PPM)',
   PPV: '단건(PPV)',
@@ -156,6 +157,8 @@ const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
 
 /** 추천 버튼이 대신 보내는 질문 — 근거 문서를 타도록 평소 질문과 같은 경로로 보낸다 */
 const COPY_REQUEST = '지금 정리한 프로모션 기준으로 카피 방향을 추천해줘'
+/** "기획부터"를 고르면 대신 보내는 질문 — 앞 대화의 프로모션을 인사이트·정책 기준으로 설계한다 */
+const PLAN_REQUEST = '위키의 인사이트·정책 기준으로 이 프로모션의 기획 방향과 전략부터 잡아줘'
 const PLACEMENT_REQUEST = '지금 정리한 프로모션 기준으로 노출 구좌를 추천해줘'
 
 const Ctx = createContext<AppState | null>(null)
@@ -408,6 +411,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
       intentAskedRef.current = true
 
+      // 기획부터 — 인사이트·정책을 근거로 방향을 잡고, 답 아래에 다음 단계(카피·구좌·자동화 연결)를 붙인다
+      if (choice === 'plan') {
+        nextAskedRef.current = false
+        resumeNextRef.current = true
+        askRef.current?.(PLAN_REQUEST)
+        return
+      }
       if (choice === 'no') {
         setMessages((prev) => [
           ...prev,

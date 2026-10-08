@@ -39,11 +39,29 @@ const ADVICE_CUES = [
   '어떻게 하', '어떻게 해', '어떻게 진행', '어떤 게 좋', '어떤걸 좋', '뭐가 좋', '잘하려', '잘 하려',
 ]
 
+/** 결과물을 바로 달라는 말 — 무엇을(카피·구좌) 달라는지와 함께 있어야 결과물 요청으로 본다 */
+const COPY_CUES = ['카피', '문구', '문안', '헤드라인']
+const PLACEMENT_CUES = ['구좌', '노출 위치']
+const DELIVER_CUES = ['추천', '뽑아', '써줘', '써 줘', '써주', '만들어', '제안', '작성']
+
+/**
+ * 카피·노출 구좌 추천처럼 **결과물을 바로 달라는 요청**인지.
+ * "신작 프로모션 기획하려는데 카피 추천"은 기획 상담이기도 하지만, 사용자가 원하는 것은 카피다 —
+ * 진행 여부를 되묻거나 어드민으로 넘기기 전에 요청한 것부터 답한다.
+ */
+export function detectRecommendRequest(query: string): 'copy' | 'placement' | null {
+  if (!DELIVER_CUES.some((k) => query.includes(k))) return null
+  if (COPY_CUES.some((k) => query.includes(k))) return 'copy'
+  if (PLACEMENT_CUES.some((k) => query.includes(k))) return 'placement'
+  return null
+}
+
 /**
  * 판단 요청으로 볼지. 프로모션 이야기일 때만 본다 — "CBS 승인요청 방법"은
  * 문서에 절차가 그대로 있는 사실 질문이라 판단 요청으로 다루면 안 된다.
  */
 function wantsAdvice(query: string): boolean {
+  if (detectRecommendRequest(query)) return true
   if (!ADVICE_CUES.some((k) => query.includes(k))) return false
   return CAMPAIGN_NOUNS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
 }
@@ -65,7 +83,8 @@ export function detectCampaignIntent(query: string): boolean {
   return CAMPAIGN_NOUNS.some((k) => query.includes(k)) && PLAN_VERBS.some((k) => query.includes(k))
 }
 
-export const INTENT_CONFIRM_QUESTION = '혹시 지금 진행하려는 프로모션이 있으신가요? 있으시면 프로모션 어드민 화면으로 바로 열어드리겠습니다.'
+export const INTENT_CONFIRM_QUESTION =
+  '여기서 인사이트·정책을 확인하며 기획부터 잡을까요, 아니면 바로 프로모션 어드민으로 넘어가 작업할까요?'
 export const INTENT_PRODUCT_QUESTION = '월정액(PPM)인가요, 단건(PPV)인가요? 고르시면 그 기준으로 어드민 화면을 엽니다.'
 
 function detectProduct(query: string) {
@@ -207,7 +226,8 @@ export const NEXT_STEP_QUESTION =
  * 프로모션 자동화 연결 중에서 고르게 한다.
  */
 export function nextStepPromptFor(query: string, alreadyAsked: boolean): IntentPrompt | undefined {
-  if (alreadyAsked || !detectDecision(query)) return undefined
+  // 카피·구좌 추천을 받은 턴에도 붙인다 — 추천을 본 뒤 다른 추천을 받거나 자동화로 넘길 수 있게
+  if (alreadyAsked || !(detectDecision(query) || detectRecommendRequest(query))) return undefined
   return { kind: 'next', question: NEXT_STEP_QUESTION }
 }
 
@@ -254,7 +274,8 @@ export interface AssistantReply {
 /** 이번 답변에 진행 확인을 붙일지. 이미 묻거나 답을 들은 대화에는 다시 붙이지 않는다. */
 export function intentPromptFor(query: string, alreadyAsked: boolean): IntentPrompt | undefined {
   // 이미 방향을 고른 발화에는 진행 의사를 되묻지 않는다 — 다음 단계 안내가 그 자리를 대신한다.
-  if (alreadyAsked || detectDecision(query) || !detectCampaignIntent(query)) return undefined
+  // 카피·구좌 추천을 달라는 발화도 묻지 않는다 — 요청한 것부터 답하고, 넘기는 건 그다음이다.
+  if (alreadyAsked || detectDecision(query) || detectRecommendRequest(query) || !detectCampaignIntent(query)) return undefined
   return { kind: 'confirm', question: INTENT_CONFIRM_QUESTION }
 }
 
@@ -358,12 +379,20 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
    * PPV 질문에 PPM 정책이 근거로 올라온다.
    */
   const advice = wantsAdvice(query)
+  const recommend = detectRecommendRequest(query)
   const search: SearchInput = {
     query,
     context: userText(history),
     scope: slots.product?.scope ?? null,
     // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
-    preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
+    preferSubcategory:
+      recommend === 'copy'
+        ? ['copy-guide']
+        : recommend === 'placement'
+          ? ['banner-spec', 'insight']
+          : advice
+            ? ['insight', 'copy-guide']
+            : null,
   }
   const hits = searchDocs(search).slice(0, 3)
 
@@ -378,7 +407,10 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
 
   // 결론부터 한 줄 — 무엇을 기준으로 답했는지 먼저 밝힌다.
   const lines: string[] = []
-  if (slots.product) {
+  // 규칙 기반은 문장을 새로 지어내지 못한다 — 카피 후보 대신 위키의 카피 기준을 보여 준다고 밝힌다
+  if (recommend === 'copy') {
+    lines.push('카피 후보는 AI 답변 엔진이 있어야 만들 수 있어, 위키의 카피 기준부터 짚어 드립니다.')
+  } else if (slots.product) {
     lines.push(
       advice
         ? `${slots.product.label} 기준으로, 위키에 적힌 제약부터 짚어 드립니다.`
