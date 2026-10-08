@@ -1189,3 +1189,10 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .big-air { padding: 1px 5px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .big-air.on { color: var(--text-2); }
 .big-img { max-width: 260px; overflow: hidden; }
+
+/* Microsoft 365 로그인 화면 */
+.login-screen { min-height: 100%; display: grid; place-items: center; padding: 16px; background: var(--surface-subtle); }
+.login-box { width: 100%; max-width: 360px; padding: 28px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+.login-box h1 { margin: 0 0 8px; font-size: 20px; }
+.login-box p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+.login-error { color: var(--danger); margin: 14px 0 0 !important; }

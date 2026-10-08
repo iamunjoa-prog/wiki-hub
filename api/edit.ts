@@ -1,4 +1,5 @@
 import { join } from 'node:path'
+import { requireUser } from '../server/auth.js'
 import { readGeminiKey } from '../server/env.js'
 import { editGemini } from '../server/gemini.js'
 import { parseEditInput, type EditInput } from '../server/knowledge.js'
@@ -19,6 +20,9 @@ export async function POST(request: Request): Promise<Response> {
   // 다른 사이트의 페이지가 이 함수를 불러 API 키를 쓰지 못하게, 브라우저 요청은 같은 출처만 받는다
   const origin = request.headers.get('origin')
   if (origin && new URL(origin).host !== new URL(request.url).host) return error(403, '허용되지 않은 요청입니다')
+
+  const auth = await requireUser(request)
+  if (!auth.ok) return auth.response
 
   let input: EditInput
   try {

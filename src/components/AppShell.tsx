@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'reac
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
+import { authEnabled, logout } from '../lib/auth'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 
@@ -384,15 +385,23 @@ function Sidebar() {
       <div className="sidebar-foot">
         <span>
           {session.name} · {session.team}
+          {authEnabled && session.role === 'admin' && ' · 관리자'}
         </span>
-        <button
-          className="btn sm"
-          style={{ marginLeft: 'auto' }}
-          onClick={() => setRole(session.role === 'admin' ? 'member' : 'admin')}
-          title="데모용 권한 전환"
-        >
-          {session.role === 'admin' ? '관리자' : '실무자'}
-        </button>
+        {authEnabled ? (
+          // 권한은 Entra 앱 역할로 정해진다 — 화면에서 바꿀 수 없고 표시만 한다
+          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => logout()} title={session.email}>
+            로그아웃
+          </button>
+        ) : (
+          <button
+            className="btn sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRole(session.role === 'admin' ? 'member' : 'admin')}
+            title="데모용 권한 전환"
+          >
+            {session.role === 'admin' ? '관리자' : '실무자'}
+          </button>
+        )}
       </div>
     </aside>
   )

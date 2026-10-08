@@ -1,4 +1,5 @@
 import type { CategoryId, ProductScope, WikiDoc } from '../types'
+import { apiFetch } from './auth'
 
 export interface NewDocInput {
   category: CategoryId
@@ -23,7 +24,7 @@ export async function requestNewDoc(input: NewDocInput, docs: WikiDoc[], request
     .filter((d) => d.category === input.category && d.subcategory === input.subcategory)
     .map((d) => d.code)
 
-  const res = await fetch('/api/createDoc', {
+  const res = await apiFetch('/api/createDoc', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ...input, requestedBy, siblingCodes }),
