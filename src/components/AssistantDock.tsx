@@ -22,19 +22,34 @@ function RichText({ text }: { text: string }) {
 }
 
 /**
- * 진행 의도 확인 — 조건 카드를 먼저 띄우지 않고 "진행하려는 프로모션이 있는지"부터 묻는다.
- * '네'를 고르면 상품 유형만 확인하고 프로모션 어드민 화면을 새 탭으로 연다.
+ * 진행 방식 확인 — 프로모션 이야기가 나오면 여기서 인사이트·정책을 보며 기획부터 할지,
+ * 바로 어드민으로 넘어가 작업할지 묻는다. 어드민을 고르면 상품 유형만 확인하고 새 탭으로 연다.
  */
 function IntentChip({ msg }: { msg: ChatMessage }) {
-  const { resolveIntent } = useApp()
+  const { resolveIntent, answerPlan } = useApp()
   const intent = msg.intent
   if (!intent) return null
+
+  if (intent.kind === 'plan') {
+    return (
+      <div className="intent-chip">
+        <span className="t">{intent.question}</span>
+        <div className="suggest">
+          {intent.choices?.map((c) => (
+            <button key={c.label} onClick={() => answerPlan(msg.id, c.value, c.label)}>
+              {c.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   const choices: { label: string; value: IntentChoice }[] =
     intent.kind === 'confirm'
       ? [
-          { label: '네, 진행할게요', value: 'yes' },
-          { label: '아니요, 질문만 할게요', value: 'no' },
+          { label: '여기서 기획부터 할게요', value: 'plan' },
+          { label: '바로 어드민으로 갈게요', value: 'yes' },
         ]
       : intent.kind === 'product'
         ? [

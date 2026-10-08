@@ -15,6 +15,9 @@ import { defaultFavoriteSystems, systems as seedSystems } from '../data/systems'
 import {
   askAssistant,
   buildCampaignDraft,
+  detectEventName,
+  detectPeriod,
+  detectScheme,
   ENGINE_PRIORITY,
   fetchEngines,
   INTENT_PRODUCT_QUESTION,
@@ -25,6 +28,29 @@ import {
   readSlots,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
+import {
+  applyAnswer,
+  planBrief,
+  planQuestion,
+  planScope,
+  recommendRequest,
+  startPlan,
+  TEXT_STEPS,
+  TRACK_LABEL,
+  type PlanState,
+} from '../lib/planner'
+import {
+  applyWrites,
+  emptyRecords,
+  fetchRecords,
+  mergeDocs,
+  newestFirst,
+  postRecordAction,
+  recordWrites,
+  type DocEdit,
+  type HubRecords,
+  type RecordAction,
+} from '../lib/records'
 import {
   EMPTY_SYSTEMS_STATE,
   fetchSystemsState,
@@ -96,6 +122,8 @@ interface AppState {
   ask: (query: string) => void
   /** 진행 의도 확인에 답한다 — '네'면 상품 유형만 더 묻고 어드민 화면을 연다 */
   resolveIntent: (messageId: string, choice: IntentChoice) => void
+  /** "여기서 기획부터"의 단계별 질문에 답한다 — value 가 빈 문자열이면 건너뛰기 */
+  answerPlan: (messageId: string, value: string, label: string) => void
   setEngine: (engine: Engine) => void
   refreshEngines: () => Promise<void>
   setCampaignDraft: (draft: CampaignDraft | null) => void
@@ -129,10 +157,11 @@ interface AppState {
  * 확인 버튼이 돌려주는 값.
  * `yes`·`no`·상품 유형은 진행 의도 확인, 나머지는 방향을 정한 뒤의 다음 단계다.
  */
-export type IntentChoice = 'yes' | 'no' | ProductScope | 'copy' | 'placement' | 'handoff' | 'later'
+export type IntentChoice = 'plan' | 'yes' | 'no' | ProductScope | 'copy' | 'placement' | 'handoff' | 'later'
 
 const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
-  yes: '네, 진행할게요',
+  plan: '여기서 기획부터 할게요',
+  yes: '바로 어드민으로 갈게요',
   no: '아니요, 질문만 할게요',
   PPM: '월정액(PPM)',
   PPV: '단건(PPV)',
@@ -150,21 +179,38 @@ const Ctx = createContext<AppState | null>(null)
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+/** 저장소가 없을 때(로컬 허브·데모) 화면을 채우는 데모 요청 */
+const seedRecords = (): HubRecords => ({
+  ...emptyRecords(),
+  proposals: Object.fromEntries(initialProposals.map((p) => [p.id, p])),
+  promotions: Object.fromEntries(initialPromotions.map((p) => [p.id, p])),
+})
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(
     () => (localStorage.getItem(LS_ROLE) as Role) || 'member',
   )
-  const [docs, setDocs] = useState<WikiDoc[]>(seedDocs)
-  const [sheets, setSheets] = useState<Sheet[]>(seedSheets)
-  const [proposals, setProposals] = useState<Proposal[]>(initialProposals)
-  const [promotions, setPromotions] = useState<Promotion[]>(initialPromotions)
+  /**
+   * 요청·승인 기록. 배포 허브는 공용 저장소(`remoteRecords`)에 쌓여 담당자 모두가 같은 기록을 보고,
+   * 저장소가 없으면 같은 규칙으로 메모리(`memoryRecords`, 데모 요청 몇 건으로 시작)에서만 돈다.
+   */
+  const [remoteRecords, setRemoteRecords] = useState<HubRecords | null>(null)
+  const [memoryRecords, setMemoryRecords] = useState<HubRecords>(seedRecords)
+  const records = remoteRecords ?? memoryRecords
+  // 코드(지식/ 폴더)의 문서 위에 승인된 수정·승격 문서를 얹는다
+  const docs = useMemo<WikiDoc[]>(() => mergeDocs(seedDocs, records), [records])
+  const sheets = useMemo<Sheet[]>(
+    () => [...Object.values(records.sheets).sort((a, b) => b.id.localeCompare(a.id)), ...seedSheets],
+    [records.sheets],
+  )
+  const proposals = useMemo<Proposal[]>(() => newestFirst(records.proposals), [records.proposals])
+  const promotions = useMemo<Promotion[]>(() => newestFirst(records.promotions), [records.promotions])
   /**
    * 시스템 목록은 팀 공유 파일 하나에 모인다 (로컬 허브가 읽고 쓴다).
    * 저장소가 없는 배포본에서는 `remote` 가 null 로 남고 메모리 상태로 같은 화면을 보여 준다.
    */
   const [remote, setRemote] = useState<SystemsState | null>(null)
   const [memory, setMemory] = useState<SystemsState>(EMPTY_SYSTEMS_STATE)
-  const systemsState = remote ?? memory
   const [favoriteSystems, setFavoriteSystems] = useState<string[]>(() => {
     const saved = localStorage.getItem(LS_FAVORITE_SYSTEMS)
     // 저장된 값이 없을 때만 기본값을 쓴다 — 전부 해제한 상태는 그 자체로 존중한다
@@ -191,6 +237,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const nextAskedRef = useRef(false)
   /** 추천 버튼으로 보낸 질문 — 답이 오면 다음 단계 안내를 다시 붙여 연결까지 이어 준다 */
   const resumeNextRef = useRef(false)
+  /** "여기서 기획부터"로 채우는 중인 프로모션 뼈대 — 정리 카드와 어드민 연결이 이 값을 쓴다 */
+  const planRef = useRef<PlanState | null>(null)
   const [pending, setPending] = useState(false)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
@@ -221,8 +269,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshEngines])
 
   useEffect(() => {
+    fetchRecords().then((r) => r && setRemoteRecords(r))
     fetchSystemsState().then((state) => state && setRemote(state))
   }, [])
+
+  /** 기록 하나를 바꾼다 — 저장소가 있으면 서버가 검사·저장하고, 없으면 같은 규칙으로 메모리에 반영한다 */
+  const dispatch = useCallback(
+    async (action: RecordAction): Promise<string | undefined> => {
+      if (remoteRecords) {
+        const res = await postRecordAction(action)
+        setRemoteRecords(res.records)
+        return res.notice
+      }
+      setMemoryRecords(applyWrites(memoryRecords, recordWrites(memoryRecords, action)))
+      return undefined
+    },
+    [memoryRecords, remoteRecords],
+  )
+
+  // 배포 허브는 시스템 요청도 공용 저장소에 쌓는다 — 로컬 허브는 팀 공유 파일, 둘 다 없으면 메모리
+  const recordsSystems = useMemo<SystemsState | null>(
+    () =>
+      remoteRecords && {
+        urls: remoteRecords.systemUrls,
+        added: Object.values(remoteRecords.addedSystems),
+        requests: newestFirst(remoteRecords.systemRequests),
+        shared: true,
+        updatedAt: '',
+      },
+    [remoteRecords],
+  )
+  const systemsState = recordsSystems ?? remote ?? memory
 
   // 코드에 있는 시스템 + 승인돼 올라온 시스템. 접속 주소는 코드가 아니라 저장소에서 온다.
   const systems = useMemo<SystemEntry[]>(
@@ -239,11 +316,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 요청·승인을 저장소에 반영한다. 저장소가 없으면 같은 규칙으로 메모리에만 반영한다. */
   const applySystemsAction = useCallback(
     async (action: SystemsAction) => {
+      if (remoteRecords) {
+        await dispatch(
+          action.kind === 'request'
+            ? { kind: 'system.request', request: action.request }
+            : { kind: 'system.decide', id: action.id, decision: action.decision, reason: action.reason },
+        )
+        return
+      }
       const next = await postSystemsAction(action)
       if (next) setRemote(next)
       else setMemory((prev) => reduceSystems(prev, action))
     },
-    [],
+    [dispatch, remoteRecords],
   )
 
   // 선택한 엔진을 먼저, 나머지는 CLI → Gemini 순으로 시도한다
@@ -275,6 +360,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const q = query.trim()
     if (!q) return
     setDockOpen(true)
+    // 기획 단계별 질문(형태·기간·이벤트명)에는 입력창에 적은 말을 답으로 받는다. 물음표가 있으면 질문으로 본다.
+    const plan = planRef.current
+    if (plan && TEXT_STEPS.includes(plan.step) && !q.includes('?')) {
+      setMessages((prev) => [
+        ...prev.map((m) => (m.intent?.kind === 'plan' ? { ...m, intent: undefined } : m)),
+        makeMessage('user', q),
+      ])
+      advancePlanRef.current?.(applyAnswer(plan, q))
+      return
+    }
     // 이번 질문 전까지의 대화를 이력으로 넘긴다 — 기획 상담은 여러 턴에 걸쳐 조건을 모은다
     const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
     setMessages((prev) => [...prev, makeMessage('user', q)])
@@ -289,6 +384,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
           brief: readBrief(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))),
         }
       }
+      // 기획 중이면 정리 카드는 단계별로 받은 값으로 보여 준다
+      if (planRef.current && reply.brief) reply = { ...reply, brief: planBrief(planRef.current) }
       // 다음 단계 안내에는 연결 버튼이 들어 있다 — 뒤늦게 진행 의사를 또 묻지 않는다
       if (reply.intent?.kind === 'next') {
         nextAskedRef.current = true
@@ -314,8 +411,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 어드민(프로모션 자동화) 화면을 새 탭으로 연다. 대화에서 파악한 조건만 실어 보낸다. */
   const openCampaignAdmin = useCallback((scope?: ProductScope) => {
     const turns = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
-    const draft = buildCampaignDraft(turns, scope)
-    const brief = readBrief(turns, scope)
+    const plan = planRef.current
+    let draft = buildCampaignDraft(turns, scope)
+    // 기획부터 정리한 값이 있으면 그것을 실어 보낸다 — 기간은 읽을 수 있는 형식일 때만 날짜 칸에 넣는다
+    if (plan) {
+      const period = plan.period ? detectPeriod(plan.period) : null
+      draft = {
+        ...draft,
+        target: draft.target || (plan.track ? TRACK_LABEL[plan.track] : ''),
+        periodStart: period?.start ?? draft.periodStart,
+        periodEnd: period?.end ?? draft.periodEnd,
+        note: [plan.name && `이벤트명 ${plan.name}`, plan.form && `형태 ${plan.form}`, !period && plan.period && `기간 ${plan.period}`, draft.note]
+          .filter(Boolean)
+          .join(' · '),
+      }
+    }
+    const brief = plan ? planBrief(plan) : readBrief(turns, scope)
     setCampaignDraft(draft)
     window.open(buildCampaignUrl(draft), '_blank', 'noopener,noreferrer')
     const filled = [draft.target, draft.periodStart && `${draft.periodStart} ~ ${draft.periodEnd}`, draft.targetCount]
@@ -342,6 +453,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       )
       intentAskedRef.current = true
 
+      // 기획부터 — 상품 → 형태 → 기간 → 이벤트명을 하나씩 묻는다. 앞 대화에서 말한 값은 건너뛴다
+      if (choice === 'plan') {
+        const turns = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
+        const said = turns.filter((t) => t.role === 'user').map((t) => t.text).join('\n')
+        const slots = readSlots(turns)
+        const period = slots.period ? `${slots.period.start} ~ ${slots.period.end}` : undefined
+        advancePlanRef.current?.(
+          startPlan({
+            track: slots.product?.scope ?? (/b\s*tv\s*\+|비티비플러스/i.test(said) ? 'BTV+' : undefined),
+            form: detectScheme(said) ?? undefined,
+            period,
+            name: detectEventName(said) ?? undefined,
+          }),
+          '좋습니다. 몇 가지만 정하고 가겠습니다.',
+        )
+        return
+      }
       if (choice === 'no') {
         setMessages((prev) => [
           ...prev,
@@ -379,6 +507,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return
       }
       if (choice === 'handoff') {
+        // 기획부터 상품을 정했으면 그대로 넘긴다 (B tv+는 어드민에 고를 칸이 없어 상품 없이 연다)
+        if (planRef.current?.track) {
+          openCampaignAdmin(planScope(planRef.current))
+          return
+        }
         const known = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).product
         if (known) {
           openCampaignAdmin(known.scope)
@@ -395,12 +528,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [openCampaignAdmin],
   )
 
+  /** 다음 기획 질문을 띄운다. 다 모였으면 정리 카드와 함께 추천을 받을지 묻는다 */
+  const advancePlan = useCallback((plan: PlanState, lead = '') => {
+    planRef.current = plan
+    const review = plan.step === 'review'
+    setMessages((prev) => [
+      ...prev,
+      makeMessage('assistant', review ? '여기까지 정리했습니다.' : lead, {
+        intent: planQuestion(plan),
+        brief: review ? planBrief(plan) : undefined,
+      }),
+    ])
+  }, [])
+  const advancePlanRef = useRef(advancePlan)
+  advancePlanRef.current = advancePlan
+
+  const answerPlan = useCallback(
+    (messageId: string, value: string, label: string) => {
+      const plan = planRef.current
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, intent: undefined, intentAnswer: label } : m)),
+      )
+      if (!plan) return
+      if (plan.step !== 'review') {
+        advancePlan(applyAnswer(plan, value))
+        return
+      }
+      // 정리 뒤 — 추천을 받거나, 자동화로 넘기거나, 더 정리한다
+      if (value === 'recommend') {
+        nextAskedRef.current = false
+        resumeNextRef.current = true
+        askRef.current?.(recommendRequest(plan))
+      } else if (value === 'handoff') {
+        openCampaignAdmin(planScope(plan))
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('assistant', '알겠습니다. 바꿀 내용이나 궁금한 정책·인사이트를 물어봐 주세요. 정리되면 프로모션 자동화로 이어서 작업하시면 됩니다.'),
+        ])
+      }
+    },
+    [advancePlan, openCampaignAdmin],
+  )
+
+  /** 저장에 실패하면 이유를 알린다 — 승인 버튼이 멈춘 채로 남지 않게 던지지 않는다 */
+  const failed = useCallback((err: unknown) => setToast(`처리하지 못했습니다 — ${(err as Error).message}`), [])
+
   const submitProposal = useCallback(
     (docId: string, newBody: string, reason: string) => {
       const doc = docs.find((d) => d.id === docId)
       if (!doc) return
-      setProposals((prev) => [
-        {
+      dispatch({
+        kind: 'proposal.submit',
+        proposal: {
           id: newId('pr'),
           docId,
           docTitle: doc.title,
@@ -411,43 +591,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedBy: session.name,
           requestedAt: today(),
         },
-        ...prev,
-      ])
-      setToast('수정 제안을 제출했습니다 · 승인 대기')
+      })
+        .then(() => setToast('수정 제안을 제출했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [docs, session.name],
+    [dispatch, docs, failed, session.name],
   )
 
   const decideProposal = useCallback(
     async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
-      // Git 반영이 실패할 수 있어 낙관적 업데이트를 쓰지 않는다.
-      await new Promise((r) => setTimeout(r, 600))
-      setProposals((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: decision, rejectReason: reason } : p)),
-      )
-      if (decision === 'approved') {
-        const proposal = proposals.find((p) => p.id === id)
-        if (proposal?.newBody) {
-          setDocs((prev) =>
-            prev.map((d) =>
-              d.id === proposal.docId
-                ? {
-                    ...d,
-                    body: proposal.newBody,
-                    version: d.version + 1,
-                    updatedBy: proposal.requestedBy,
-                    updatedAt: today(),
-                  }
-                : d,
-            ),
-          )
-        }
-        setToast('승인 완료 · 커밋 생성 후 위키에 반영했습니다')
-      } else {
-        setToast('반려 처리했습니다')
+      const proposal = proposals.find((p) => p.id === id)
+      const doc = proposal && docs.find((d) => d.id === proposal.docId)
+      const edit: DocEdit | undefined =
+        decision === 'approved' && proposal && doc
+          ? { body: proposal.newBody, version: doc.version + 1, updatedBy: proposal.requestedBy, updatedAt: today() }
+          : undefined
+      try {
+        // 배포 허브는 승인과 함께 git에 커밋한다 — 커밋이 실패하면 승인도 되지 않는다
+        const notice = await dispatch({ kind: 'proposal.decide', id, decision, reason, edit, path: doc?.path })
+        setToast(decision === 'approved' ? `승인 완료 · ${notice ?? '위키에 반영했습니다'}` : '반려 처리했습니다')
+      } catch (err) {
+        failed(err)
       }
     },
-    [proposals],
+    [dispatch, docs, failed, proposals],
   )
 
   const toggleFavoriteSystem = useCallback(
@@ -482,9 +649,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedAt: today(),
         },
       })
-      setToast('접속 주소 등록을 요청했습니다 · 승인 대기')
+        .then(() => setToast('접속 주소 등록을 요청했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [applySystemsAction, session.name, systemRequests, systems],
+    [applySystemsAction, failed, session.name, systemRequests, systems],
   )
 
   const submitSystemRequest = useCallback(
@@ -499,15 +667,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedAt: today(),
         },
       })
-      setToast('시스템 등록을 요청했습니다 · 승인 대기')
+        .then(() => setToast('시스템 등록을 요청했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [applySystemsAction, session.name],
+    [applySystemsAction, failed, session.name],
   )
 
   const decideSystemRequest = useCallback(
     async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
       const request = systemRequests.find((r) => r.id === id)
-      await applySystemsAction({ kind: 'decide', id, decision, reason })
+      try {
+        await applySystemsAction({ kind: 'decide', id, decision, reason })
+      } catch (err) {
+        failed(err)
+        return
+      }
       if (decision !== 'approved') {
         setToast('반려 처리했습니다')
         return
@@ -518,36 +692,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : '승인 완료 · 시스템 목록에 추가했습니다',
       )
     },
-    [applySystemsAction, systemRequests],
+    [applySystemsAction, failed, systemRequests],
   )
 
   const addSheet = useCallback(
     (input: Omit<Sheet, 'id' | 'ownerId' | 'ownerName' | 'lastCheckedAt'>) => {
-      setSheets((prev) => [
-        {
+      dispatch({
+        kind: 'sheet.add',
+        sheet: {
           ...input,
           id: newId('sh'),
           ownerId: session.userId,
           ownerName: session.name,
           lastCheckedAt: today(),
         },
-        ...prev,
-      ])
-      setToast('편성표를 등록했습니다')
+      })
+        .then(() => setToast('편성표를 등록했습니다'))
+        .catch(failed)
     },
-    [session.name, session.userId],
+    [dispatch, failed, session.name, session.userId],
   )
 
   const requestPromotion = useCallback(
     (sheetId: string) => {
       const sheet = sheets.find((s) => s.id === sheetId)
       if (!sheet) return
-      if (promotions.some((p) => p.sheetId === sheetId && p.status === 'pending')) {
-        setToast('이미 승격 요청이 대기 중입니다')
-        return
-      }
-      setPromotions((prev) => [
-        {
+      dispatch({
+        kind: 'promotion.request',
+        promotion: {
           id: newId('pm'),
           sheetId,
           sheetName: sheet.name,
@@ -556,11 +728,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedBy: session.name,
           requestedAt: today(),
         },
-        ...prev,
-      ])
-      setToast('승격 요청을 제출했습니다 · 승인 대기')
+      })
+        .then(() => setToast('승격 요청을 제출했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [promotions, session.name, sheets],
+    [dispatch, failed, session.name, sheets],
   )
 
   const decidePromotion = useCallback(
@@ -569,23 +741,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       decision: 'approved' | 'rejected',
       opts: { category?: CategoryId; reason?: string },
     ) => {
-      await new Promise((r) => setTimeout(r, 600))
       const promotion = promotions.find((p) => p.id === id)
-      setPromotions((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, status: decision, rejectReason: opts.reason, targetCategory: opts.category ?? null }
-            : p,
-        ),
-      )
+      const sheet = promotion && sheets.find((s) => s.id === promotion.sheetId)
       const category = opts.category
-      if (decision === 'approved' && promotion && category) {
-        const sheet = sheets.find((s) => s.id === promotion.sheetId)
-        if (sheet) {
-          setDocs((prev) => [
-            ...prev,
-            {
-              id: newId('doc'),
+      const doc: WikiDoc | undefined =
+        decision === 'approved' && sheet && category
+          ? {
+              id: `SUM-${sheet.id.toUpperCase()}`,
               path: `${category}/${sheet.id}.md`,
               title: `${sheet.name} 요약`,
               category,
@@ -596,15 +758,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updatedAt: today(),
               ownerId: sheet.ownerId,
               body: `## 개요\n\n${sheet.description}\n\n- 담당자: ${sheet.ownerName}\n- 대상 GNB: ${sheet.gnb}\n- 대상 기간: ${sheet.periodStart} ~ ${sheet.periodEnd}\n\n## 원본\n\n원본 편성표는 아래 링크에서 확인합니다. 본 요약 문서는 원본과 실시간 동기화되지 않습니다.\n\n[${sheet.name} 원본 열기](${sheet.url})\n`,
-            },
-          ])
-        }
-        setToast('승격 완료 · 요약 문서를 생성했습니다')
-      } else if (decision === 'rejected') {
-        setToast('반려 처리했습니다')
+            }
+          : undefined
+      try {
+        const notice = await dispatch({ kind: 'promotion.decide', id, decision, reason: opts.reason, doc })
+        setToast(decision === 'approved' ? `승격 완료 · 요약 문서를 만들었습니다${notice ? ` · ${notice}` : ''}` : '반려 처리했습니다')
+      } catch (err) {
+        failed(err)
       }
     },
-    [promotions, session.name, sheets],
+    [dispatch, failed, promotions, session.name, sheets],
   )
 
   const value: AppState = {
@@ -625,6 +788,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     closeDock: () => setDockOpen(false),
     ask,
     resolveIntent,
+    answerPlan,
     setEngine: setPreferredEngine,
     refreshEngines,
     setCampaignDraft,

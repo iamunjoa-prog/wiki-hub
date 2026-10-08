@@ -1,5 +1,6 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
+import { readRedis, redis } from './redis.js'
 
 /**
  * 허브 전용 계정 — 사내 메일 계정은 클라우드 PC에서만 쓸 수 있어, 일반 PC에서 쓰는 허브는 계정을 따로 둔다.
@@ -30,12 +31,6 @@ export const toPublic = ({ passwordHash: _hash, ...rest }: Account): PublicAccou
 
 type Env = Record<string, string | undefined>
 
-function readRedis(env: Env) {
-  const url = (env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL)?.trim()
-  const token = (env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN)?.trim()
-  return url && token ? { url: url.replace(/\/$/, ''), token } : null
-}
-
 /** 계정 기능을 켤지 — 세션 서명 키와 저장소가 모두 있어야 한다. 하나라도 없으면 지금처럼 데모 계정으로 돈다 */
 export function accountsEnabled(env: Env = process.env): boolean {
   return missingSettings(env).length === 0
@@ -47,19 +42,6 @@ export function missingSettings(env: Env = process.env): string[] {
   if (!env.HUB_AUTH_SECRET?.trim()) missing.push('HUB_AUTH_SECRET')
   if (!readRedis(env)) missing.push('KV_REST_API_URL / KV_REST_API_TOKEN')
   return missing
-}
-
-async function redis<T = unknown>(command: (string | number)[], env: Env = process.env): Promise<T> {
-  const conf = readRedis(env)
-  if (!conf) throw new Error('계정 저장소(Upstash Redis)가 연결되지 않았습니다')
-  const res = await fetch(conf.url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${conf.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-  })
-  const data = (await res.json().catch(() => ({}))) as { result?: T; error?: string }
-  if (!res.ok || data.error) throw new Error(`계정 저장소 오류 — ${data.error ?? res.status}`)
-  return data.result as T
 }
 
 const KEY_IDS = 'hub:accounts'

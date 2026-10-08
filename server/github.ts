@@ -188,3 +188,96 @@ export async function createDocPR(
 
   return { prUrl: pr.html_url, code, path }
 }
+
+/* ── 승인 → main 커밋 ─────────────────────────────────────
+ * 허브 안에서 관리자가 승인한 변경은 PR을 거치지 않고 main에 바로 커밋한다 — 승인이 곧 검토다.
+ * main에 커밋되면 Vercel이 다시 배포해 위키 화면도 git과 같아진다.
+ */
+
+const contentsPath = (path: string) => `contents/${encodeURIComponent(`지식/${path}`).replace(/%2F/g, '/')}`
+
+interface CommitResult {
+  commitUrl: string
+  version: number
+}
+
+/** 프론트매터의 한 줄을 바꾸고, 없으면 닫는 줄 앞에 넣는다 */
+function setFrontmatter(lines: string[], key: string, value: string): string[] {
+  const i = lines.findIndex((l) => l.startsWith(`${key}:`))
+  if (i >= 0) return lines.map((l, j) => (j === i ? `${key}: ${value}` : l))
+  return [...lines, `${key}: ${value}`]
+}
+
+/**
+ * 승인된 수정 제안을 문서 파일에 커밋한다. 프론트매터는 그대로 두고
+ * version(+1)·updatedBy·updatedAt만 고친 뒤 본문을 바꾼다.
+ */
+export async function commitDocEdit(
+  input: { path: string; body: string; updatedBy: string; message: string },
+  opts: { token: string; env?: Record<string, string | undefined> },
+): Promise<CommitResult> {
+  const repo = readGithubRepo(opts.env)
+  const file = (await gh(`/repos/${repo}/${contentsPath(input.path)}?ref=main`, opts.token)) as { content: string; sha: string }
+  const source = Buffer.from(file.content, 'base64').toString('utf8').replace(/\r\n?/g, '\n')
+  const match = source.match(/^---\n([\s\S]*?)\n---\n?/)
+  if (!match) throw new Error(`${input.path} 에 프론트매터가 없어 버전을 올릴 수 없습니다`)
+
+  let fm = match[1].split('\n')
+  const current = Number(fm.find((l) => l.startsWith('version:'))?.split(':')[1]) || 1
+  const version = current + 1
+  fm = setFrontmatter(fm, 'version', String(version))
+  fm = setFrontmatter(fm, 'updatedBy', input.updatedBy)
+  fm = setFrontmatter(fm, 'updatedAt', todayDate())
+  const content = `---\n${fm.join('\n')}\n---\n\n${input.body.replace(/\r\n?/g, '\n').trim()}\n`
+
+  const res = (await gh(`/repos/${repo}/${contentsPath(input.path)}`, opts.token, {
+    method: 'PUT',
+    body: JSON.stringify({
+      message: input.message,
+      content: Buffer.from(content, 'utf8').toString('base64'),
+      sha: file.sha,
+      branch: 'main',
+    }),
+  })) as { commit: { html_url: string } }
+  return { commitUrl: res.commit.html_url, version }
+}
+
+/** 승격 승인으로 생긴 요약 문서를 새 파일로 커밋한다 */
+export async function commitNewDoc(
+  input: {
+    path: string
+    title: string
+    code: string
+    category: string
+    updatedBy: string
+    ownerId: string
+    body: string
+    message: string
+  },
+  opts: { token: string; env?: Record<string, string | undefined> },
+): Promise<CommitResult> {
+  const repo = readGithubRepo(opts.env)
+  const content = [
+    '---',
+    `title: ${input.title.replace(/[\r\n]+/g, ' ')}`,
+    `code: ${input.code}`,
+    `category: ${input.category}`,
+    'subcategory: null',
+    'version: 1',
+    `updatedBy: ${input.updatedBy}`,
+    `updatedAt: ${todayDate()}`,
+    `ownerId: ${input.ownerId}`,
+    'scope: 공통',
+    'parent: null',
+    `order: ${tailOrder()}`,
+    '---',
+    '',
+    input.body.replace(/\r\n?/g, '\n').trim(),
+    '',
+  ].join('\n')
+  const res = (await gh(`/repos/${repo}/${contentsPath(input.path)}`, opts.token, {
+    method: 'PUT',
+    body: JSON.stringify({ message: input.message, content: Buffer.from(content, 'utf8').toString('base64'), branch: 'main' }),
+  })) as { commit: { html_url: string } }
+  return { commitUrl: res.commit.html_url, version: 1 }
+}
