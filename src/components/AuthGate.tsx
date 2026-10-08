@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { changePassword, fetchAuthStatus, login, logout, toSession, type HubAccount } from '../lib/auth'
 import type { Session } from '../types'
 
@@ -6,9 +6,11 @@ interface AuthState {
   /** 로그인한 담당자. 계정 기능이 꺼진 데모 모드면 null — 이때 허브는 데모 계정으로 돈다 */
   user: Session | null
   signOut: () => void
+  /** 내 계정 정보(이름·팀)가 바뀌었을 때 다시 읽는다 */
+  refresh: () => void
 }
 
-const AuthCtx = createContext<AuthState>({ user: null, signOut: () => {} })
+const AuthCtx = createContext<AuthState>({ user: null, signOut: () => {}, refresh: () => {} })
 
 export const useAuth = () => useContext(AuthCtx)
 
@@ -18,17 +20,19 @@ type State = { status: 'loading' } | { status: 'demo' } | { status: 'signedOut' 
 export function AuthGate({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>({ status: 'loading' })
 
-  useEffect(() => {
+  const refresh = useCallback(() => {
     fetchAuthStatus().then((s) =>
       setState(!s.enabled ? { status: 'demo' } : s.user ? { status: 'signedIn', account: s.user } : { status: 'signedOut' }),
     )
   }, [])
 
+  useEffect(refresh, [refresh])
+
   const signOut = () => {
     logout().finally(() => setState({ status: 'signedOut' }))
   }
 
-  if (state.status === 'demo') return <AuthCtx.Provider value={{ user: null, signOut }}>{children}</AuthCtx.Provider>
+  if (state.status === 'demo') return <AuthCtx.Provider value={{ user: null, signOut, refresh }}>{children}</AuthCtx.Provider>
   if (state.status === 'loading') return <LoginFrame><p className="muted">불러오는 중…</p></LoginFrame>
   if (state.status === 'signedOut') return <LoginForm onDone={(account) => setState({ status: 'signedIn', account })} />
   if (state.account.mustChangePassword) {
@@ -40,7 +44,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
       />
     )
   }
-  return <AuthCtx.Provider value={{ user: toSession(state.account), signOut }}>{children}</AuthCtx.Provider>
+  return <AuthCtx.Provider value={{ user: toSession(state.account), signOut, refresh }}>{children}</AuthCtx.Provider>
 }
 
 function LoginFrame({ children }: { children: ReactNode }) {

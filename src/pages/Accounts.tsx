@@ -14,10 +14,12 @@ interface Issued {
 
 /** 계정 관리 — 관리자가 담당자 계정을 발급하고 권한·사용 상태·비밀번호를 관리한다 */
 export function Accounts() {
-  const { user } = useAuth()
+  const { user, refresh } = useAuth()
   const [users, setUsers] = useState<HubAccount[] | null>(null)
   const [error, setError] = useState('')
   const [issued, setIssued] = useState<Issued | null>(null)
+  /** 이름·팀을 고치는 중인 계정 */
+  const [editing, setEditing] = useState<{ loginId: string; name: string; team: string } | null>(null)
 
   const [loginId, setLoginId] = useState('')
   const [name, setName] = useState('')
@@ -56,12 +58,23 @@ export function Accounts() {
   const patch = (u: HubAccount, change: Parameters<typeof updateUser>[1], confirmText?: string) => {
     if (confirmText && !window.confirm(confirmText)) return
     setError('')
-    updateUser(u.loginId, change)
+    return updateUser(u.loginId, change)
       .then((res) => {
         replace(res.user)
         if (res.tempPassword) setIssued({ loginId: res.user.loginId, name: res.user.name, password: res.tempPassword })
+        // 내 이름·팀을 고쳤으면 사이드바·작성자 표시도 새 정보로 바꾼다
+        if (res.user.loginId === user.loginId) refresh()
+        return true
       })
-      .catch((err: Error) => setError(err.message))
+      .catch((err: Error) => {
+        setError(err.message)
+        return false
+      })
+  }
+
+  const saveEdit = (u: HubAccount) => {
+    if (!editing || !editing.name.trim()) return
+    patch(u, { name: editing.name.trim(), team: editing.team.trim() })?.then((ok) => ok && setEditing(null))
   }
 
   return (
@@ -131,11 +144,44 @@ export function Accounts() {
             const self = u.loginId === user.loginId
             return (
               <div key={u.loginId} className="row account-row">
-                <span className="grow" style={{ whiteSpace: 'normal' }}>
-                  <span style={{ color: u.disabled ? 'var(--muted)' : 'var(--text)' }}>
-                    {u.name} <span className="muted">· {u.team || '소속 미등록'} · {u.loginId}</span>
+                {editing?.loginId === u.loginId ? (
+                  <span className="grow account-edit">
+                    <input
+                      className="field"
+                      value={editing.name}
+                      onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+                      placeholder="이름"
+                      aria-label="이름"
+                      autoFocus
+                    />
+                    <input
+                      className="field"
+                      value={editing.team}
+                      onChange={(e) => setEditing({ ...editing, team: e.target.value })}
+                      onKeyDown={(e) => e.key === 'Enter' && saveEdit(u)}
+                      placeholder="팀"
+                      aria-label="팀"
+                    />
+                    <button className="btn sm primary" disabled={!editing.name.trim()} onClick={() => saveEdit(u)}>
+                      저장
+                    </button>
+                    <button className="btn sm" onClick={() => setEditing(null)}>
+                      취소
+                    </button>
                   </span>
-                </span>
+                ) : (
+                  <span className="grow" style={{ whiteSpace: 'normal' }}>
+                    <span style={{ color: u.disabled ? 'var(--muted)' : 'var(--text)' }}>
+                      {u.name} <span className="muted">· {u.team || '소속 미등록'} · {u.loginId}</span>
+                    </span>
+                    <button
+                      className="btn sm account-edit-btn"
+                      onClick={() => setEditing({ loginId: u.loginId, name: u.name, team: u.team })}
+                    >
+                      정보 수정
+                    </button>
+                  </span>
+                )}
                 {u.disabled ? (
                   <span className="tag no">사용 중지</span>
                 ) : u.mustChangePassword ? (
