@@ -26,6 +26,18 @@ import {
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
 import {
+  applyWrites,
+  emptyRecords,
+  fetchRecords,
+  mergeDocs,
+  newestFirst,
+  postRecordAction,
+  recordWrites,
+  type DocEdit,
+  type HubRecords,
+  type RecordAction,
+} from '../lib/records'
+import {
   EMPTY_SYSTEMS_STATE,
   fetchSystemsState,
   postSystemsAction,
@@ -150,21 +162,38 @@ const Ctx = createContext<AppState | null>(null)
 
 const today = () => new Date().toISOString().slice(0, 10)
 
+/** 저장소가 없을 때(로컬 허브·데모) 화면을 채우는 데모 요청 */
+const seedRecords = (): HubRecords => ({
+  ...emptyRecords(),
+  proposals: Object.fromEntries(initialProposals.map((p) => [p.id, p])),
+  promotions: Object.fromEntries(initialPromotions.map((p) => [p.id, p])),
+})
+
 export function AppProvider({ children }: { children: ReactNode }) {
   const [role, setRoleState] = useState<Role>(
     () => (localStorage.getItem(LS_ROLE) as Role) || 'member',
   )
-  const [docs, setDocs] = useState<WikiDoc[]>(seedDocs)
-  const [sheets, setSheets] = useState<Sheet[]>(seedSheets)
-  const [proposals, setProposals] = useState<Proposal[]>(initialProposals)
-  const [promotions, setPromotions] = useState<Promotion[]>(initialPromotions)
+  /**
+   * 요청·승인 기록. 배포 허브는 공용 저장소(`remoteRecords`)에 쌓여 담당자 모두가 같은 기록을 보고,
+   * 저장소가 없으면 같은 규칙으로 메모리(`memoryRecords`, 데모 요청 몇 건으로 시작)에서만 돈다.
+   */
+  const [remoteRecords, setRemoteRecords] = useState<HubRecords | null>(null)
+  const [memoryRecords, setMemoryRecords] = useState<HubRecords>(seedRecords)
+  const records = remoteRecords ?? memoryRecords
+  // 코드(지식/ 폴더)의 문서 위에 승인된 수정·승격 문서를 얹는다
+  const docs = useMemo<WikiDoc[]>(() => mergeDocs(seedDocs, records), [records])
+  const sheets = useMemo<Sheet[]>(
+    () => [...Object.values(records.sheets).sort((a, b) => b.id.localeCompare(a.id)), ...seedSheets],
+    [records.sheets],
+  )
+  const proposals = useMemo<Proposal[]>(() => newestFirst(records.proposals), [records.proposals])
+  const promotions = useMemo<Promotion[]>(() => newestFirst(records.promotions), [records.promotions])
   /**
    * 시스템 목록은 팀 공유 파일 하나에 모인다 (로컬 허브가 읽고 쓴다).
    * 저장소가 없는 배포본에서는 `remote` 가 null 로 남고 메모리 상태로 같은 화면을 보여 준다.
    */
   const [remote, setRemote] = useState<SystemsState | null>(null)
   const [memory, setMemory] = useState<SystemsState>(EMPTY_SYSTEMS_STATE)
-  const systemsState = remote ?? memory
   const [favoriteSystems, setFavoriteSystems] = useState<string[]>(() => {
     const saved = localStorage.getItem(LS_FAVORITE_SYSTEMS)
     // 저장된 값이 없을 때만 기본값을 쓴다 — 전부 해제한 상태는 그 자체로 존중한다
@@ -221,8 +250,37 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [refreshEngines])
 
   useEffect(() => {
+    fetchRecords().then((r) => r && setRemoteRecords(r))
     fetchSystemsState().then((state) => state && setRemote(state))
   }, [])
+
+  /** 기록 하나를 바꾼다 — 저장소가 있으면 서버가 검사·저장하고, 없으면 같은 규칙으로 메모리에 반영한다 */
+  const dispatch = useCallback(
+    async (action: RecordAction): Promise<string | undefined> => {
+      if (remoteRecords) {
+        const res = await postRecordAction(action)
+        setRemoteRecords(res.records)
+        return res.notice
+      }
+      setMemoryRecords(applyWrites(memoryRecords, recordWrites(memoryRecords, action)))
+      return undefined
+    },
+    [memoryRecords, remoteRecords],
+  )
+
+  // 배포 허브는 시스템 요청도 공용 저장소에 쌓는다 — 로컬 허브는 팀 공유 파일, 둘 다 없으면 메모리
+  const recordsSystems = useMemo<SystemsState | null>(
+    () =>
+      remoteRecords && {
+        urls: remoteRecords.systemUrls,
+        added: Object.values(remoteRecords.addedSystems),
+        requests: newestFirst(remoteRecords.systemRequests),
+        shared: true,
+        updatedAt: '',
+      },
+    [remoteRecords],
+  )
+  const systemsState = recordsSystems ?? remote ?? memory
 
   // 코드에 있는 시스템 + 승인돼 올라온 시스템. 접속 주소는 코드가 아니라 저장소에서 온다.
   const systems = useMemo<SystemEntry[]>(
@@ -239,11 +297,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 요청·승인을 저장소에 반영한다. 저장소가 없으면 같은 규칙으로 메모리에만 반영한다. */
   const applySystemsAction = useCallback(
     async (action: SystemsAction) => {
+      if (remoteRecords) {
+        await dispatch(
+          action.kind === 'request'
+            ? { kind: 'system.request', request: action.request }
+            : { kind: 'system.decide', id: action.id, decision: action.decision, reason: action.reason },
+        )
+        return
+      }
       const next = await postSystemsAction(action)
       if (next) setRemote(next)
       else setMemory((prev) => reduceSystems(prev, action))
     },
-    [],
+    [dispatch, remoteRecords],
   )
 
   // 선택한 엔진을 먼저, 나머지는 CLI → Gemini 순으로 시도한다
@@ -395,12 +461,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [openCampaignAdmin],
   )
 
+  /** 저장에 실패하면 이유를 알린다 — 승인 버튼이 멈춘 채로 남지 않게 던지지 않는다 */
+  const failed = useCallback((err: unknown) => setToast(`처리하지 못했습니다 — ${(err as Error).message}`), [])
+
   const submitProposal = useCallback(
     (docId: string, newBody: string, reason: string) => {
       const doc = docs.find((d) => d.id === docId)
       if (!doc) return
-      setProposals((prev) => [
-        {
+      dispatch({
+        kind: 'proposal.submit',
+        proposal: {
           id: newId('pr'),
           docId,
           docTitle: doc.title,
@@ -411,43 +481,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedBy: session.name,
           requestedAt: today(),
         },
-        ...prev,
-      ])
-      setToast('수정 제안을 제출했습니다 · 승인 대기')
+      })
+        .then(() => setToast('수정 제안을 제출했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [docs, session.name],
+    [dispatch, docs, failed, session.name],
   )
 
   const decideProposal = useCallback(
     async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
-      // Git 반영이 실패할 수 있어 낙관적 업데이트를 쓰지 않는다.
-      await new Promise((r) => setTimeout(r, 600))
-      setProposals((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: decision, rejectReason: reason } : p)),
-      )
-      if (decision === 'approved') {
-        const proposal = proposals.find((p) => p.id === id)
-        if (proposal?.newBody) {
-          setDocs((prev) =>
-            prev.map((d) =>
-              d.id === proposal.docId
-                ? {
-                    ...d,
-                    body: proposal.newBody,
-                    version: d.version + 1,
-                    updatedBy: proposal.requestedBy,
-                    updatedAt: today(),
-                  }
-                : d,
-            ),
-          )
-        }
-        setToast('승인 완료 · 커밋 생성 후 위키에 반영했습니다')
-      } else {
-        setToast('반려 처리했습니다')
+      const proposal = proposals.find((p) => p.id === id)
+      const doc = proposal && docs.find((d) => d.id === proposal.docId)
+      const edit: DocEdit | undefined =
+        decision === 'approved' && proposal && doc
+          ? { body: proposal.newBody, version: doc.version + 1, updatedBy: proposal.requestedBy, updatedAt: today() }
+          : undefined
+      try {
+        // 배포 허브는 승인과 함께 git에 커밋한다 — 커밋이 실패하면 승인도 되지 않는다
+        const notice = await dispatch({ kind: 'proposal.decide', id, decision, reason, edit, path: doc?.path })
+        setToast(decision === 'approved' ? `승인 완료 · ${notice ?? '위키에 반영했습니다'}` : '반려 처리했습니다')
+      } catch (err) {
+        failed(err)
       }
     },
-    [proposals],
+    [dispatch, docs, failed, proposals],
   )
 
   const toggleFavoriteSystem = useCallback(
@@ -482,9 +539,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedAt: today(),
         },
       })
-      setToast('접속 주소 등록을 요청했습니다 · 승인 대기')
+        .then(() => setToast('접속 주소 등록을 요청했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [applySystemsAction, session.name, systemRequests, systems],
+    [applySystemsAction, failed, session.name, systemRequests, systems],
   )
 
   const submitSystemRequest = useCallback(
@@ -499,15 +557,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedAt: today(),
         },
       })
-      setToast('시스템 등록을 요청했습니다 · 승인 대기')
+        .then(() => setToast('시스템 등록을 요청했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [applySystemsAction, session.name],
+    [applySystemsAction, failed, session.name],
   )
 
   const decideSystemRequest = useCallback(
     async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
       const request = systemRequests.find((r) => r.id === id)
-      await applySystemsAction({ kind: 'decide', id, decision, reason })
+      try {
+        await applySystemsAction({ kind: 'decide', id, decision, reason })
+      } catch (err) {
+        failed(err)
+        return
+      }
       if (decision !== 'approved') {
         setToast('반려 처리했습니다')
         return
@@ -518,36 +582,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
           : '승인 완료 · 시스템 목록에 추가했습니다',
       )
     },
-    [applySystemsAction, systemRequests],
+    [applySystemsAction, failed, systemRequests],
   )
 
   const addSheet = useCallback(
     (input: Omit<Sheet, 'id' | 'ownerId' | 'ownerName' | 'lastCheckedAt'>) => {
-      setSheets((prev) => [
-        {
+      dispatch({
+        kind: 'sheet.add',
+        sheet: {
           ...input,
           id: newId('sh'),
           ownerId: session.userId,
           ownerName: session.name,
           lastCheckedAt: today(),
         },
-        ...prev,
-      ])
-      setToast('편성표를 등록했습니다')
+      })
+        .then(() => setToast('편성표를 등록했습니다'))
+        .catch(failed)
     },
-    [session.name, session.userId],
+    [dispatch, failed, session.name, session.userId],
   )
 
   const requestPromotion = useCallback(
     (sheetId: string) => {
       const sheet = sheets.find((s) => s.id === sheetId)
       if (!sheet) return
-      if (promotions.some((p) => p.sheetId === sheetId && p.status === 'pending')) {
-        setToast('이미 승격 요청이 대기 중입니다')
-        return
-      }
-      setPromotions((prev) => [
-        {
+      dispatch({
+        kind: 'promotion.request',
+        promotion: {
           id: newId('pm'),
           sheetId,
           sheetName: sheet.name,
@@ -556,11 +618,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           requestedBy: session.name,
           requestedAt: today(),
         },
-        ...prev,
-      ])
-      setToast('승격 요청을 제출했습니다 · 승인 대기')
+      })
+        .then(() => setToast('승격 요청을 제출했습니다 · 승인 대기'))
+        .catch(failed)
     },
-    [promotions, session.name, sheets],
+    [dispatch, failed, session.name, sheets],
   )
 
   const decidePromotion = useCallback(
@@ -569,23 +631,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       decision: 'approved' | 'rejected',
       opts: { category?: CategoryId; reason?: string },
     ) => {
-      await new Promise((r) => setTimeout(r, 600))
       const promotion = promotions.find((p) => p.id === id)
-      setPromotions((prev) =>
-        prev.map((p) =>
-          p.id === id
-            ? { ...p, status: decision, rejectReason: opts.reason, targetCategory: opts.category ?? null }
-            : p,
-        ),
-      )
+      const sheet = promotion && sheets.find((s) => s.id === promotion.sheetId)
       const category = opts.category
-      if (decision === 'approved' && promotion && category) {
-        const sheet = sheets.find((s) => s.id === promotion.sheetId)
-        if (sheet) {
-          setDocs((prev) => [
-            ...prev,
-            {
-              id: newId('doc'),
+      const doc: WikiDoc | undefined =
+        decision === 'approved' && sheet && category
+          ? {
+              id: `SUM-${sheet.id.toUpperCase()}`,
               path: `${category}/${sheet.id}.md`,
               title: `${sheet.name} 요약`,
               category,
@@ -596,15 +648,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
               updatedAt: today(),
               ownerId: sheet.ownerId,
               body: `## 개요\n\n${sheet.description}\n\n- 담당자: ${sheet.ownerName}\n- 대상 GNB: ${sheet.gnb}\n- 대상 기간: ${sheet.periodStart} ~ ${sheet.periodEnd}\n\n## 원본\n\n원본 편성표는 아래 링크에서 확인합니다. 본 요약 문서는 원본과 실시간 동기화되지 않습니다.\n\n[${sheet.name} 원본 열기](${sheet.url})\n`,
-            },
-          ])
-        }
-        setToast('승격 완료 · 요약 문서를 생성했습니다')
-      } else if (decision === 'rejected') {
-        setToast('반려 처리했습니다')
+            }
+          : undefined
+      try {
+        const notice = await dispatch({ kind: 'promotion.decide', id, decision, reason: opts.reason, doc })
+        setToast(decision === 'approved' ? `승격 완료 · 요약 문서를 만들었습니다${notice ? ` · ${notice}` : ''}` : '반려 처리했습니다')
+      } catch (err) {
+        failed(err)
       }
     },
-    [promotions, session.name, sheets],
+    [dispatch, failed, promotions, session.name, sheets],
   )
 
   const value: AppState = {
