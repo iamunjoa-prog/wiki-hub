@@ -26,6 +26,8 @@ export function Accounts() {
   const [team, setTeam] = useState('')
   const [role, setRole] = useState<Role>('member')
   const [busy, setBusy] = useState(false)
+  /** 엑셀 명단을 붙여넣어 여러 명을 한 번에 발급하는 화면 */
+  const [bulk, setBulk] = useState(false)
 
   useEffect(() => {
     if (user?.role !== 'admin') return
@@ -119,8 +121,18 @@ export function Accounts() {
             <button className="btn primary" disabled={busy || !loginId.trim() || !name.trim()}>
               계정 발급
             </button>
+            <button type="button" className="btn" onClick={() => setBulk(true)}>
+              여러 명 한 번에 발급
+            </button>
           </div>
         </form>
+
+        {bulk && (
+          <BulkIssue
+            onCreated={(u) => setUsers((prev) => [...(prev ?? []), u])}
+            onClose={() => setBulk(false)}
+          />
+        )}
 
         {issued && (
           <div className="account-issued">
@@ -225,5 +237,154 @@ export function Accounts() {
         </div>
       </div>
     </>
+  )
+}
+
+/* ── 여러 명 한 번에 발급 ─────────────────────────────── */
+
+interface BulkRow {
+  line: number
+  loginId: string
+  name: string
+  team: string
+  role: Role
+}
+
+type BulkResult = BulkRow & ({ ok: true; password: string } | { ok: false; error: string })
+
+const ADMIN_WORDS = ['관리자', 'admin']
+
+/**
+ * 엑셀에서 복사한 명단(탭 구분) 또는 쉼표로 구분한 줄을 읽는다.
+ * 열 순서: 아이디, 이름, 팀, 권한(비우면 실무자). 첫 줄이 "아이디"로 시작하면 머리글로 보고 건너뛴다.
+ */
+function parseRoster(text: string): BulkRow[] {
+  return text
+    .split(/\r?\n/)
+    .map((raw, i) => ({ raw: raw.trim(), line: i + 1 }))
+    .filter(({ raw }) => raw && !/^아이디/.test(raw))
+    .map(({ raw, line }) => {
+      const [loginId = '', name = '', team = '', role = ''] = raw.split(raw.includes('\t') ? '\t' : ',').map((c) => c.trim())
+      return { line, loginId, name, team, role: ADMIN_WORDS.includes(role.toLowerCase()) ? 'admin' : 'member' }
+    })
+}
+
+/** 결과표를 엑셀에 그대로 붙여넣을 수 있게 탭으로 이어 붙인다 */
+const toTsv = (rows: BulkResult[]) =>
+  ['아이디\t이름\t팀\t임시 비밀번호', ...rows.filter((r) => r.ok).map((r) => [r.loginId, r.name, r.team, r.ok ? r.password : ''].join('\t'))].join('\n')
+
+function BulkIssue({ onCreated, onClose }: { onCreated: (u: HubAccount) => void; onClose: () => void }) {
+  const [text, setText] = useState('')
+  const [results, setResults] = useState<BulkResult[] | null>(null)
+  const [progress, setProgress] = useState<number | null>(null)
+  const [copied, setCopied] = useState(false)
+  const rows = parseRoster(text)
+
+  // 한 명씩 차례로 발급한다 — 중간에 실패한 줄이 있어도 나머지는 계속 만든다
+  const run = async () => {
+    const out: BulkResult[] = []
+    for (const [i, row] of rows.entries()) {
+      setProgress(i + 1)
+      try {
+        const res = await createUser(row)
+        onCreated(res.user)
+        out.push({ ...row, ok: true, password: res.tempPassword })
+      } catch (err) {
+        out.push({ ...row, ok: false, error: (err as Error).message })
+      }
+    }
+    setProgress(null)
+    setResults(out)
+  }
+
+  const copy = () => {
+    if (!results) return
+    navigator.clipboard
+      .writeText(toTsv(results))
+      .then(() => setCopied(true))
+      .catch(() => setCopied(false))
+  }
+
+  const download = () => {
+    if (!results) return
+    // 엑셀이 한글을 깨뜨리지 않게 BOM을 붙인 CSV로 내려받는다
+    const csv = toTsv(results).split('\n').map((l) => l.split('\t').map((c) => `"${c.replace(/"/g, '""')}"`).join(',')).join('\r\n')
+    const url = URL.createObjectURL(new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `허브계정_임시비밀번호_${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  if (results) {
+    const okCount = results.filter((r) => r.ok).length
+    return (
+      <div className="account-bulk">
+        <div className="account-bulk-head">
+          <strong>
+            {okCount}명 발급 완료{results.length > okCount && ` · ${results.length - okCount}명 실패`}
+          </strong>
+          <span className="muted">임시 비밀번호는 지금만 보입니다. 복사하거나 내려받아 담당자별로 전달해 주세요.</span>
+        </div>
+        <table className="account-bulk-table">
+          <thead>
+            <tr>
+              <th>아이디</th>
+              <th>이름</th>
+              <th>팀</th>
+              <th>임시 비밀번호 / 결과</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((r) => (
+              <tr key={r.line} className={r.ok ? '' : 'fail'}>
+                <td>{r.loginId}</td>
+                <td>{r.name}</td>
+                <td>{r.team}</td>
+                <td>{r.ok ? <code>{r.password}</code> : `${r.line}번째 줄 — ${r.error}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="form-actions">
+          <button className="btn primary" disabled={okCount === 0} onClick={copy}>
+            {copied ? '복사됨' : '엑셀용으로 복사'}
+          </button>
+          <button className="btn" disabled={okCount === 0} onClick={download}>
+            CSV 내려받기
+          </button>
+          <button className="btn" onClick={onClose}>
+            닫기
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="account-bulk">
+      <div className="account-bulk-head">
+        <strong>여러 명 한 번에 발급</strong>
+        <span className="muted">
+          엑셀에서 <b>아이디 · 이름 · 팀 · 권한</b> 순서의 열을 복사해 붙여넣으세요. 권한을 비우면 실무자, "관리자"면 관리자입니다.
+        </span>
+      </div>
+      <textarea
+        className="field account-bulk-input"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        placeholder={'hong.gd\t홍길동\t편성기획팀\nkim.cs\t김철수\t마케팅팀\nlee.yh\t이영희\t편성기획팀\t관리자'}
+        autoFocus
+      />
+      <div className="form-actions">
+        <button className="btn primary" disabled={rows.length === 0 || progress !== null} onClick={run}>
+          {progress !== null ? `발급 중… ${progress}/${rows.length}` : `${rows.length}명 발급`}
+        </button>
+        <button className="btn" disabled={progress !== null} onClick={onClose}>
+          취소
+        </button>
+      </div>
+    </div>
   )
 }
