@@ -1,62 +1,82 @@
-import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { SignJWT, jwtVerify } from 'jose'
+import { accountsEnabled, getAccount, type Account } from './accounts.js'
 
 /**
- * 배포 허브 API의 로그인 확인 — 화면이 붙여 보낸 Microsoft 365(Entra ID) ID 토큰을 검증한다.
- * 화면과 같은 앱 ID·테넌트를 쓰므로 Vercel에 넣은 VITE_ 값도 그대로 받는다.
- * 둘 다 비어 있으면 로그인 없는 데모 배포로 보고 확인을 건너뛴다.
+ * 로그인 세션 — 서명한 토큰을 HttpOnly 쿠키에 담는다. 화면 스크립트는 쿠키를 읽을 수 없고,
+ * 같은 사이트 요청에만 실려 간다. 요청마다 저장소의 계정을 다시 읽으므로
+ * 관리자가 계정을 중지하거나 권한을 바꾸면 바로 반영된다.
  */
 
-export interface AuthUser {
-  name: string
-  email: string
-  roles: string[]
+const COOKIE = 'hub_session'
+const MAX_AGE = 60 * 60 * 12 // 12시간 — 하루 업무 단위
+
+type Env = Record<string, string | undefined>
+
+const secretKey = (env: Env) => new TextEncoder().encode(env.HUB_AUTH_SECRET!.trim())
+
+/** 비밀번호가 바뀌면 예전 세션이 풀리도록, 해시 끝부분을 세션에 함께 묶는다 */
+const passwordStamp = (account: Account) => account.passwordHash.slice(-12)
+
+export async function sessionCookie(account: Account, env: Env = process.env): Promise<string> {
+  const token = await new SignJWT({ ps: passwordStamp(account) })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setSubject(account.loginId)
+    .setIssuedAt()
+    .setExpirationTime(`${MAX_AGE}s`)
+    .sign(secretKey(env))
+  return `${COOKIE}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${MAX_AGE}`
 }
 
-function readEntra(env: Record<string, string | undefined>) {
-  const clientId = (env.ENTRA_CLIENT_ID || env.VITE_ENTRA_CLIENT_ID)?.trim()
-  const tenantId = (env.ENTRA_TENANT_ID || env.VITE_ENTRA_TENANT_ID)?.trim()
-  return clientId && tenantId ? { clientId, tenantId } : null
-}
+export const clearCookie = () => `${COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
 
-const jwksByTenant = new Map<string, ReturnType<typeof createRemoteJWKSet>>()
-
-function jwks(tenantId: string) {
-  let set = jwksByTenant.get(tenantId)
-  if (!set) {
-    set = createRemoteJWKSet(new URL(`https://login.microsoftonline.com/${tenantId}/discovery/v2.0/keys`))
-    jwksByTenant.set(tenantId, set)
+function readCookie(request: Request): string | null {
+  const header = request.headers.get('cookie') ?? ''
+  for (const part of header.split(';')) {
+    const [name, ...rest] = part.trim().split('=')
+    if (name === COOKIE) return rest.join('=') || null
   }
-  return set
+  return null
 }
 
-export type AuthResult = { ok: true; user: AuthUser | null } | { ok: false; response: Response }
+/** 쿠키의 세션을 확인해 계정을 돌려준다. 없거나 만료·중지된 계정이면 null */
+export async function currentAccount(request: Request, env: Env = process.env): Promise<Account | null> {
+  const token = readCookie(request)
+  if (!token) return null
+  try {
+    const { payload } = await jwtVerify(token, secretKey(env), { algorithms: ['HS256'] })
+    const account = payload.sub ? await getAccount(payload.sub) : null
+    if (!account || account.disabled || payload.ps !== passwordStamp(account)) return null
+    return account
+  } catch {
+    return null
+  }
+}
 
-/** 로그인 확인. 통과하면 토큰의 사용자(데모 배포면 null), 아니면 돌려줄 401 응답 */
+export type AuthResult = { ok: true; account: Account | null } | { ok: false; response: Response }
+
+const deny = (status: number, message: string): AuthResult => ({
+  ok: false,
+  response: Response.json({ error: message }, { status }),
+})
+
+/**
+ * API 입구의 로그인 확인. 계정 기능이 꺼진 배포(데모)면 account 없이 통과시킨다.
+ * 임시 비밀번호를 아직 바꾸지 않은 계정은 비밀번호 변경 말고는 막는다.
+ */
 export async function requireUser(
   request: Request,
-  env: Record<string, string | undefined> = process.env,
+  opts: { admin?: boolean; allowPendingPassword?: boolean } = {},
 ): Promise<AuthResult> {
-  const entra = readEntra(env)
-  if (!entra) return { ok: true, user: null }
+  if (!accountsEnabled()) return { ok: true, account: null }
+  const account = await currentAccount(request)
+  if (!account) return deny(401, '로그인이 필요합니다')
+  if (account.mustChangePassword && !opts.allowPendingPassword) return deny(403, '비밀번호를 먼저 바꿔 주세요')
+  if (opts.admin && account.role !== 'admin') return deny(403, '관리자만 할 수 있습니다')
+  return { ok: true, account }
+}
 
-  const deny = (message: string): AuthResult => ({ ok: false, response: Response.json({ error: message }, { status: 401 }) })
-  const token = request.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1]
-  if (!token) return deny('로그인이 필요합니다')
-
-  try {
-    const { payload } = await jwtVerify(token, jwks(entra.tenantId), {
-      issuer: `https://login.microsoftonline.com/${entra.tenantId}/v2.0`,
-      audience: entra.clientId,
-    })
-    return {
-      ok: true,
-      user: {
-        name: String(payload.name ?? payload.preferred_username ?? ''),
-        email: String(payload.preferred_username ?? ''),
-        roles: Array.isArray(payload.roles) ? (payload.roles as string[]) : [],
-      },
-    }
-  } catch {
-    return deny('로그인이 만료됐거나 올바르지 않습니다. 다시 로그인해 주세요')
-  }
+/** 다른 사이트의 페이지가 로그인 쿠키를 실어 이 API를 부르지 못하게, 브라우저 요청은 같은 출처만 받는다 */
+export function sameOrigin(request: Request): boolean {
+  const origin = request.headers.get('origin')
+  return !origin || new URL(origin).host === new URL(request.url).host
 }

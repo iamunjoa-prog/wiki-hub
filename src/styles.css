@@ -1190,9 +1190,22 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .big-air.on { color: var(--text-2); }
 .big-img { max-width: 260px; overflow: hidden; }
 
-/* Microsoft 365 로그인 화면 */
+/* 허브 계정 로그인 화면 */
 .login-screen { min-height: 100%; display: grid; place-items: center; padding: 16px; background: var(--surface-subtle); }
 .login-box { width: 100%; max-width: 360px; padding: 28px 24px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .login-box h1 { margin: 0 0 8px; font-size: 20px; }
 .login-box p { margin: 0 0 18px; font-size: 14px; line-height: 1.5; }
+.login-form { display: grid; gap: 8px; }
+.login-form .btn { margin-top: 6px; }
 .login-error { color: var(--danger); margin: 14px 0 0 !important; }
+.login-help { margin: 18px 0 0 !important; font-size: 12.5px !important; }
+
+/* 계정 관리 */
+.account-form { padding: 16px; border-bottom: 1px solid var(--border); }
+.account-issued { margin: 12px 16px 0; padding: 12px 14px; display: grid; gap: 6px; justify-items: start; border: 1px solid var(--ok); border-radius: var(--radius-sm); font-size: 13.5px; }
+.account-issued code { font: 600 15px var(--code); padding: 1px 6px; background: var(--surface-sheet); border-radius: 4px; }
+.account-error { margin: 12px 16px 0; color: var(--danger); font-size: 13px; }
+.account-row { flex-wrap: wrap; gap: 8px; }
+.account-role { width: auto; padding-top: 3px; padding-bottom: 3px; font-size: 12px; }
+.account-form .form-actions { margin-top: 12px; }
+@media (max-width: 600px) { .account-form .form-grid { grid-template-columns: 1fr; } }

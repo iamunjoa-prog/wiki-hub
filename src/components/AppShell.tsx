@@ -3,9 +3,9 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'reac
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
-import { authEnabled, logout } from '../lib/auth'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
+import { useAuth } from './AuthGate'
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -333,6 +333,7 @@ function useSidebarResize() {
 
 function Sidebar() {
   const { session, setRole, proposals, promotions, systemRequests } = useApp()
+  const { user: account, signOut } = useAuth()
   const pendingCount =
     proposals.filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
@@ -380,16 +381,22 @@ function Sidebar() {
             <span className="count">{pendingCount}</span>
           </NavLink>
         )}
+
+        {account?.role === 'admin' && (
+          <NavLink to="/accounts" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+            계정 관리
+          </NavLink>
+        )}
       </nav>
 
       <div className="sidebar-foot">
         <span>
           {session.name} · {session.team}
-          {authEnabled && session.role === 'admin' && ' · 관리자'}
+          {account?.role === 'admin' && ' · 관리자'}
         </span>
-        {authEnabled ? (
-          // 권한은 Entra 앱 역할로 정해진다 — 화면에서 바꿀 수 없고 표시만 한다
-          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => logout()} title={session.email}>
+        {account ? (
+          // 권한은 관리자가 계정 관리에서 정한다 — 화면에서 바꿀 수 없고 표시만 한다
+          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={signOut} title={account.loginId}>
             로그아웃
           </button>
         ) : (

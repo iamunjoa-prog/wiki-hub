@@ -36,6 +36,7 @@ export async function POST(request: Request): Promise<Response> {
   const origin = request.headers.get('origin')
   if (origin && new URL(origin).host !== new URL(request.url).host) return error(403, '허용되지 않은 요청입니다')
 
+  // 계정 기능이 켜진 배포면 로그인한 담당자만 쓴다
   const auth = await requireUser(request)
   if (!auth.ok) return auth.response
 

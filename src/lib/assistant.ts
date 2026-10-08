@@ -9,7 +9,6 @@ import type {
   SourceRef,
   WikiDoc,
 } from '../types'
-import { apiFetch } from './auth'
 import { extractSentences, searchDocs, type SearchInput } from './retrieval'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
@@ -433,7 +432,7 @@ async function askEngine(
   history: ChatTurn[],
   intentAsked: boolean,
 ): Promise<AssistantReply> {
-  const res = await apiFetch('/api/ask', {
+  const res = await fetch('/api/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, engine, history }),
@@ -513,7 +512,7 @@ export async function requestAiEdit(
   let lastError = ''
   for (const engine of engines) {
     try {
-      const res = await apiFetch('/api/edit', {
+      const res = await fetch('/api/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ engine, title: doc.title, code: doc.code, path: doc.path, body, instruction }),

@@ -9,7 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@azure/msal-browser": "^5.25.0",
     "@google/genai": "^2.22.0",
     "diff": "^5.2.0",
     "jose": "^6.2.12",
