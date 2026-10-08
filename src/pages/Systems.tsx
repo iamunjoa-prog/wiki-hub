@@ -139,7 +139,7 @@ export function Systems() {
         </div>
 
         <div className="hint" style={{ marginBottom: 14 }}>
-          별표를 누르면 대시보드 <b>자주 사용하는 시스템</b>에 올라갑니다. 접속 망이 다르면 해당 PC에서만
+          별표를 누르면 메인 <b>자주 사용하는 시스템</b>에 올라갑니다. 접속 망이 다르면 해당 PC에서만
           열립니다.
           {/* 승인 결과가 팀에 공유되는지 — 아니면 눈에 보이게 적어 둔다 */}
           {systemsStorage === 'local' && (

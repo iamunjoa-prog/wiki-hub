@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { schedulePlaceholders } from './data/scheduleNav'
+import { Accounts } from './pages/Accounts'
 import { Approvals } from './pages/Approvals'
 import { BigBannerSchedule } from './pages/BigBannerSchedule'
 import { BtvSchedule } from './pages/BtvSchedule'
@@ -44,6 +45,7 @@ export default function App() {
         <Route path="/systems" element={<Systems />} />
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/approvals" element={<Approvals />} />
+        <Route path="/accounts" element={<Accounts />} />
         <Route path="/handoff" element={<CampaignHandoff />} />
       </Route>
     </Routes>

@@ -5,6 +5,7 @@ import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
+import { useAuth } from './AuthGate'
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -332,6 +333,7 @@ function useSidebarResize() {
 
 function Sidebar() {
   const { session, setRole, proposals, promotions, systemRequests } = useApp()
+  const { user: account, signOut } = useAuth()
   const pendingCount =
     proposals.filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
@@ -358,7 +360,7 @@ function Sidebar() {
       </div>
       <nav className="nav">
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          대시보드
+          메인
         </NavLink>
 
         <WikiTree />
@@ -379,20 +381,34 @@ function Sidebar() {
             <span className="count">{pendingCount}</span>
           </NavLink>
         )}
+
+        {account?.role === 'admin' && (
+          <NavLink to="/accounts" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+            계정 관리
+          </NavLink>
+        )}
       </nav>
 
       <div className="sidebar-foot">
         <span>
           {session.name} · {session.team}
+          {account?.role === 'admin' && ' · 관리자'}
         </span>
-        <button
-          className="btn sm"
-          style={{ marginLeft: 'auto' }}
-          onClick={() => setRole(session.role === 'admin' ? 'member' : 'admin')}
-          title="데모용 권한 전환"
-        >
-          {session.role === 'admin' ? '관리자' : '실무자'}
-        </button>
+        {account ? (
+          // 권한은 관리자가 계정 관리에서 정한다 — 화면에서 바꿀 수 없고 표시만 한다
+          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={signOut} title={account.loginId}>
+            로그아웃
+          </button>
+        ) : (
+          <button
+            className="btn sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => setRole(session.role === 'admin' ? 'member' : 'admin')}
+            title="데모용 권한 전환"
+          >
+            {session.role === 'admin' ? '관리자' : '실무자'}
+          </button>
+        )}
       </div>
     </aside>
   )

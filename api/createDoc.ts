@@ -1,3 +1,4 @@
+import { requireUser } from '../server/auth.js'
 import { readGithubToken } from '../server/env.js'
 import { createDocPR, parseCreateDocInput } from '../server/github.js'
 
@@ -15,8 +16,14 @@ export async function POST(request: Request): Promise<Response> {
   const origin = request.headers.get('origin')
   if (origin && new URL(origin).host !== new URL(request.url).host) return error(403, '허용되지 않은 요청입니다')
 
+  // 계정 기능이 켜진 배포면 로그인한 담당자만 쓴다
+  const auth = await requireUser(request)
+  if (!auth.ok) return auth.response
+
   try {
-    const input = parseCreateDocInput(await request.json())
+    const parsed = parseCreateDocInput(await request.json())
+    // 작성자는 화면이 보낸 이름이 아니라 로그인한 계정의 이름으로 남긴다
+    const input = auth.account ? { ...parsed, requestedBy: auth.account.name } : parsed
     const result = await createDocPR(input, { token })
     return Response.json(result)
   } catch (err) {

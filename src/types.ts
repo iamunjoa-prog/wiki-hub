@@ -5,6 +5,8 @@ export interface Session {
   name: string
   team: string
   role: Role
+  /** 허브 계정 아이디. 로그인 없는 데모 모드에서는 없다 */
+  loginId?: string
 }
 
 export type CategoryId = 'programming' | 'promotion' | 'system' | 'guide'

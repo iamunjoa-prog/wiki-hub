@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useAuth } from '../components/AuthGate'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
 import { defaultFavoriteSystems, systems as seedSystems } from '../data/systems'
@@ -261,9 +262,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => clearTimeout(t)
   }, [toast])
 
+  // 로그인한 담당자가 있으면 그 계정을, 로그인 없는 데모 빌드면 데모 계정을 쓴다
+  const authUser = useAuth().user
   const session: Session = useMemo(
-    () => ({ userId: 'kim', name: '김OO', team: '편성기획팀', role }),
-    [role],
+    () => authUser ?? { userId: 'kim', name: '김OO', team: '편성기획팀', role },
+    [authUser, role],
   )
 
   const showToast = useCallback((msg: string) => setToast(msg), [])

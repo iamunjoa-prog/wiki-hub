@@ -69,7 +69,7 @@ function AiEditBox({
         <span className="muted" style={{ fontSize: 13 }}>
           {assistant.engineStatus === undefined
             ? '엔진 확인 중…'
-            : '쓸 수 있는 엔진이 없습니다 — 대시보드의 챗봇 답변 엔진에서 Claude·Codex CLI를 로그인하거나 Gemini API 키를 설정하세요.'}
+            : '쓸 수 있는 엔진이 없습니다 — 메인의 챗봇 답변 엔진에서 Claude·Codex CLI를 로그인하거나 Gemini API 키를 설정하세요.'}
         </span>
       ) : (
         <div className="ai-edit-form">
