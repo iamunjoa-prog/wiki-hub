@@ -7,10 +7,12 @@ import {
   checkEditReply,
   EDIT_SCHEMA,
   REPLY_SCHEMA,
+  todayLine,
   type CliReply,
   type EditInput,
   type EditReply,
 } from './knowledge.js'
+import { buildScheduleDigest } from './scheduleDigest.js'
 
 /** GEMINI_MODEL 환경변수로 바꿀 수 있다 */
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash'
@@ -32,6 +34,9 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
     readFileSync(opts.promptFile, 'utf8'),
     '위키 문서 전체가 아래 <documents>에 들어 있다. 이 문서만 읽고 답하라.',
     `<documents>\n${buildDocsBlock(opts.knowledgeDir)}\n</documents>`,
+    '편성표(Today B tv·모바일 빅배너) 데이터는 아래 <schedule>에 들어 있다.',
+    todayLine(),
+    `<schedule>\n${buildScheduleDigest()}\n</schedule>`,
   ].join('\n\n')
 
   const response = await ai.models.generateContent({

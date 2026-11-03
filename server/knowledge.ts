@@ -156,3 +156,9 @@ export function buildDocsBlock(knowledgeDir: string): string {
   docsCache.set(knowledgeDir, block)
   return block
 }
+
+/** 편성표는 날짜(m/d)로 찾으므로, 모델이 "오늘"을 스스로 추측하지 않도록 서버 시각을 박아 준다. */
+export function todayLine(): string {
+  const n = new Date()
+  return `오늘 날짜: ${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')} (${n.getMonth() + 1}/${n.getDate()})`
+}

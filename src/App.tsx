@@ -7,6 +7,7 @@ import { BtvSchedule } from './pages/BtvSchedule'
 import { CampaignApp } from './pages/CampaignApp'
 import { CampaignHandoff } from './pages/CampaignHandoff'
 import { Dashboard } from './pages/Dashboard'
+import { JiraSchedule } from './pages/JiraSchedule'
 import { MyRequests } from './pages/MyRequests'
 import { NewDoc } from './pages/NewDoc'
 import { ProposeEdit } from './pages/ProposeEdit'
@@ -42,6 +43,7 @@ export default function App() {
           />
         ))}
         <Route path="/systems" element={<Systems />} />
+        <Route path="/jira-schedule" element={<JiraSchedule />} />
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/handoff" element={<CampaignHandoff />} />
