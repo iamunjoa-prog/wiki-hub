@@ -36,7 +36,7 @@ function IntentChip({ msg }: { msg: ChatMessage }) {
           { label: '네, 진행할게요', value: 'yes' },
           { label: '아니요, 질문만 할게요', value: 'no' },
         ]
-      : intent.kind === 'product'
+      : intent.kind === 'product' || intent.kind === 'product-qa'
         ? [
             { label: '월정액(PPM)', value: 'PPM' },
             { label: '단건(PPV)', value: 'PPV' },
