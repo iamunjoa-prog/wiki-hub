@@ -371,6 +371,10 @@ function Sidebar() {
           시스템
         </NavLink>
 
+        <NavLink to="/jira-schedule" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+          Jira 스케줄 확인
+        </NavLink>
+
         <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           내 요청 현황
         </NavLink>

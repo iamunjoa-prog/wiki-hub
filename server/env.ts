@@ -24,3 +24,12 @@ export function readGithubToken(env: Record<string, string | undefined> = proces
 export function readGithubRepo(env: Record<string, string | undefined> = process.env): string {
   return env.GITHUB_REPO?.trim() || 'iamunjoa-prog/wiki-hub'
 }
+
+/** 회사 내부 Jira 주소·프로젝트 키 — 공개 저장소라 코드에 박아 두지 않고 개인별 .env.local에서 읽는다 */
+export function readJiraBaseUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.JIRA_BASE_URL?.trim().replace(/\/+$/, '') || undefined
+}
+
+export function readJiraProjectKey(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.JIRA_PROJECT_KEY?.trim() || undefined
+}

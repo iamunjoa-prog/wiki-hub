@@ -13,7 +13,7 @@ function StatusTag({ status }: { status: ProposalStatus }) {
 }
 
 export function Dashboard() {
-  const { docs, sheets, proposals, promotions, systems, systemRequests, favoriteSystems, session } = useApp()
+  const { docs, proposals, promotions, systems, systemRequests, favoriteSystems, session } = useApp()
   const navigate = useNavigate()
   const isAdmin = session.role === 'admin'
 
@@ -143,21 +143,6 @@ export function Dashboard() {
                     시스템 화면에서 별표를 누르면 여기에 모입니다
                   </div>
                 )}
-              </div>
-
-              <div className="panel">
-                <div className="panel-head">
-                  <span className="label strong">자주 쓰는 편성/스케줄</span>
-                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => navigate('/sheets')}>
-                    전체 보기 →
-                  </button>
-                </div>
-                {sheets.slice(0, 4).map((s) => (
-                  <button key={s.id} className="row" onClick={() => navigate(`/sheets?id=${s.id}`)}>
-                    <span className="grow">{s.name}</span>
-                    <span className="muted">→</span>
-                  </button>
-                ))}
               </div>
             </div>
           </div>

@@ -67,6 +67,8 @@ export function detectCampaignIntent(query: string): boolean {
 
 export const INTENT_CONFIRM_QUESTION = '혹시 지금 진행하려는 프로모션이 있으신가요? 있으시면 프로모션 어드민 화면으로 바로 열어드리겠습니다.'
 export const INTENT_PRODUCT_QUESTION = '월정액(PPM)인가요, 단건(PPV)인가요? 고르시면 그 기준으로 어드민 화면을 엽니다.'
+/** 질문만 받을 때의 확인 — 답변 근거 문서가 상품 유형에 따라 갈려서 한 번은 확인하고 넘어간다 */
+export const INTENT_PRODUCT_QA_QUESTION = '월정액(PPM) 기준인가요, 단건(PPV) 기준인가요? 고르시면 그 기준 문서로만 답합니다.'
 
 function detectProduct(query: string) {
   const q = query.toLowerCase()

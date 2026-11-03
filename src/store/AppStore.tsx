@@ -17,6 +17,7 @@ import {
   buildCampaignDraft,
   ENGINE_PRIORITY,
   fetchEngines,
+  INTENT_PRODUCT_QA_QUESTION,
   INTENT_PRODUCT_QUESTION,
   makeMessage,
   NEXT_STEP_QUESTION,
@@ -336,6 +337,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const resolveIntent = useCallback(
     (messageId: string, choice: IntentChoice) => {
       const answered = INTENT_ANSWER_LABEL[choice]
+      // 칩을 접기 전에 어떤 확인이었는지 읽어 둔다 — 상품 유형 선택의 다음 동작이 갈린다
+      const answeredKind = messagesRef.current.find((m) => m.id === messageId)?.intent?.kind
       // 버튼을 누른 메시지의 확인은 접고, 고른 값만 남긴다
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, intent: undefined, intentAnswer: answered } : m)),
@@ -343,9 +346,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       intentAskedRef.current = true
 
       if (choice === 'no') {
+        // 질문만 받더라도 근거 문서가 PPM·PPV로 갈린다 — 아직 모르면 한 번은 확인하고 넘어간다
+        const known = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).product
         setMessages((prev) => [
           ...prev,
-          makeMessage('assistant', '알겠습니다. 정책이나 시스템 관련해 궁금한 것을 물어봐 주세요.'),
+          known
+            ? makeMessage('assistant', `알겠습니다. ${known.label} 기준으로 답하겠습니다. 정책이나 시스템 관련해 궁금한 것을 물어봐 주세요.`)
+            : makeMessage('assistant', '알겠습니다. 다만 답변 근거가 상품 유형에 따라 갈립니다.', {
+                intent: { kind: 'product-qa', question: INTENT_PRODUCT_QA_QUESTION },
+              }),
         ])
         return
       }
@@ -387,6 +396,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setMessages((prev) => [
           ...prev,
           makeMessage('assistant', '', { intent: { kind: 'product', question: INTENT_PRODUCT_QUESTION } }),
+        ])
+        return
+      }
+      // 질문만 받기로 한 뒤의 상품 유형 확인 — 기준만 잡고 어드민은 열지 않는다
+      if (answeredKind === 'product-qa') {
+        setMessages((prev) => [
+          ...prev,
+          // 고른 값을 사용자 발화로 남긴다 — 이후 질문의 근거 문서가 이 기준으로 걸러진다
+          makeMessage('user', `${answered} 기준으로 물어볼게요`),
+          makeMessage('assistant', `${answered} 기준으로 답하겠습니다. 궁금한 것을 물어봐 주세요.`),
         ])
         return
       }
