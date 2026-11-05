@@ -4,9 +4,8 @@ import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
 import { categoryShort, docCommits } from '../data/docs'
+import { headingId } from '../lib/docEdit'
 import { useApp } from '../store/AppStore'
-
-const headingId = (text: string) => `h-${text.trim().replace(/\s+/g, '-')}`
 
 interface Heading {
   level: 2 | 3

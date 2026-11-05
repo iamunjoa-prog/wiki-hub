@@ -20,7 +20,7 @@ const KNOWLEDGE_DIR = '지식'
 /** 작성 규칙 문서는 링크 **쓰는 법**을 설명하느라 예시용 가짜 앵커를 담고 있다 */
 const SKIP = ['guide/writing.md']
 
-/** src/pages/WikiDoc.tsx 의 headingId 와 같은 규칙이어야 한다 */
+/** src/lib/docEdit.ts 의 headingId 와 같은 규칙이어야 한다 (단일 출처 — node 스크립트라 TS 를 못 불러와 한 줄을 따로 둔다) */
 const headingId = (text) => `h-${text.trim().replace(/\s+/g, '-')}`
 
 function listMarkdown(dir) {
