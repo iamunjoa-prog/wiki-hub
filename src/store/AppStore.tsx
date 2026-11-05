@@ -15,6 +15,8 @@ import { defaultFavoriteSystems, systems as seedSystems } from '../data/systems'
 import {
   askAssistant,
   buildCampaignDraft,
+  detectCampaignIntent,
+  detectDecision,
   ENGINE_PRIORITY,
   fetchEngines,
   INTENT_PRODUCT_QUESTION,
@@ -279,6 +281,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
     setMessages((prev) => [...prev, makeMessage('user', q)])
     setPending(true)
+    // 새 기획 의도가 들어오면 새 상담이다 — 지난 상담에서 이미 물었다는 이유로 확인 칩을 건너뛰지 않는다
+    if (detectCampaignIntent(q) && !detectDecision(q)) intentAskedRef.current = false
     askAssistant(q, usableEngines, history, intentAskedRef.current, nextAskedRef.current).then((reply) => {
       // 추천을 받고 돌아왔으면 연결 버튼을 다시 붙인다 — 대화가 여기서 끊기지 않게 한다
       if (resumeNextRef.current && !reply.intent) {

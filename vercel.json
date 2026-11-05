@@ -10,7 +10,7 @@
     },
     "api/edit.ts": {
       "includeFiles": "server/edit-prompt.md",
-      "maxDuration": 60
+      "maxDuration": 300
     }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]

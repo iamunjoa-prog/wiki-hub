@@ -49,6 +49,7 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
   ].join('\n\n')
 
   const model = opts.model || GEMINI_DEFAULT_MODEL
+  const started = Date.now()
   const response = await callGemini(model, () =>
     ai.models.generateContent({
       model,
@@ -68,6 +69,13 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     }),
+  )
+
+  // 지연의 원인이 입력(prefill)·추론(thinking)·출력 중 어디인지 알 수 있게 토큰 수를 남긴다 — 로깅만 하고 동작은 바꾸지 않는다.
+  const u = response.usageMetadata
+  console.log(
+    `[gemini] ${model} ${((Date.now() - started) / 1000).toFixed(1)}s · prompt=${u?.promptTokenCount ?? '?'} ` +
+      `thoughts=${u?.thoughtsTokenCount ?? '?'} output=${u?.candidatesTokenCount ?? '?'} cached=${u?.cachedContentTokenCount ?? 0}`,
   )
 
   if (!response.text) throw new Error('Gemini가 빈 응답을 반환했습니다')
