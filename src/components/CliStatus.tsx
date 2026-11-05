@@ -15,6 +15,12 @@ const LOGIN_CMD: Record<CliEngine, string> = { claude: 'claude auth login', code
 
 type DotState = 'loading' | 'off' | 'ok' | 'warn'
 
+type Os = 'win' | 'mac'
+
+/** 브라우저가 알려 주는 OS. Mac이 아니면(판단 불가 포함) Windows 안내를 기본으로 한다. */
+const detectOs = (): Os =>
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(`${navigator.platform} ${navigator.userAgent}`) ? 'mac' : 'win'
+
 const dotState = (s: EngineStatus | undefined): DotState =>
   !s ? 'loading' : !s.installed ? 'off' : s.loggedIn ? 'ok' : 'warn'
 
@@ -47,10 +53,12 @@ export function CliStatus() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState('')
+  const [os, setOs] = useState<Os>(detectOs)
   const waitStart = useRef(0)
 
   const isLocal = Boolean(status && CLI_ENGINES.some((e) => e in status))
   const gemini = status?.gemini
+  const launcher = os === 'mac' ? 'start-hub.command' : 'start-hub.bat'
 
   const recheck = async () => {
     setChecking(true)
@@ -102,7 +110,7 @@ export function CliStatus() {
       a.click()
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      showToast('허브 ZIP을 내려받았습니다 — 압축을 풀고 start-hub.bat을 실행하세요')
+      showToast('허브 ZIP을 내려받았습니다 — 압축을 풀고 start-hub 실행기를 실행하세요')
     } catch (err) {
       const message = (err as Error).message || '내려받지 못했습니다'
       setDownloadError(message)
@@ -221,41 +229,39 @@ export function CliStatus() {
                   <p className="cli-guide">
                     {gemini?.loggedIn ? (
                       <>
-                        이 배포 허브에서는 챗봇이 <b>Gemini API</b>로 답합니다. 설치 없이 바로 쓰시면 됩니다.
+                        챗봇은 <b>Gemini API</b>로 답합니다.
                       </>
                     ) : (
                       <>
-                        이 배포 허브에는 CLI도 Gemini API 키도 없어서 챗봇이 <b>규칙 기반 답변</b>으로 동작합니다.
+                        챗봇이 <b>규칙 기반 답변</b>으로 동작 중입니다.
                       </>
                     )}{' '}
-                    Claude·Codex CLI로 답받고 싶다면 <b>내 PC에서 허브를 실행</b>하세요.
+                    CLI로 답받으려면 <b>내 PC에서 허브를 실행</b>하세요.
                   </p>
+                  <div className="cli-os">
+                    <b>{os === 'mac' ? 'Mac' : 'Windows'}</b>
+                    <button type="button" className="cli-os-switch" onClick={() => setOs(os === 'mac' ? 'win' : 'mac')}>
+                      {os === 'mac' ? 'Windows 안내 보기' : 'Mac 안내 보기'}
+                    </button>
+                  </div>
                   <ol className="cli-steps">
+                    <li>아래 <b>로컬 허브 내려받기</b>로 ZIP을 받습니다</li>
                     <li>
-                      <span>
-                        아래 <b>로컬 허브 내려받기</b>로 ZIP 파일을 받습니다
-                      </span>
+                      {os === 'mac' ? (
+                        <><b>더블클릭해 압축 풀기</b> (ZIP 안에서 바로 실행 금지)</>
+                      ) : (
+                        <><b>우클릭 → 모두 압축 풀기</b> (ZIP 안에서 바로 실행 금지)</>
+                      )}
                     </li>
                     <li>
-                      <span>
-                        ZIP을 <b>압축 풀기</b> 하세요 (우클릭 → 모두 압축 풀기). 풀린 곳에 <b>이름이 긴 폴더 하나</b>(
-                        <code>owner-repo-커밋번호</code> 형태)가 생기는데, <b>그 폴더 안에 start-hub.bat</b>이 있습니다.
-                        ZIP 파일 안에서 바로 더블클릭하면 실행되지 않습니다 (탐색기가 ZIP 안을 폴더처럼 보여 줍니다)
-                      </span>
+                      <b>이름이 긴 폴더</b>(<code>owner-repo-커밋번호</code>) 안의 <b style={{ whiteSpace: 'nowrap' }}>{launcher}</b> 더블클릭
                     </li>
-                    <li>
-                      <span>
-                        그 폴더의 <b>start-hub.bat</b> 더블클릭
-                      </span>
-                    </li>
-                    <li>
-                      <span>
-                        안내에 따라 <b>Y</b>만 누르면 Node.js·CLI 설치, 로그인, 바탕화면 바로가기까지 자동으로 세팅됩니다
-                      </span>
-                    </li>
-                    <li>
-                      <span>브라우저가 자동으로 열리면 끝 — 다음부터는 바탕화면 바로가기로 실행</span>
-                    </li>
+                    {os === 'mac' && (
+                      <li>
+                        "확인되지 않은 개발자" 경고는 <b>우클릭 → 열기</b>
+                      </li>
+                    )}
+                    <li><b>Y</b>만 누르면 세팅 끝, 브라우저가 열립니다</li>
                   </ol>
                   <button
                     type="button"
@@ -272,11 +278,11 @@ export function CliStatus() {
                     </span>
                   )}
                   <span className="muted" style={{ fontSize: 12.5 }}>
-                    이미 허브를 받아 두셨다면:{' '}
+                    이미 받아 두셨다면:{' '}
                     <a href={LOCAL_URL} target="_blank" rel="noreferrer">
                       로컬 허브 열기 ↗
                     </a>{' '}
-                    — 로컬 허브가 켜져 있을 때만 열립니다. "연결할 수 없음"이 뜨면 바탕화면 <b>플랫폼 담당 지식 허브</b>를 먼저 실행하세요.
+                    — 허브가 켜져 있을 때만 열립니다. 안 열리면 바탕화면 <b>플랫폼 담당 지식 허브</b>를 먼저 실행하세요.
                   </span>
                 </>
               ) : (
