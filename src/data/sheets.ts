@@ -1,4 +1,4 @@
-import type { Promotion, Proposal, Sheet, SheetPlatform } from '../types'
+import type { Promotion, Sheet, SheetPlatform } from '../types'
 
 export const gnbList = ['홈', '영화/시리즈', 'TV 방송', '키즈', '스포츠']
 
@@ -79,43 +79,6 @@ export const sheets: Sheet[] = [
     periodEnd: '2026-10-10',
     description: '가을 스포츠 특집 중계 편성',
     lastCheckedAt: '2026-09-06',
-  },
-]
-
-export const initialProposals: Proposal[] = [
-  {
-    id: 'pr-01',
-    docId: 'PPC-P-02',
-    docTitle: 'PPM(월정액) 프로모션 정책',
-    baseVersion: 1,
-    newBody: '',
-    reason: '전환동의 팝업 지원 UI 버전이 5.4.3에서 상향됐습니다. 표를 갱신해 주세요',
-    status: 'pending',
-    requestedBy: '김OO',
-    requestedAt: '2026-09-08',
-  },
-  {
-    id: 'pr-02',
-    docId: 'PPC-CBS',
-    docTitle: 'CBS 시스템 매뉴얼',
-    baseVersion: 1,
-    newBody: '',
-    reason: '승인요청 버튼 비활성 원인에 적용대상 미등록 케이스를 추가',
-    status: 'approved',
-    requestedBy: '김OO',
-    requestedAt: '2026-09-04',
-  },
-  {
-    id: 'pr-03',
-    docId: 'doc-mkt-01',
-    docTitle: '신규 유입 캠페인 기준',
-    baseVersion: 11,
-    newBody: '',
-    reason: '예능 표준 예산 문구 조정',
-    status: 'rejected',
-    rejectReason: '근거 데이터 출처 누락 — 유사 캠페인 실적 링크를 첨부해 다시 제안해 주세요',
-    requestedBy: '김OO',
-    requestedAt: '2026-09-01',
   },
 ]
 

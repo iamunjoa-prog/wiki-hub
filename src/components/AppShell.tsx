@@ -335,7 +335,7 @@ function Sidebar() {
   const { session, setRole, proposals, promotions, systemRequests } = useApp()
   const { user: account, signOut } = useAuth()
   const pendingCount =
-    proposals.filter((p) => p.status === 'pending').length +
+    (proposals ?? []).filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
     systemRequests.filter((r) => r.status === 'pending').length
   const { width, dragging, startDrag, onKeyDown } = useSidebarResize()

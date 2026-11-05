@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useAuth } from '../components/AuthGate'
 import { docs as seedDocs } from '../data/docs'
-import { initialPromotions, initialProposals, sheets as seedSheets } from '../data/sheets'
+import { initialPromotions, sheets as seedSheets } from '../data/sheets'
 import { defaultFavoriteSystems, systems as seedSystems } from '../data/systems'
 import {
   askAssistant,
@@ -27,6 +27,7 @@ import {
   readSlots,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
+import { fetchProposals } from '../lib/proposeEdit'
 import {
   EMPTY_SYSTEMS_STATE,
   fetchSystemsState,
@@ -43,7 +44,7 @@ import type {
   EngineStatus,
   ProductScope,
   Promotion,
-  Proposal,
+  ProposalPr,
   Role,
   Session,
   Sheet,
@@ -76,7 +77,10 @@ interface AppState {
   session: Session
   docs: WikiDoc[]
   sheets: Sheet[]
-  proposals: Proposal[]
+  /** 문서 제안(= GitHub PR). null 이면 아직 못 읽은 것 — 빈 목록과 다르다 */
+  proposals: ProposalPr[] | null
+  proposalsError: string | null
+  proposalsLoading: boolean
   promotions: Promotion[]
   systems: SystemEntry[]
   systemRequests: SystemRequest[]
@@ -102,8 +106,10 @@ interface AppState {
   refreshEngines: () => Promise<void>
   setCampaignDraft: (draft: CampaignDraft | null) => void
 
-  submitProposal: (docId: string, newBody: string, reason: string) => void
-  decideProposal: (id: string, decision: 'approved' | 'rejected', reason?: string) => Promise<void>
+  /** 이미 읽었으면 다시 부르지 않는다 — 화면이 진입할 때 한 번 부르는 용도 */
+  ensureProposals: () => void
+  /** GitHub PR 목록을 다시 읽는다 (수동 새로고침) */
+  refreshProposals: () => Promise<void>
 
   /** 별표 토글 — 켜는 순간 대시보드에 올라간다 */
   toggleFavoriteSystem: (id: string) => void
@@ -158,7 +164,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
   const [docs, setDocs] = useState<WikiDoc[]>(seedDocs)
   const [sheets, setSheets] = useState<Sheet[]>(seedSheets)
-  const [proposals, setProposals] = useState<Proposal[]>(initialProposals)
+  const [proposals, setProposals] = useState<ProposalPr[] | null>(null)
+  const [proposalsError, setProposalsError] = useState<string | null>(null)
+  const [proposalsLoading, setProposalsLoading] = useState(false)
   const [promotions, setPromotions] = useState<Promotion[]>(initialPromotions)
   /**
    * 시스템 목록은 팀 공유 파일 하나에 모인다 (로컬 허브가 읽고 쓴다).
@@ -399,60 +407,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [openCampaignAdmin],
   )
 
-  const submitProposal = useCallback(
-    (docId: string, newBody: string, reason: string) => {
-      const doc = docs.find((d) => d.id === docId)
-      if (!doc) return
-      setProposals((prev) => [
-        {
-          id: newId('pr'),
-          docId,
-          docTitle: doc.title,
-          baseVersion: doc.version,
-          newBody,
-          reason,
-          status: 'pending',
-          requestedBy: session.name,
-          requestedAt: today(),
-        },
-        ...prev,
-      ])
-      setToast('수정 제안을 제출했습니다 · 승인 대기')
-    },
-    [docs, session.name],
-  )
-
-  const decideProposal = useCallback(
-    async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
-      // Git 반영이 실패할 수 있어 낙관적 업데이트를 쓰지 않는다.
-      await new Promise((r) => setTimeout(r, 600))
-      setProposals((prev) =>
-        prev.map((p) => (p.id === id ? { ...p, status: decision, rejectReason: reason } : p)),
-      )
-      if (decision === 'approved') {
-        const proposal = proposals.find((p) => p.id === id)
-        if (proposal?.newBody) {
-          setDocs((prev) =>
-            prev.map((d) =>
-              d.id === proposal.docId
-                ? {
-                    ...d,
-                    body: proposal.newBody,
-                    version: d.version + 1,
-                    updatedBy: proposal.requestedBy,
-                    updatedAt: today(),
-                  }
-                : d,
-            ),
-          )
-        }
-        setToast('승인 완료 · 커밋 생성 후 위키에 반영했습니다')
-      } else {
-        setToast('반려 처리했습니다')
-      }
-    },
-    [proposals],
-  )
+  const proposalsBusy = useRef(false)
+  const refreshProposals = useCallback(async () => {
+    if (proposalsBusy.current) return
+    proposalsBusy.current = true
+    setProposalsLoading(true)
+    try {
+      setProposals(await fetchProposals())
+      setProposalsError(null)
+    } catch (err) {
+      setProposalsError((err as Error).message)
+    } finally {
+      proposalsBusy.current = false
+      setProposalsLoading(false)
+    }
+  }, [])
+  const proposalsTried = useRef(false)
+  const ensureProposals = useCallback(() => {
+    if (proposalsTried.current) return
+    proposalsTried.current = true
+    void refreshProposals()
+  }, [refreshProposals])
 
   const toggleFavoriteSystem = useCallback(
     (id: string) => {
@@ -616,6 +591,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     docs,
     sheets,
     proposals,
+    proposalsError,
+    proposalsLoading,
     promotions,
     systems,
     systemRequests,
@@ -636,8 +613,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     requestSystemUrl,
     submitSystemRequest,
     decideSystemRequest,
-    submitProposal,
-    decideProposal,
+    ensureProposals,
+    refreshProposals,
     addSheet,
     requestPromotion,
     decidePromotion,
