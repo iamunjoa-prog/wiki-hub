@@ -47,6 +47,13 @@ export async function POST(request: Request): Promise<Response> {
     return error(400, (err as Error).message || '요청 형식이 올바르지 않습니다')
   }
 
+  // 문서·프롬프트가 배포 번들에 빠지면 Gemini 호출이 파일 없음으로 죽는다. 그때 "응답 실패"가
+  // 아니라 무엇이 빠졌는지 알려 준다 → vercel.json 의 includeFiles 설정 문제다.
+  if (!existsSync(PROMPT_FILE))
+    return error(500, '배포에 server/assistant-prompt.md 가 없습니다 — vercel.json 의 includeFiles를 확인해 주세요')
+  if (!existsSync(KNOWLEDGE_DIR))
+    return error(500, '배포에 지식 문서 폴더가 없습니다 — vercel.json 의 includeFiles를 확인해 주세요')
+
   try {
     const reply = await askGemini(input, {
       apiKey,

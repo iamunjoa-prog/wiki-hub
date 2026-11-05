@@ -9,7 +9,14 @@ import type {
   SourceRef,
   WikiDoc,
 } from '../types'
-import { extractSentences, searchDocs, type SearchInput } from './retrieval'
+import {
+  extractSentences,
+  findSection,
+  searchDocs,
+  sequenceLines,
+  type DocSection,
+  type SearchInput,
+} from './retrieval'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
 const PRODUCTS: { keywords: string[]; label: string; scope: 'PPM' | 'PPV'; policyCode: string }[] = [
@@ -48,6 +55,20 @@ function wantsAdvice(query: string): boolean {
   return CAMPAIGN_NOUNS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
 }
 
+/**
+ * 일이 **어떤 순서로** 진행되는지 묻는 발화. 이런 질문에 문장을 점수순으로 2개 뽑으면
+ * 절차가 아니라 조각이 나온다 — 소제목을 찾아 문서 순서대로 답해야 한다.
+ */
+const SEQUENCE_CUES = ['프로세스', '절차', '단계', '순서', '흐름', 'step']
+
+function wantsSequence(query: string): boolean {
+  const q = query.toLowerCase()
+  return SEQUENCE_CUES.some((k) => q.includes(k))
+}
+
+/** 절차 답변에 허용하는 줄 수 — 운영 프로세스가 Step 1~6이라 요약 줄까지 7줄이 들어간다 */
+const SEQUENCE_LIMIT = 8
+
 let seq = 0
 export const newId = (prefix: string) => `${prefix}-${Date.now().toString(36)}-${seq++}`
 
@@ -62,6 +83,9 @@ export interface ChatTurn {
  * "판촉 쿠폰 품의는 누구 결재가 필요해?" 같은 사실 질문에 확인이 끼어들지 않게 한다.
  */
 export function detectCampaignIntent(query: string): boolean {
+  // "프로모션 어떤 순서로 진행돼?"는 절차를 묻는 사실 질문이다. '프로모션'+'진행'이 함께 있다고
+  // 기획 상담으로 끌면, 문서에 그대로 적힌 절차 대신 "상품 유형에 따라 갈립니다"만 돌아간다.
+  if (wantsSequence(query)) return false
   return CAMPAIGN_NOUNS.some((k) => query.includes(k)) && PLAN_VERBS.some((k) => query.includes(k))
 }
 
@@ -260,6 +284,12 @@ export function intentPromptFor(query: string, alreadyAsked: boolean): IntentPro
 
 export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 
+/** 화면 라벨에 넣을 실패 사유 — 원문을 살리되 라벨이 넘치지 않게 자른다 */
+const shortReason = (message: string) => {
+  const one = message.replace(/\s+/g, ' ').trim()
+  return one.length > 140 ? `${one.slice(0, 137)}…` : one || '사유 없음'
+}
+
 /** 자동 선택 순서 — CLI가 있으면 CLI, 없으면 Gemini API */
 export const ENGINE_PRIORITY: Engine[] = ['claude', 'codex', 'gemini']
 
@@ -312,9 +342,9 @@ const SCOPE_ONLY_TERMS: Record<ProductScope, string[]> = {
  * 인용해도 되는 문장만 남긴다. 상품 유형을 밝혔으면 **반대 상품 전용 문장**을 빼고,
  * `(보완 필요)` 처럼 위키가 비어 있다고 표시해 둔 줄은 근거로 쓰지 않는다.
  */
-function usableSentences(doc: WikiDoc, search: SearchInput, limit: number): string[] {
+function keepUsable(lines: string[], search: SearchInput, limit: number): string[] {
   const other = search.scope === 'PPV' ? SCOPE_ONLY_TERMS.PPM : search.scope === 'PPM' ? SCOPE_ONLY_TERMS.PPV : []
-  return extractSentences(doc, search, limit + 3)
+  return lines
     .filter((line) => !line.includes('(보완 필요)'))
     .filter((line) => {
       const lower = line.toLowerCase()
@@ -323,6 +353,21 @@ function usableSentences(doc: WikiDoc, search: SearchInput, limit: number): stri
       return mine || !other.some((t) => lower.includes(t))
     })
     .slice(0, limit)
+}
+
+function usableSentences(doc: WikiDoc, search: SearchInput, limit: number): string[] {
+  return keepUsable(extractSentences(doc, search, limit + 3), search, limit)
+}
+
+/**
+ * 절차 질문에 쓸 소제목 조각. 질문이 소제목에 걸린 문서가 있으면 그 조각을 **순서대로** 돌려준다.
+ * 예: "마케팅 프로세스 설명해줄래?" → `프로모션 운영 프로세스 (Step 1~6)` 조각.
+ */
+function usableSequence(doc: WikiDoc, search: SearchInput): { section: DocSection; lines: string[] } | null {
+  const section = findSection(doc, search)
+  if (!section) return null
+  const lines = keepUsable(sequenceLines(section, SEQUENCE_LIMIT), search, SEQUENCE_LIMIT)
+  return lines.length >= 2 ? { section, lines } : null
 }
 
 export function answer(query: string, history: ChatTurn[] = [], intentAsked = false): AssistantReply {
@@ -388,12 +433,27 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
 
   // 실제로 문장을 뽑아낸 문서만 근거로 남긴다 — 본문에 인용하지 않은 문서를 출처로 붙이지 않는다.
   const used: typeof hits = []
-  for (const hit of hits.slice(0, 2)) {
-    const sentences = usableSentences(hit.doc, search, 2)
-    if (sentences.length === 0) continue
+
+  /**
+   * 절차를 물었으면 **문서 하나의 해당 소제목을 순서대로** 보여 준다. 여러 문서에서
+   * 두 줄씩 긁어 모으면 "프로세스를 설명해 달라"는 질문에 조각만 돌아간다.
+   */
+  const sequence = wantsSequence(query) ? hits.map((h) => ({ hit: h, found: usableSequence(h.doc, search) })).find((x) => x.found) : undefined
+
+  if (sequence?.found) {
+    const { hit, found } = { hit: sequence.hit, found: sequence.found }
     used.push(hit)
-    lines.push(`**${hit.doc.title}** (${hit.doc.code})`)
-    for (const s of sentences) lines.push(`· ${s}`)
+    lines.push(`**${hit.doc.title}** (${hit.doc.code}) — ${found.section.heading}`)
+    // 절차는 '단계명 — 하는 일'까지만 쓴다. 결재 기준·체크포인트 칸까지 붙이면 한 줄이 너무 길어진다.
+    for (const s of found.lines) lines.push(`· ${s.split(' — ').slice(0, 2).join(' — ')}`)
+  } else {
+    for (const hit of hits.slice(0, 2)) {
+      const sentences = usableSentences(hit.doc, search, 2)
+      if (sentences.length === 0) continue
+      used.push(hit)
+      lines.push(`**${hit.doc.title}** (${hit.doc.code})`)
+      for (const s of sentences) lines.push(`· ${s}`)
+    }
   }
 
   if (used.length === 0) {
@@ -437,7 +497,12 @@ async function askEngine(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, engine, history }),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) {
+    // 서버는 실패 사유를 { error } 로 돌려준다. 상태 코드만 들고 올라가면 화면에는
+    // "응답 실패" 네 글자만 남아서, 키 문제인지 모델명 문제인지 끝까지 알 수 없다.
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ? `${body.error} (HTTP ${res.status})` : `HTTP ${res.status}`)
+  }
   const data = (await res.json()) as { text: string; sourcePaths: string[] }
 
   const sources: SourceRef[] = data.sourcePaths
@@ -477,16 +542,16 @@ export async function askAssistant(
     try {
       const reply = await askEngine(query, engine, history, intentAsked)
       return withNextStep(
-        failed.length ? { ...reply, answeredBy: `${reply.answeredBy} (${failed.join('·')} 응답 실패)` } : reply,
+        failed.length ? { ...reply, answeredBy: `${reply.answeredBy} (${failed.join(' · ')})` } : reply,
       )
     } catch (err) {
       console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패:`, (err as Error).message)
-      failed.push(ENGINE_LABEL[engine])
+      failed.push(`${ENGINE_LABEL[engine]}: ${shortReason((err as Error).message)}`)
     }
   }
   return withNextStep({
     ...answer(query, history, intentAsked),
-    answeredBy: failed.length ? `규칙 기반 (${failed.join('·')} 응답 실패)` : '규칙 기반',
+    answeredBy: failed.length ? `규칙 기반 (${failed.join(' · ')})` : '규칙 기반',
   })
 }
 
