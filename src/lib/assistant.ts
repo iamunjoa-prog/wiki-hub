@@ -284,6 +284,12 @@ export function intentPromptFor(query: string, alreadyAsked: boolean): IntentPro
 
 export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 
+/** 화면 라벨에 넣을 실패 사유 — 원문을 살리되 라벨이 넘치지 않게 자른다 */
+const shortReason = (message: string) => {
+  const one = message.replace(/\s+/g, ' ').trim()
+  return one.length > 140 ? `${one.slice(0, 137)}…` : one || '사유 없음'
+}
+
 /** 자동 선택 순서 — CLI가 있으면 CLI, 없으면 Gemini API */
 export const ENGINE_PRIORITY: Engine[] = ['claude', 'codex', 'gemini']
 
@@ -491,7 +497,12 @@ async function askEngine(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, engine, history }),
   })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  if (!res.ok) {
+    // 서버는 실패 사유를 { error } 로 돌려준다. 상태 코드만 들고 올라가면 화면에는
+    // "응답 실패" 네 글자만 남아서, 키 문제인지 모델명 문제인지 끝까지 알 수 없다.
+    const body = (await res.json().catch(() => null)) as { error?: string } | null
+    throw new Error(body?.error ? `${body.error} (HTTP ${res.status})` : `HTTP ${res.status}`)
+  }
   const data = (await res.json()) as { text: string; sourcePaths: string[] }
 
   const sources: SourceRef[] = data.sourcePaths
@@ -531,16 +542,16 @@ export async function askAssistant(
     try {
       const reply = await askEngine(query, engine, history, intentAsked)
       return withNextStep(
-        failed.length ? { ...reply, answeredBy: `${reply.answeredBy} (${failed.join('·')} 응답 실패)` } : reply,
+        failed.length ? { ...reply, answeredBy: `${reply.answeredBy} (${failed.join(' · ')})` } : reply,
       )
     } catch (err) {
       console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패:`, (err as Error).message)
-      failed.push(ENGINE_LABEL[engine])
+      failed.push(`${ENGINE_LABEL[engine]}: ${shortReason((err as Error).message)}`)
     }
   }
   return withNextStep({
     ...answer(query, history, intentAsked),
-    answeredBy: failed.length ? `규칙 기반 (${failed.join('·')} 응답 실패)` : '규칙 기반',
+    answeredBy: failed.length ? `규칙 기반 (${failed.join(' · ')})` : '규칙 기반',
   })
 }
 

@@ -15,6 +15,20 @@ import {
 /** GEMINI_MODEL 환경변수로 바꿀 수 있다 */
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash'
 
+/**
+ * Gemini 호출을 감싸 **어느 모델로 무엇이 실패했는지** 남긴다.
+ * 404는 모델명(`GEMINI_MODEL` 환경변수 포함), 401·403은 키, 429는 할당량 문제다 —
+ * 모델명을 안 적어 두면 화면에서 이 셋을 구분할 수 없다.
+ */
+async function callGemini<T>(model: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (err) {
+    const message = (err as Error).message || String(err)
+    throw new Error(`모델 ${model} 호출 실패 — ${message}`)
+  }
+}
+
 export interface GeminiOptions {
   apiKey: string
   model?: string
@@ -34,19 +48,22 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
     `<documents>\n${buildDocsBlock(opts.knowledgeDir)}\n</documents>`,
   ].join('\n\n')
 
-  const response = await ai.models.generateContent({
-    model: opts.model || GEMINI_DEFAULT_MODEL,
-    // 기획 상담은 여러 턴에 걸쳐 조건을 모으므로 이력을 그대로 넘긴다
-    contents: [
-      ...input.history.map((t) => ({ role: t.role === 'user' ? 'user' : 'model', parts: [{ text: t.text }] })),
-      { role: 'user', parts: [{ text: input.query }] },
-    ],
-    config: {
-      systemInstruction,
-      responseMimeType: 'application/json',
-      responseJsonSchema: REPLY_SCHEMA,
-    },
-  })
+  const model = opts.model || GEMINI_DEFAULT_MODEL
+  const response = await callGemini(model, () =>
+    ai.models.generateContent({
+      model,
+      // 기획 상담은 여러 턴에 걸쳐 조건을 모으므로 이력을 그대로 넘긴다
+      contents: [
+        ...input.history.map((t) => ({ role: t.role === 'user' ? 'user' : 'model', parts: [{ text: t.text }] })),
+        { role: 'user', parts: [{ text: input.query }] },
+      ],
+      config: {
+        systemInstruction,
+        responseMimeType: 'application/json',
+        responseJsonSchema: REPLY_SCHEMA,
+      },
+    }),
+  )
 
   if (!response.text) throw new Error('Gemini가 빈 응답을 반환했습니다')
   const out = JSON.parse(response.text) as Partial<CliReply>
