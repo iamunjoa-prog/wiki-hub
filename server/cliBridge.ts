@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
 import { readGeminiKey, readGithubRepo, readGithubToken } from './env.js'
 import { proxyHubZip } from './hubZip.js'
-import { createDocPR, parseCreateDocInput } from './github.js'
+import { createDocPR, createEditPR, EditError, listProposalPrs, parseCreateDocInput, parseEditDocInput } from './github.js'
 import {
   isShared,
   readSystemsFile,
@@ -502,6 +502,57 @@ export function cliBridge(): Plugin {
             res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
           }
         })
+      })
+
+      // 위키 문서의 "✎ 수정 제안" — 기존 파일을 고치는 PR (로컬도 배포와 같은 경로)
+      server.middlewares.use('/api/proposeEdit', (req, res) => {
+        if (req.method !== 'POST') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        if (!githubToken) {
+          res.statusCode = 503
+          res.end(JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았습니다 (.env.local)' }))
+          return
+        }
+        let body = ''
+        req.on('data', (c) => (body += c))
+        req.on('end', async () => {
+          try {
+            const input = parseEditDocInput(JSON.parse(body || '{}'))
+            const result = await createEditPR(input, { token: githubToken, env: { ...process.env, ...env } })
+            log.info(`[cli-bridge] proposeEdit ${input.code} · ${input.title} · ${input.requestedBy} · PR #${result.prNumber}`)
+            res.end(JSON.stringify(result))
+          } catch (err) {
+            log.error(`[cli-bridge] proposeEdit ${(err as Error).message}`)
+            res.statusCode = err instanceof SyntaxError ? 400 : err instanceof EditError ? err.status : 502
+            res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+          }
+        })
+      })
+
+      // 문서 제안 목록 — GitHub PR 에서 읽는다
+      server.middlewares.use('/api/proposals', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        if (!githubToken) {
+          res.statusCode = 503
+          res.end(JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않아 제안 목록을 읽을 수 없습니다 (.env.local)' }))
+          return
+        }
+        try {
+          res.end(JSON.stringify({ proposals: await listProposalPrs({ token: githubToken, env: { ...process.env, ...env } }) }))
+        } catch (err) {
+          log.error(`[cli-bridge] proposals ${(err as Error).message}`)
+          res.statusCode = 502
+          res.end(JSON.stringify({ error: (err as Error).message }))
+        }
       })
     },
   }
