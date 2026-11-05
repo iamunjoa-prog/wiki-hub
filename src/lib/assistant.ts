@@ -92,9 +92,19 @@ export function detectCampaignIntent(query: string): boolean {
 export const INTENT_CONFIRM_QUESTION = '혹시 지금 진행하려는 프로모션이 있으신가요? 있으시면 프로모션 어드민 화면으로 바로 열어드리겠습니다.'
 export const INTENT_PRODUCT_QUESTION = '월정액(PPM)인가요, 단건(PPV)인가요? 고르시면 그 기준으로 어드민 화면을 엽니다.'
 
-function detectProduct(query: string) {
-  const q = query.toLowerCase()
-  return PRODUCTS.find((p) => p.keywords.some((k) => q.includes(k))) ?? null
+/** 한 발화에 언급된 상품 유형 전부 — 배열 순서가 아니라 언급 여부만 본다 */
+function mentionedProducts(text: string): (typeof PRODUCTS)[number][] {
+  const q = text.toLowerCase()
+  return PRODUCTS.filter((p) => p.keywords.some((k) => q.includes(k)))
+}
+
+/**
+ * 한 발화가 가리키는 상품 유형. 두 상품을 함께 말했으면(비교 질문 등) **어느 쪽으로도 단정하지 않는다** —
+ * scope는 반대 상품 문서를 제외하는 장치라, 잘못 걸면 정답 문서에 닿을 수 없게 된다.
+ */
+function detectProduct(text: string) {
+  const hit = mentionedProducts(text)
+  return hit.length === 1 ? hit[0] : null
 }
 
 function detectChannel(query: string): string | null {
@@ -122,8 +132,9 @@ function detectBenefit(query: string): string | null {
  * 쿠폰과 경품을 함께 말했으면 결합으로 본다.
  */
 const SCHEMES: { keywords: string[]; label: string }[] = [
-  { keywords: ['선발급', '할인쿠폰', '할인 쿠폰', '쿠폰'], label: '할인쿠폰 선발급' },
-  { keywords: ['경품', '응모', '추첨', '굿즈', 'b캐시'], label: '구매자 경품' },
+  // '쿠폰'·'경품' 단독은 스킴을 고른 말이 아니라 그냥 언급이다 — 스킴을 가리키는 복합어만 둔다.
+  { keywords: ['선발급', '할인쿠폰', '할인 쿠폰'], label: '할인쿠폰 선발급' },
+  { keywords: ['경품 추첨', '경품추첨', '추첨 경품', '전원 경품', '전원 증정', '구매자 경품', '경품 증정', '응모', '추첨', '굿즈', 'b캐시'], label: '구매자 경품' },
 ]
 
 function detectScheme(text: string): string | null {
@@ -150,8 +161,26 @@ const DECIDE_CUES = [
   '이걸로', '그걸로', '정했', '결정',
 ]
 
+/**
+ * 되묻거나 알려 달라는 발화인지. `할래`·`정했`·`하기로`는 평서형 결정에도, 의문형에도 똑같이 나타나는
+ * 어미라 어미 목록으로는 둘을 가를 수 없다 — **문장 유형**을 본다.
+ */
+const QUESTION_WORDS = ['어떻게', '어떤', '어느', '얼마', '뭐', '무엇', '무슨', '언제', '누구', '누가', '어디', '몇', '왜']
+const QUESTION_ENDINGS = ['할까', '될까', '갈까', '볼까', '을까', '까요', '나요', '가요', '냐']
+const REQUEST_CUES = ['알려', '말해', '보여', '가르쳐', '설명']
+
+export function isQuestion(query: string): boolean {
+  return (
+    /[?？]/.test(query) ||
+    QUESTION_WORDS.some((k) => query.includes(k)) ||
+    QUESTION_ENDINGS.some((k) => query.includes(k)) ||
+    REQUEST_CUES.some((k) => query.includes(k))
+  )
+}
+
+/** 결정 발화는 평서문이어야 한다. 질문이 한 문장이라도 섞였으면 결정으로 보지 않고 질문에 답한다. */
 export function detectDecision(query: string): boolean {
-  return DECIDE_CUES.some((k) => query.includes(k))
+  return !isQuestion(query) && DECIDE_CUES.some((k) => query.includes(k))
 }
 
 /** "10월 1일 ~ 10월 14일", "2026-10-01~2026-10-14" 처럼 명시된 기간만 읽는다. */
@@ -183,8 +212,18 @@ export function readSlots(turns: ChatTurn[]): CampaignSlots {
     .filter((t) => t.role === 'user')
     .map((t) => t.text)
     .join('\n')
+  // 상품 유형만은 **가장 최근에 상품을 언급한 사용자 발화**가 정한다 — "월정액 말고 단건으로 바꿀게"처럼
+  // 대화 중간에 바꾸는 일이 흔하다. 어시스턴트 턴은 여전히 제외한다(되물은 문장이 조건으로 굳지 않게).
+  // 나머지 조건(혜택·기간·채널·모수)은 누적되는 게 맞아 기존대로 전체 발화에서 읽는다.
+  let product: CampaignSlots['product'] = null
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].role !== 'user') continue
+    if (mentionedProducts(turns[i].text).length === 0) continue
+    product = detectProduct(turns[i].text)
+    break
+  }
   return {
-    product: detectProduct(said),
+    product,
     benefit: detectBenefit(said),
     period: detectPeriod(said),
     channel: detectChannel(said),
@@ -200,16 +239,25 @@ export function readBrief(turns: ChatTurn[], scope?: ProductScope): PromotionBri
   const said = userText(turns)
   const slots = readSlots(turns)
   const product = PRODUCTS.find((p) => p.scope === scope) ?? slots.product
-  /**
-   * 스킴은 **마지막 발화를 먼저** 본다. 앞에서 쿠폰·경품을 나란히 검토했더라도
-   * "선발급으로 할게"라고 고른 순간의 답이 확정값이다.
-   */
-  const last = [...turns].reverse().find((t) => t.role === 'user')?.text ?? ''
+  /** 앞에서 쿠폰·경품을 나란히 검토했더라도 "선발급으로 할게"라고 고른 **마지막** 결정이 확정값이다. */
+  // 스킴은 **결정 발화에서만** 확정한다. 질문 속 언급("경품 이벤트는 반응률이 어때?")이나
+  // 검토 중인 말("쿠폰이랑 경품 둘 다 검토중")이 확정값으로 굳으면 어드민까지 틀린 값이 넘어간다.
+  let scheme: string | null = null
+  for (let i = turns.length - 1; i >= 0 && !scheme; i--) {
+    if (turns[i].role === 'user' && detectDecision(turns[i].text)) scheme = detectScheme(turns[i].text)
+  }
+  // 혜택 금액 폴백도 질문에서는 읽지 않는다
+  const stated = detectBenefit(
+    turns
+      .filter((t) => t.role === 'user' && !isQuestion(t.text))
+      .map((t) => t.text)
+      .join('\n'),
+  )
   return {
     product: product?.label ?? '',
     name: detectEventName(said) ?? '',
     period: slots.period ? `${slots.period.start} ~ ${slots.period.end}` : '',
-    scheme: detectScheme(last) ?? detectScheme(said) ?? slots.benefit ?? '',
+    scheme: scheme ?? stated ?? '',
     channel: slots.channel ?? '',
   }
 }
@@ -340,12 +388,15 @@ const SCOPE_ONLY_TERMS: Record<ProductScope, string[]> = {
 
 /**
  * 인용해도 되는 문장만 남긴다. 상품 유형을 밝혔으면 **반대 상품 전용 문장**을 빼고,
- * `(보완 필요)` 처럼 위키가 비어 있다고 표시해 둔 줄은 근거로 쓰지 않는다.
+ * 위키가 비어 있다고 표시해 둔 줄은 근거로 쓰지 않는다 — 문서의 실제 표기는 `**아직 못 채운 것** —` 이고,
+ * AI 수정(`edit-prompt.md`)이 남기는 `(보완 필요)` 도 같은 뜻이라 둘 다 막는다.
  */
+const GAP_MARKERS = ['아직 못 채운 것', '(보완 필요)']
+
 function keepUsable(lines: string[], search: SearchInput, limit: number): string[] {
   const other = search.scope === 'PPV' ? SCOPE_ONLY_TERMS.PPM : search.scope === 'PPM' ? SCOPE_ONLY_TERMS.PPV : []
   return lines
-    .filter((line) => !line.includes('(보완 필요)'))
+    .filter((line) => !GAP_MARKERS.some((m) => line.includes(m)))
     .filter((line) => {
       const lower = line.toLowerCase()
       if (!other.length) return true
@@ -383,6 +434,20 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     return { text: lead, sources: [], intent }
   }
 
+  /**
+   * 기획 의도 발화는 확인 칩을 붙일지(`intentAsked`)와 **별개로** 정책을 쏟지 않는다.
+   * 칩을 이미 한 번 물었어도 새 기획 상담이 시작된 것이면 한 줄만 답한다. 질문 형태("~하려면 뭐부터?")는 답을 해야 하니 제외.
+   */
+  if (detectCampaignIntent(query) && !isQuestion(query) && !detectDecision(query)) {
+    const slots = readSlots(turns)
+    return {
+      text: slots.product
+        ? `${slots.product.label} 프로모션이군요.`
+        : '프로모션 진행은 상품 유형에 따라 적용 정책이 갈립니다.',
+      sources: [],
+    }
+  }
+
   // 방향을 정한 턴에는 문서를 다시 쏟아내지 않는다 — 사용자는 읽을 것이 아니라 다음 단계를 기다린다.
   if (detectDecision(query)) {
     const brief = readBrief(turns)
@@ -410,7 +475,19 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
     preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
   }
-  const hits = searchDocs(search).slice(0, 3)
+  let found = searchDocs(search)
+  /**
+   * 두 상품을 견주는 질문("PPM이랑 PPV 차이")은 두 정책 문서가 근거다. 검색기는 짧은 비교 질의에서 이 둘을 놓치므로
+   * (한 단어만 스친 문서를 거르는 게이트), 이번 발화에 두 상품이 다 나오면 두 정책 문서를 앞에 둔다.
+   */
+  if (mentionedProducts(query).length === PRODUCTS.length) {
+    const policy = PRODUCTS.map((p) => docs.find((d) => d.code === p.policyCode)).filter((d): d is WikiDoc => Boolean(d))
+    found = [
+      ...policy.map((doc) => ({ doc, score: Number.MAX_SAFE_INTEGER, excerpt: '' })),
+      ...found.filter((h) => !policy.includes(h.doc)),
+    ]
+  }
+  const hits = found.slice(0, 3)
 
   if (hits.length === 0) {
     return {
@@ -486,16 +563,40 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   return { text: lines.join('\n'), sources }
 }
 
+/** 엔진 응답을 기다리는 한도 — 넘기면 다음 엔진, 마지막엔 규칙 기반으로 넘어간다. 서버 함수 한도(300초)까지 스피너를 보이지 않는다. */
+export const ENGINE_TIMEOUT_MS = 30_000
+
 async function askEngine(
   query: string,
   engine: Engine,
   history: ChatTurn[],
   intentAsked: boolean,
 ): Promise<AssistantReply> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), ENGINE_TIMEOUT_MS)
+  try {
+    return await requestEngine(query, engine, history, intentAsked, ctrl.signal)
+  } catch (err) {
+    // 중단 사유를 라벨에 남긴다 — 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다
+    if (ctrl.signal.aborted) throw new Error(`${ENGINE_TIMEOUT_MS / 1000}초 안에 응답이 없어 중단했습니다 (시간 초과)`)
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+async function requestEngine(
+  query: string,
+  engine: Engine,
+  history: ChatTurn[],
+  intentAsked: boolean,
+  signal: AbortSignal,
+): Promise<AssistantReply> {
   const res = await fetch('/api/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ query, engine, history }),
+    signal,
   })
   if (!res.ok) {
     // 서버는 실패 사유를 { error } 로 돌려준다. 상태 코드만 들고 올라가면 화면에는
