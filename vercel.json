@@ -11,6 +11,9 @@
     "api/edit.ts": {
       "includeFiles": "server/edit-prompt.md",
       "maxDuration": 300
+    },
+    "api/download-hub.ts": {
+      "maxDuration": 60
     }
   },
   "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
