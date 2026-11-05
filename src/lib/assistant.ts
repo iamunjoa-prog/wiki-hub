@@ -86,6 +86,9 @@ export function detectCampaignIntent(query: string): boolean {
   // "프로모션 어떤 순서로 진행돼?"는 절차를 묻는 사실 질문이다. '프로모션'+'진행'이 함께 있다고
   // 기획 상담으로 끌면, 문서에 그대로 적힌 절차 대신 "상품 유형에 따라 갈립니다"만 돌아간다.
   if (wantsSequence(query)) return false
+  // "~로 진행 가능해?"는 하겠다는 말이 아니라 되는지 묻는 사실 질문이다. '진행'이 PLAN_VERBS에 걸린다고
+  // 기획 상담으로 끌면 "가능해?"에 답 없이 확인 칩만 뜬다 — 분류가 어휘 우연에 기대지 않게 가능성 질문을 먼저 거른다.
+  if (asksPossibility(query)) return false
   return CAMPAIGN_NOUNS.some((k) => query.includes(k)) && PLAN_VERBS.some((k) => query.includes(k))
 }
 
@@ -112,9 +115,18 @@ function detectChannel(query: string): string | null {
   return CHANNELS.find((c) => c.keywords.some((k) => q.includes(k)))?.label ?? null
 }
 
-/** "50만", "30만명", "800000명" 같은 표현에서 타겟 모수를 읽는다. 단위(만·천)나 명·건이 있어야 모수로 본다. */
+/**
+ * "50만", "30만명", "800000명" 같은 표현에서 타겟 모수를 읽는다. 단위(만·천)나 명·건이 있어야 모수로 본다.
+ * **`원`이 붙은 수는 모수가 아니다** — 모수는 발송 Capa 검토 기준이라 금액이 들어가면 검토가 무의미해진다.
+ * 금액이 함께 나온 발화의 "N건"은 쿠폰 발급 건수일 수도 있어 모수로 단정하지 않는다(애매하면 비운다).
+ */
 function detectTargetCount(query: string): string | null {
-  const m = query.match(/(\d[\d,.]*)\s*(만|천)?\s*(명|건)/) ?? query.match(/(\d[\d,.]*)\s*(만|천)/)
+  // "3만원", "3만 5천원", "1,000원"을 먼저 지워야 "3만 5천원"의 '3만'이 모수로 남지 않는다
+  const stripped = query.replace(/(?:\d[\d,.]*\s*(?:억|만|천|백)?\s*)+원/g, ' ')
+  const hasAmount = stripped !== query
+  const m =
+    stripped.match(hasAmount ? /(\d[\d,.]*)\s*(만|천)?\s*(명)/ : /(\d[\d,.]*)\s*(만|천)?\s*(명|건)/) ??
+    (hasAmount ? null : stripped.match(/(\d[\d,.]*)\s*(만|천)/))
   if (!m) return null
   return `${m[1]}${m[2] ?? ''}${m[3] ?? ''}`
 }
@@ -144,12 +156,28 @@ function detectScheme(text: string): string | null {
   return hit.length > 1 ? '쿠폰 + 경품' : hit[0].label
 }
 
-/** 따옴표로 묶었거나 "이벤트명은 ~" 형태로 말한 것만 이벤트명으로 본다. 작품명을 멋대로 만들지 않는다. */
+/** 이름이 아니라 "아직 안 정했다 / 뭐로 할지 묻는다"는 뜻의 꼬리 — 이름으로 읽지 않는다 */
+const NAME_UNDECIDED = /^(?:아직|미정|미확정|안\s*정|못\s*정|정해지지|정하지|정해야|정할|모르|없|나중|추후|고민|생각\s*중|tbd)|추천|지어|짓|뭐|뭘|무엇|무슨|어떤|어떻게|[?？]/i
+/** 이름이 끝나는 자리 — "~로 하고", "~으로", "~까지", 날짜 시작, 서술어 */
+const NAME_BOUNDARY = /\s*(?:(?:으로|로)\s*(?:하|할|해|정|갈|진행|가|잡|부르|쓰|결정|이름)|(?:이고|이며|이라고|이라|인데|입니다|이에요|이야|이다)(?:\s|$)|[~\-–]|까지|부터)|\s+(?:\d{1,2}월|\d{4}[-.]|\d{1,2}일)/
+
+/**
+ * 따옴표로 묶었거나 "이벤트명은 ~" 형태로 말한 것만 이벤트명으로 본다. 작품명을 멋대로 만들지 않는다.
+ * 뒤에 이어진 절(기간·진행 서술)은 잘라 내고, 미정·부정·질문이면 비운다 —
+ * 비우면 `missingBriefFields`가 아직 안 물어본 것으로 보고 다시 묻는다(덜 채우는 방향).
+ */
 function detectEventName(text: string): string | null {
   const quoted = text.match(/[「『《'"\u201c\u2018]([^」』》'"\u201d\u2019\n]{2,40})[」』》'"\u201d\u2019]/)
   if (quoted) return quoted[1].trim()
-  const named = text.match(/(?:이벤트명|프로모션명|행사명)\s*(?:은|는|:)?\s*([^\n,.]{2,40})/)
-  return named ? named[1].trim() : null
+  const named = text.match(/(?:이벤트명|프로모션명|행사명)\s*(?:은|는|이|가|:)?\s*([^\n,.]{2,60})/)
+  if (!named) return null
+  let rest = named[1].trim()
+  if (NAME_UNDECIDED.test(rest)) return null
+  const cut = rest.search(NAME_BOUNDARY)
+  if (cut >= 0) rest = rest.slice(0, cut)
+  rest = rest.trim()
+  if (rest.length < 2 || rest.length > 40 || NAME_UNDECIDED.test(rest)) return null
+  return rest
 }
 
 /**
@@ -169,9 +197,16 @@ const QUESTION_WORDS = ['어떻게', '어떤', '어느', '얼마', '뭐', '무�
 const QUESTION_ENDINGS = ['할까', '될까', '갈까', '볼까', '을까', '까요', '나요', '가요', '냐']
 const REQUEST_CUES = ['알려', '말해', '보여', '가르쳐', '설명']
 
+/** 가능·허용 여부를 묻는 표현 — "가능해", "되나", "돼?", "할 수 있어" */
+const POSSIBILITY_PATTERN = /가능(?:해|한가|할까|하나|합니까|한지|하니|할지)|되나|돼\s*[?？요]|되는지|되죠|될지|수\s*있(?:어|나|을|는지|니|습니까)/
+function asksPossibility(query: string): boolean {
+  return POSSIBILITY_PATTERN.test(query)
+}
+
 export function isQuestion(query: string): boolean {
   return (
     /[?？]/.test(query) ||
+    asksPossibility(query) ||
     QUESTION_WORDS.some((k) => query.includes(k)) ||
     QUESTION_ENDINGS.some((k) => query.includes(k)) ||
     REQUEST_CUES.some((k) => query.includes(k))
@@ -183,19 +218,39 @@ export function detectDecision(query: string): boolean {
   return !isQuestion(query) && DECIDE_CUES.some((k) => query.includes(k))
 }
 
-/** "10월 1일 ~ 10월 14일", "2026-10-01~2026-10-14" 처럼 명시된 기간만 읽는다. */
+/** 지난 일을 말하는 서술 — 연도 생략 날짜를 다음 해로 넘기지 않는 단서 */
+const PAST_CUES = /했(?:던|었|는데|고|다|어)|였(?:던|었)|됐|된\s*(?:적|프로모션|이벤트)|끝났|종료됐|지난|작년|실적|결과|반응/
+
+/**
+ * "10월 1일 ~ 10월 14일", "2026-10-01~2026-10-14" 처럼 명시된 기간만 읽는다.
+ *
+ * 연도를 생략한 날짜는 **앞으로 할 프로모션**을 뜻하는 경우가 대부분이다(기획 상담 도구이므로).
+ * 경계는 **종료일이 오늘보다 앞서면**(= 이미 끝난 기간) 다음 해로 넘긴다.
+ *  - 오늘이 기간 안이거나(진행 중) 종료일이 오늘이면 올해 그대로 둔다 — 시작일이 지났다고 넘기면 진행 중인 건을 잘못 옮긴다.
+ *  - "했던/지난/실적" 같은 과거 서술이 같은 문장에 있으면 넘기지 않는다 — 과거 실적을 말하는 경우다.
+ *  - 연도를 명시한 발화(ISO)는 손대지 않는다. 연말~연초("12월 20일 ~ 1월 5일")는 종료일을 다음 해로 둔다.
+ * 한 해 넘어가는 것까지만 추측한다(두 해 뒤로는 넘기지 않는다).
+ */
 function detectPeriod(query: string): { start: string; end: string } | null {
   const iso = query.match(/(\d{4}-\d{2}-\d{2})\s*[~\-–]\s*(\d{4}-\d{2}-\d{2})/)
   if (iso) return { start: iso[1], end: iso[2] }
 
-  const year = new Date().getFullYear()
-  const pad = (n: string) => n.padStart(2, '0')
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const pad = (n: string | number) => String(n).padStart(2, '0')
   const kr = query.match(/(\d{1,2})월\s*(\d{1,2})일?\s*[~\-–부터]+\s*(?:(\d{1,2})월\s*)?(\d{1,2})일/)
-  if (kr) {
-    const [, m1, d1, m2, d2] = kr
-    return { start: `${year}-${pad(m1)}-${pad(d1)}`, end: `${year}-${pad(m2 ?? m1)}-${pad(d2)}` }
+  if (!kr) return null
+  const [, m1, d1, m2, d2] = kr
+  let y1 = now.getFullYear()
+  let y2 = y1
+  if (Number(m2 ?? m1) < Number(m1)) y2 = y1 + 1 // 연말~연초
+  const end0 = `${y2}-${pad(m2 ?? m1)}-${pad(d2)}`
+  const sentence = query.split(/[\n.?!？]/).find((s) => s.includes(kr[0])) ?? query
+  if (end0 < today && !PAST_CUES.test(sentence)) {
+    y1 += 1
+    y2 += 1
   }
-  return null
+  return { start: `${y1}-${pad(m1)}-${pad(d1)}`, end: `${y2}-${pad(m2 ?? m1)}-${pad(d2)}` }
 }
 
 export interface CampaignSlots {
