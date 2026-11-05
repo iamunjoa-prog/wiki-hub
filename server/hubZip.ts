@@ -22,7 +22,7 @@ export async function proxyHubZip(token: string | undefined, repo: string): Prom
   if (!token)
     return fail(
       503,
-      '서버에 GitHub 토큰이 설정되지 않아 허브를 내려받을 수 없습니다. 관리자에게 환경변수 GITHUB_TOKEN(또는 GH_TOKEN) 설정을 요청해 주세요',
+      '서버에 GitHub 토큰이 설정되지 않아 허브를 내려받을 수 없습니다. 관리자에게 환경변수 GITHUB_TOKEN(또는 GH_TOKEN) 설정을 요청해 주세요. (값을 넣은 뒤 반드시 재배포해야 적용됩니다 — 이미 돌고 있는 배포에는 반영되지 않습니다)',
     )
   if (!REPO_PATTERN.test(repo)) return fail(500, `GITHUB_REPO 형식이 올바르지 않습니다 (owner/repo): ${repo}`)
 
