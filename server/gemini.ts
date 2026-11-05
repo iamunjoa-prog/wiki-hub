@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenAI, ThinkingLevel } from '@google/genai'
 import {
   type AskInput,
   buildDocsBlock,
@@ -61,6 +61,11 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
         systemInstruction,
         responseMimeType: 'application/json',
         responseJsonSchema: REPLY_SCHEMA,
+        // 위키 전체를 systemInstruction 으로 넣는 호출이라 기본 thinking(medium)으로는
+        // 함수 제한 시간을 넘겨 504가 났다. 이 일은 문서에 적힌 것을 찾아 옮기는 작업이고
+        // 추론 깊이가 답을 좌우하지 않으므로 지연을 줄이는 쪽을 택한다.
+        // (3.8 Flash 는 MINIMAL 을 받지 않는다 — LOW 가 가장 낮은 값이다.)
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
       },
     }),
   )
