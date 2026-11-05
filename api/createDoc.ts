@@ -11,7 +11,11 @@ const error = (status: number, message: string) => Response.json({ error: messag
 
 export async function POST(request: Request): Promise<Response> {
   const token = readGithubToken()
-  if (!token) return error(503, 'GITHUB_TOKEN이 설정되지 않았습니다')
+  if (!token)
+    return error(
+      503,
+      'GITHUB_TOKEN이 설정되지 않았습니다. 환경변수를 넣은 뒤 반드시 재배포해야 적용됩니다 — 이미 돌고 있는 배포에는 반영되지 않습니다',
+    )
 
   const origin = request.headers.get('origin')
   if (origin && new URL(origin).host !== new URL(request.url).host) return error(403, '허용되지 않은 요청입니다')
