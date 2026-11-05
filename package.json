@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:anchors": "node scripts/check-anchors.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.22.0",
