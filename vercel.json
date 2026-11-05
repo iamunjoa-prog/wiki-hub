@@ -6,7 +6,7 @@
   "functions": {
     "api/ask.ts": {
       "includeFiles": "{지식/**,server/assistant-prompt.md}",
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/edit.ts": {
       "includeFiles": "server/edit-prompt.md",
