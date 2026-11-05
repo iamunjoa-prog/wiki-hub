@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
 import { CliStatus } from '../components/CliStatus'
@@ -6,14 +7,22 @@ import { categories, categoryShort } from '../data/docs'
 import { useApp } from '../store/AppStore'
 import type { ProposalStatus } from '../types'
 
-function StatusTag({ status }: { status: ProposalStatus }) {
+function StatusTag({ status, doc }: { status: ProposalStatus; doc?: boolean }) {
+  // 문서 제안은 GitHub PR — 머지돼도 다음 배포 전까지는 화면에 안 나오므로 "승인됨"이라 쓰지 않는다
+  if (doc) {
+    if (status === 'approved') return <span className="tag ok">머지됨</span>
+    if (status === 'rejected') return <span className="tag no">닫힘</span>
+    return <span className="tag wait">대기 중</span>
+  }
   if (status === 'approved') return <span className="tag ok">승인됨</span>
   if (status === 'rejected') return <span className="tag no">반려됨</span>
   return <span className="tag wait">대기 중</span>
 }
 
 export function Dashboard() {
-  const { docs, sheets, proposals, promotions, systems, systemRequests, favoriteSystems, session } = useApp()
+  const { docs, sheets, proposals: prs, ensureProposals, promotions, systems, systemRequests, favoriteSystems, session } = useApp()
+  const proposals = prs ?? []
+  useEffect(() => ensureProposals(), [ensureProposals])
   const navigate = useNavigate()
   const isAdmin = session.role === 'admin'
 
@@ -34,7 +43,7 @@ export function Dashboard() {
 
   // 관리자는 전체 대기 건, 실무자는 본인 요청을 최신순으로
   const requests = [
-    ...proposals.map((p) => ({ id: p.id, kind: '문서', title: p.docTitle, by: p.requestedBy, at: p.requestedAt, status: p.status })),
+    ...proposals.map((p) => ({ id: `pr-${p.prNumber}`, kind: '문서', title: p.docTitle, by: p.requestedBy, at: p.requestedAt, status: p.status })),
     ...promotions.map((p) => ({ id: p.id, kind: '편성표', title: `${p.sheetName} 승격`, by: p.requestedBy, at: p.requestedAt, status: p.status })),
     ...systemRequests.map((r) => ({ id: r.id, kind: '시스템', title: `${r.name} ${r.targetSystemId ? '접속 주소' : ''} 등록`, by: r.requestedBy, at: r.requestedAt, status: r.status })),
   ]
@@ -74,7 +83,7 @@ export function Dashboard() {
             ) : (
               <button className="kpi" onClick={() => navigate('/requests')}>
                 <span className="label">내 대기 요청</span>
-                <b>{proposals.filter((p) => p.status === 'pending').length}</b>
+                <b>{proposals.filter((p) => p.status === 'pending' && p.requestedBy === session.name).length}</b>
                 <span className="sub muted">내 요청 현황 →</span>
               </button>
             )}
@@ -112,7 +121,7 @@ export function Dashboard() {
                     <span className="grow">{r.title}</span>
                     {isAdmin && <span className="muted">{r.by}</span>}
                     <span className="muted">{r.at.slice(5, 10)}</span>
-                    <StatusTag status={r.status} />
+                    <StatusTag status={r.status} doc={r.kind === '문서'} />
                   </button>
                 ))}
                 {requests.length === 0 && (

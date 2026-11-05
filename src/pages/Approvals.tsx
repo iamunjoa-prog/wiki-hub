@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
-import { DiffView } from '../components/DiffView'
 import { categories } from '../data/docs'
 import { systemGroups } from '../data/systems'
 import { useApp } from '../store/AppStore'
@@ -50,9 +49,12 @@ export function Approvals() {
     docs,
     sheets,
     proposals,
+    proposalsError,
+    proposalsLoading,
+    ensureProposals,
+    refreshProposals,
     promotions,
     systemRequests,
-    decideProposal,
     decidePromotion,
     decideSystemRequest,
   } = useApp()
@@ -62,7 +64,10 @@ export function Approvals() {
   const [busy, setBusy] = useState(false)
   const [rejecting, setRejecting] = useState(false)
 
-  const pendingDocs = proposals.filter((p) => p.status === 'pending')
+  useEffect(() => ensureProposals(), [ensureProposals])
+
+  // 문서 제안은 GitHub PR 이다 — 허브에서는 읽기만 하고, 머지는 PR 화면에서 한다
+  const pendingDocs = (proposals ?? []).filter((p) => p.status === 'pending').map((p) => ({ ...p, id: `pr-${p.prNumber}` }))
   const pendingSheets = promotions.filter((p) => p.status === 'pending')
   const pendingSystems = systemRequests.filter((r) => r.status === 'pending')
   const list = tab === 'docs' ? pendingDocs : tab === 'systems' ? pendingSystems : pendingSheets
@@ -76,13 +81,11 @@ export function Approvals() {
   const proposal = pendingDocs.find((p) => p.id === selectedId)
   const promotion = pendingSheets.find((p) => p.id === selectedId)
   const systemRequest = pendingSystems.find((r) => r.id === selectedId)
-  const doc = proposal ? docs.find((d) => d.id === proposal.docId) : undefined
   const sheet = promotion ? sheets.find((s) => s.id === promotion.sheetId) : undefined
 
   const approve = async () => {
     setBusy(true)
-    if (proposal) await decideProposal(proposal.id, 'approved')
-    else if (promotion) await decidePromotion(promotion.id, 'approved', { category })
+    if (promotion) await decidePromotion(promotion.id, 'approved', { category })
     else if (systemRequest) await decideSystemRequest(systemRequest.id, 'approved')
     setBusy(false)
   }
@@ -90,8 +93,7 @@ export function Approvals() {
   const reject = async (reason: string) => {
     setRejecting(false)
     setBusy(true)
-    if (proposal) await decideProposal(proposal.id, 'rejected', reason)
-    else if (promotion) await decidePromotion(promotion.id, 'rejected', { reason })
+    if (promotion) await decidePromotion(promotion.id, 'rejected', { reason })
     else if (systemRequest) await decideSystemRequest(systemRequest.id, 'rejected', reason)
     setBusy(false)
   }
@@ -106,7 +108,18 @@ export function Approvals() {
           <span className="mono" style={{ marginLeft: 'auto', fontSize: 11 }}>
             대기 {pendingDocs.length + pendingSheets.length + pendingSystems.length}건
           </span>
+          {tab === 'docs' && (
+            <button className="btn sm" disabled={proposalsLoading} onClick={() => void refreshProposals()}>
+              {proposalsLoading ? '읽는 중…' : 'PR 새로고침'}
+            </button>
+          )}
         </div>
+
+        {tab === 'docs' && (proposalsError || proposalsLoading) && (
+          <div className={proposalsError ? 'err' : 'hint'} style={{ flex: 'none', margin: 10 }}>
+            {proposalsError ? `제안 목록을 읽지 못했습니다 — ${proposalsError}` : '제안 목록을 읽는 중…'}
+          </div>
+        )}
 
         <div className="tabs" style={{ flex: 'none' }}>
           <button className={`tab${tab === 'docs' ? ' on' : ''}`} onClick={() => setTab('docs')}>
@@ -161,25 +174,28 @@ export function Approvals() {
             </div>
 
             <div className="approve-detail">
-              {proposal && doc && (
+              {proposal && (
                 <>
                   <div>
-                    <div style={{ font: '700 14px var(--mono)' }}>{proposal.docTitle}</div>
+                    <div style={{ font: '700 14px var(--mono)' }}>
+                      {proposal.docTitle}
+                      {proposal.docCode && <span className="muted"> · {proposal.docCode}</span>}
+                    </div>
                     <div className="mono muted" style={{ fontSize: 10.5, marginTop: 5 }}>
-                      {proposal.requestedBy} · {proposal.requestedAt} · 기준 v{proposal.baseVersion}
+                      {proposal.requestedBy || '요청자 확인 불가'} · {proposal.requestedAt} ·{' '}
+                      {proposal.kind === 'new' ? '새 문서' : '문서 수정'} · PR #{proposal.prNumber}
                     </div>
                   </div>
-                  <div className="hint">수정 사유 — {proposal.reason}</div>
-                  {proposal.newBody ? (
-                    <DiffView
-                      before={doc.body}
-                      after={proposal.newBody}
-                      leftLabel={`원본 v${doc.version}`}
-                      rightLabel="제안"
-                    />
-                  ) : (
-                    <div className="hint">이 요청은 데모 시드 데이터로, 본문 diff가 포함되어 있지 않습니다</div>
-                  )}
+                  <div className="hint">수정 사유 — {proposal.reason || 'PR 본문에서 확인해 주세요'}</div>
+                  <div className="hint">
+                    머지는 GitHub PR 화면에서 합니다. 변경 내용(diff)도 거기서 봅니다. 머지해도 <b>다음 배포 전까지는</b> 위키
+                    화면에 반영되지 않습니다. 허브에서 승인 버튼은 다음 단계에 붙습니다.
+                  </div>
+                  <div className="form-actions" style={{ marginTop: 'auto' }}>
+                    <a className="btn primary" href={proposal.prUrl} target="_blank" rel="noreferrer">
+                      PR에서 열기 ↗
+                    </a>
+                  </div>
                 </>
               )}
 
@@ -246,12 +262,11 @@ export function Approvals() {
                 </>
               )}
 
-              {(proposal || promotion || systemRequest) && (
+              {(promotion || systemRequest) && (
                 <>
-                  {!systemRequest && (
+                  {promotion && (
                     <div className="hint">
-                      승인 시 커밋 생성 → 위키트리 즉시 반영. 편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로
-                      생성됩니다
+                      편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로 생성됩니다
                     </div>
                   )}
                   <div className="form-actions" style={{ marginTop: 'auto' }}>

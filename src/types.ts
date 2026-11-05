@@ -49,16 +49,19 @@ export interface DocCommit {
 
 export type ProposalStatus = 'pending' | 'approved' | 'rejected'
 
-export interface Proposal {
-  id: string
-  docId: string
+/**
+ * 문서 제안 — 진실의 원천은 GitHub PR 이다 (`/api/proposals`).
+ * 서버가 PR 본문을 읽어 채우며, 읽지 못한 값은 빈 문자열·null 로 남는다 (추측해 채우지 않는다).
+ */
+export interface ProposalPr {
+  prNumber: number
+  prUrl: string
+  kind: 'new' | 'edit'
+  docCode: string | null
   docTitle: string
-  baseVersion: number
-  newBody: string
   reason: string
-  status: ProposalStatus
-  rejectReason?: string
   requestedBy: string
+  status: ProposalStatus
   requestedAt: string
 }
 
