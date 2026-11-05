@@ -6,6 +6,7 @@ import type { CliEngine, EngineStatus } from '../types'
 const CLI_ENGINES: CliEngine[] = ['claude', 'codex']
 const LOGIN_WAIT_MS = 180_000
 const LOCAL_URL = 'http://localhost:5173'
+const DOWNLOAD_URL = '/api/download-hub'
 const INSTALL_CMD: Record<CliEngine, string> = {
   claude: 'npm i -g @anthropic-ai/claude-code',
   codex: 'npm i -g @openai/codex',
@@ -44,6 +45,8 @@ export function CliStatus() {
   const [checking, setChecking] = useState(false)
   const [waiting, setWaiting] = useState<CliEngine | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [downloading, setDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState('')
   const waitStart = useRef(0)
 
   const isLocal = Boolean(status && CLI_ENGINES.some((e) => e in status))
@@ -76,6 +79,38 @@ export function CliStatus() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [settingsOpen])
+
+  /**
+   * 허브 ZIP 내려받기. <a href>로 바로 받으면 서버가 503(토큰 없음)·401(로그인 필요) 등을 돌려줄 때
+   * 브라우저가 JSON 오류 파일을 저장하거나 아무 일도 없어 보인다. 저장소는 작으니(소스+문서) fetch → Blob으로
+   * 메모리에 받아도 부담이 없고, 실패 사유를 화면에 보여 줄 수 있어 이쪽을 택했다.
+   */
+  const downloadHub = async () => {
+    setDownloading(true)
+    setDownloadError('')
+    try {
+      const r = await fetch(DOWNLOAD_URL)
+      if (!r.ok) {
+        const body = (await r.json().catch(() => null)) as { error?: string } | null
+        throw new Error(body?.error ?? `내려받지 못했습니다 (HTTP ${r.status})`)
+      }
+      const url = URL.createObjectURL(await r.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'wiki-hub.zip'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+      showToast('허브 ZIP을 내려받았습니다 — 압축을 풀고 start-hub.bat을 실행하세요')
+    } catch (err) {
+      const message = (err as Error).message || '내려받지 못했습니다'
+      setDownloadError(message)
+      showToast(message)
+    } finally {
+      setDownloading(false)
+    }
+  }
 
   const login = async (e: CliEngine) => {
     const r = await requestLogin(e)
@@ -198,7 +233,19 @@ export function CliStatus() {
                   <ol className="cli-steps">
                     <li>
                       <span>
-                        허브 폴더의 <b>start-hub.bat</b> 더블클릭
+                        아래 <b>로컬 허브 내려받기</b>로 ZIP 파일을 받습니다
+                      </span>
+                    </li>
+                    <li>
+                      <span>
+                        ZIP을 <b>압축 풀기</b> 하세요 (우클릭 → 모두 압축 풀기). 풀린 곳에 <b>이름이 긴 폴더 하나</b>(
+                        <code>owner-repo-커밋번호</code> 형태)가 생기는데, <b>그 폴더 안에 start-hub.bat</b>이 있습니다.
+                        ZIP 파일 안에서 바로 더블클릭하면 실행되지 않습니다 (탐색기가 ZIP 안을 폴더처럼 보여 줍니다)
+                      </span>
+                    </li>
+                    <li>
+                      <span>
+                        그 폴더의 <b>start-hub.bat</b> 더블클릭
                       </span>
                     </li>
                     <li>
@@ -210,11 +257,26 @@ export function CliStatus() {
                       <span>브라우저가 자동으로 열리면 끝 — 다음부터는 바탕화면 바로가기로 실행</span>
                     </li>
                   </ol>
-                  <a className="btn sm primary" style={{ alignSelf: 'flex-start' }} href={LOCAL_URL} target="_blank" rel="noreferrer">
-                    로컬 허브 열기 ↗
-                  </a>
+                  <button
+                    type="button"
+                    className="btn sm primary"
+                    style={{ alignSelf: 'flex-start' }}
+                    disabled={downloading}
+                    onClick={downloadHub}
+                  >
+                    {downloading ? '받는 중…' : '로컬 허브 내려받기'}
+                  </button>
+                  {downloadError && (
+                    <span role="alert" style={{ fontSize: 12.5, color: 'var(--danger, #c0392b)' }}>
+                      {downloadError}
+                    </span>
+                  )}
                   <span className="muted" style={{ fontSize: 12.5 }}>
-                    로컬 허브가 켜져 있을 때만 열립니다. "연결할 수 없음"이 뜨면 바탕화면 <b>플랫폼 담당 지식 허브</b>를 먼저 실행하세요.
+                    이미 허브를 받아 두셨다면:{' '}
+                    <a href={LOCAL_URL} target="_blank" rel="noreferrer">
+                      로컬 허브 열기 ↗
+                    </a>{' '}
+                    — 로컬 허브가 켜져 있을 때만 열립니다. "연결할 수 없음"이 뜨면 바탕화면 <b>플랫폼 담당 지식 허브</b>를 먼저 실행하세요.
                   </span>
                 </>
               ) : (

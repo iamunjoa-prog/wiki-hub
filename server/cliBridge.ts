@@ -1,10 +1,12 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { Readable } from 'node:stream'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
-import { readGeminiKey, readGithubToken } from './env.js'
+import { readGeminiKey, readGithubRepo, readGithubToken } from './env.js'
+import { proxyHubZip } from './hubZip.js'
 import { createDocPR, parseCreateDocInput } from './github.js'
 import {
   isShared,
@@ -454,6 +456,23 @@ export function cliBridge(): Plugin {
             res.end(JSON.stringify({ error: (err as Error).message }))
           }
         })
+      })
+
+      // 로컬 허브 내려받기 — 배포의 api/download-hub.ts 와 같은 중계 (화면 버튼은 배포 허브에만 뜨지만 404 경로를 남기지 않는다)
+      server.middlewares.use('/api/download-hub', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        const upstream = await proxyHubZip(githubToken, readGithubRepo({ ...process.env, ...env }))
+        res.statusCode = upstream.status
+        upstream.headers.forEach((v, k) => res.setHeader(k, v))
+        if (!upstream.body) {
+          res.end()
+          return
+        }
+        Readable.fromWeb(upstream.body as never).pipe(res)
       })
 
       // 위키 문서 목록의 "+ 새 문서" — GitHub API로 브랜치·PR을 만든다 (로컬도 배포와 같은 경로)
