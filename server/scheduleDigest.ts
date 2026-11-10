@@ -1,11 +1,11 @@
-import { scheduleDays, zoneLabel, SOURCE_SHEET_URL as BTV_SHEET_URL } from '../src/data/btvSchedule'
-import { slotsOf } from '../src/lib/btvRail'
+import { scheduleDays, zoneLabel, SOURCE_SHEET_URL as BTV_SHEET_URL } from '../src/data/btvSchedule.js'
+import { slotsOf } from '../src/lib/btvRail.js'
 import {
   bigBannerDays,
   banners,
   SOURCE_SHEET_URL as BIG_SHEET_URL,
   SCHEDULE_YEAR,
-} from '../src/data/bigBannerSchedule'
+} from '../src/data/bigBannerSchedule.js'
 
 /**
  * 편성표는 시트를 그대로 옮긴 원본 데이터라 배너 이름이 `labels`/`banners` 풀에
