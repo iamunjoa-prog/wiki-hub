@@ -4,6 +4,7 @@ import {
   type AskInput,
   buildDocsBlock,
   buildEditRequest,
+  checkAskReply,
   checkEditReply,
   EDIT_SCHEMA,
   REPLY_SCHEMA,
@@ -54,9 +55,7 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
   })
 
   if (!response.text) throw new Error('Gemini가 빈 응답을 반환했습니다')
-  const out = JSON.parse(response.text) as Partial<CliReply>
-  if (typeof out.text !== 'string') throw new Error('Gemini 응답 형식이 올바르지 않습니다')
-  return { text: out.text, sourcePaths: Array.isArray(out.sourcePaths) ? out.sourcePaths : [] }
+  return checkAskReply(JSON.parse(response.text))
 }
 
 /** 수정 제안 화면의 "AI로 수정" — 문서 본문과 요청만 넣고 고친 본문 전체를 { body, summary } 로 받는다 */
