@@ -5,7 +5,7 @@
  * 유형·모수·이름·기간을 전부 몰아 적는다. 표를 그대로 옮기지 않고 카드로
  * 보여주려면 이 네 조각을 분리해야 한다.
  */
-import { labels, scheduleDays, type ScheduleDay, type SlotZone } from '../data/btvSchedule'
+import { labels, scheduleDays, type ScheduleDay, type SlotZone } from '../data/btvSchedule.js'
 
 export type SlotKind = 'mass' | 'target' | 'content' | 'etc'
 
