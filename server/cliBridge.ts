@@ -23,6 +23,7 @@ import {
   buildEditRequest,
   checkEditReply,
   EDIT_SCHEMA,
+  checkAskReply,
   parseAskInput,
   parseEditInput,
   REPLY_SCHEMA,
@@ -220,27 +221,31 @@ const scheduleNote = (): string =>
  * `--append-system-prompt` 인자로 넣으면 ENAMETOOLONG으로 실행 자체가 실패한다.
  */
 const askClaude = async (input: AskInput) =>
-  (await claudeJson(
-    [scheduleNote(), buildAskRequest(input)].join('\n\n'),
-    [
-      '--system-prompt-file', PROMPT_FILE,
-      '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
-    ],
-    REPLY_SCHEMA,
-  )) as CliReply
+  checkAskReply(
+    await claudeJson(
+      [scheduleNote(), buildAskRequest(input)].join('\n\n'),
+      [
+        '--system-prompt-file', PROMPT_FILE,
+        '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
+      ],
+      REPLY_SCHEMA,
+    ),
+  )
 
 /** 위키 문서 전체(약 100KB)를 프롬프트에 넣는다 */
 const askCodex = async (input: AskInput) =>
-  (await codexJson(
-    [
-      readFileSync(PROMPT_FILE, 'utf8'),
-      '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
-      `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
-      scheduleNote(),
-      buildAskRequest(input),
-    ].join('\n\n'),
-    REPLY_SCHEMA,
-  )) as CliReply
+  checkAskReply(
+    await codexJson(
+      [
+        readFileSync(PROMPT_FILE, 'utf8'),
+        '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
+        `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
+        scheduleNote(),
+        buildAskRequest(input),
+      ].join('\n\n'),
+      REPLY_SCHEMA,
+    ),
+  )
 
 const ASK: Record<Engine, (input: AskInput) => Promise<CliReply>> = { claude: askClaude, codex: askCodex }
 

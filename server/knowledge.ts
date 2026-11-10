@@ -162,3 +162,25 @@ export function todayLine(): string {
   const n = new Date()
   return `오늘 날짜: ${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')} (${n.getMonth() + 1}/${n.getDate()})`
 }
+
+/**
+ * 모델이 JSON 문자열 안에 이스케이프를 한 번 더 넣어 보내는 경우가 있다.
+ * 그러면 `\n` 이 줄바꿈이 아니라 글자 그대로 렌더돼 답변 전체가 한 문단으로 뭉친다.
+ *
+ * 실제 줄바꿈이 하나도 없으면서 리터럴 `\n` 만 있을 때로 좁혀서 되돌린다 —
+ * 문서 본문에 정상적으로 들어 있는 백슬래시까지 건드리지 않기 위해서다.
+ */
+export function unescapeNewlines(text: string): string {
+  if (text.includes('\n') || !text.includes('\\n')) return text
+  return text.replace(/\\([nt"\\])/g, (_, c: string) => (c === 'n' ? '\n' : c === 't' ? '\t' : c))
+}
+
+/** 답변 검증 — claude·codex·gemini 세 엔진의 응답이 모두 이 함수를 지난다. */
+export function checkAskReply(out: unknown): CliReply {
+  const r = (out ?? {}) as Partial<CliReply>
+  if (typeof r.text !== 'string') throw new Error('답변 형식이 올바르지 않습니다')
+  return {
+    text: unescapeNewlines(r.text).trim(),
+    sourcePaths: Array.isArray(r.sourcePaths) ? r.sourcePaths.filter((p): p is string => typeof p === 'string') : [],
+  }
+}
