@@ -692,8 +692,16 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   return { text: lines.join('\n'), sources }
 }
 
-/** 엔진 응답을 기다리는 한도 — 넘기면 다음 엔진, 마지막엔 규칙 기반으로 넘어간다. 서버 함수 한도(300초)까지 스피너를 보이지 않는다. */
-export const ENGINE_TIMEOUT_MS = 30_000
+/**
+ * 엔진 응답을 기다리는 한도 — 넘기면 다음 엔진, 마지막엔 규칙 기반으로 넘어간다.
+ * 그동안 대화창에는 "답을 정리하는 중…" 안내가 떠 있으므로, 서버 함수 한도(300초)까지 붙잡지 않고 엔진별로 끊는다.
+ * Gemini는 위키 전체를 systemInstruction 으로 넣어 평소에도 20~40초가 걸려 30초 한도로는 자주 끊겼다.
+ * CLI는 서버 중계 한도(claude 120초 · codex 180초)보다 길게 잡아 서버가 돌려주는 실패 사유를 받는다.
+ */
+export const ENGINE_TIMEOUT_MS: Record<Engine, number> = { claude: 150_000, codex: 210_000, gemini: 90_000 }
+
+/** 대화창 대기 안내에 쓰는 평소 소요 시간 — 수정 제안 화면의 AI_WAIT_HINT 와 같은 실측 기준이다 */
+export const ENGINE_WAIT_HINT: Record<Engine, string> = { claude: '30초~1분', codex: '1~2분', gemini: '20~40초' }
 
 async function askEngine(
   query: string,
@@ -702,12 +710,13 @@ async function askEngine(
   intentAsked: boolean,
 ): Promise<AssistantReply> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), ENGINE_TIMEOUT_MS)
+  const limit = ENGINE_TIMEOUT_MS[engine]
+  const timer = setTimeout(() => ctrl.abort(), limit)
   try {
     return await requestEngine(query, engine, history, intentAsked, ctrl.signal)
   } catch (err) {
     // 중단 사유를 라벨에 남긴다 — 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다
-    if (ctrl.signal.aborted) throw new Error(`${ENGINE_TIMEOUT_MS / 1000}초 안에 응답이 없어 중단했습니다 (시간 초과)`)
+    if (ctrl.signal.aborted) throw new Error(`${limit / 1000}초 안에 응답이 없어 중단했습니다 (시간 초과)`)
     throw err
   } finally {
     clearTimeout(timer)

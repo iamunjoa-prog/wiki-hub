@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ENGINE_LABEL, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
+import { ENGINE_LABEL, ENGINE_TIMEOUT_MS, ENGINE_WAIT_HINT, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
 import type { ChatMessage, Engine, PromotionBrief } from '../types'
 
@@ -343,7 +343,7 @@ export function AssistantDock() {
         {assistant.pending && (
           <div className="typing">
             {assistant.engine
-              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${assistant.engine === 'codex' ? '1~2분' : assistant.engine === 'gemini' ? '10~20초' : '30초'} 내외)`
+              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${ENGINE_WAIT_HINT[assistant.engine]} 내외 · 최대 ${ENGINE_TIMEOUT_MS[assistant.engine] / 1000}초)`
               : '문서를 찾는 중…'}
           </div>
         )}
