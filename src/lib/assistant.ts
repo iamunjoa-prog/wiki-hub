@@ -142,7 +142,7 @@ function detectBenefit(query: string): string | null {
 }
 
 /**
- * 혜택 스킴 — `insight/schemes.md`의 PPV 표기를 그대로 쓴다.
+ * 혜택 스킴 — `promotion/schemes.md`의 PPV 표기를 그대로 쓴다.
  * 쿠폰과 경품을 함께 말했으면 결합으로 본다.
  */
 const SCHEMES: { keywords: string[]; label: string }[] = [

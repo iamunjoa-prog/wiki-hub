@@ -597,7 +597,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             },
           ])
         }
-        setToast('승격 완료 · 요약 문서를 생성했습니다')
+        setToast('승격 표시만 했습니다 · 요약 문서는 저장소에 아직 반영되지 않습니다')
       } else if (decision === 'rejected') {
         setToast('반려 처리했습니다')
       }
