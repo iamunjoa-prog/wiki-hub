@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
-import { readGeminiKey, readGithubRepo, readGithubToken } from './env.js'
+import { readGeminiKey, readGithubRepo, readGithubToken, readJiraBaseUrl, readJiraProjectKey } from './env.js'
 import { proxyHubZip } from './hubZip.js'
 import { createDocPR, createEditPR, EditError, listProposalPrs, parseCreateDocInput, parseEditDocInput } from './github.js'
 import {
@@ -23,13 +23,17 @@ import {
   buildEditRequest,
   checkEditReply,
   EDIT_SCHEMA,
+  checkAskReply,
   parseAskInput,
   parseEditInput,
   REPLY_SCHEMA,
+  todayLine,
   type CliReply,
   type EditInput,
   type EditReply,
 } from './knowledge.js'
+import { buildJiraScheduleRequest, JIRA_SCHEDULE_SCHEMA, type JiraScheduleReply } from './jiraSchedule.js'
+import { buildScheduleDigest } from './scheduleDigest.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -204,27 +208,44 @@ async function codexJson(prompt: string, schema: object, timeoutMs?: number): Pr
   }
 }
 
+/** 편성표는 CLI가 도구로 열어볼 수 있는 위키 폴더 밖(`src/data/`)에 있어 항상 프롬프트에 직접 넣는다 */
+const scheduleNote = (): string =>
+  [
+    '편성표(Today B tv·모바일 빅배너) 데이터는 도구로 열어볼 수 있는 폴더 밖에 있어 아래 <schedule>에 직접 넣었다. 이 안에 있는 내용만 근거로 답하고 지어내지 마라.',
+    todayLine(),
+    `<schedule>\n${buildScheduleDigest()}\n</schedule>`,
+  ].join('\n\n')
+
+/**
+ * 편성표 블록은 stdin으로 넣는다 — Windows는 명령줄 길이 한도가 낮아(cmd.exe 셸 경유 시 약 8KB)
+ * `--append-system-prompt` 인자로 넣으면 ENAMETOOLONG으로 실행 자체가 실패한다.
+ */
 const askClaude = async (input: AskInput) =>
-  (await claudeJson(
-    buildAskRequest(input),
-    [
-      '--system-prompt-file', PROMPT_FILE,
-      '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
-    ],
-    REPLY_SCHEMA,
-  )) as CliReply
+  checkAskReply(
+    await claudeJson(
+      [scheduleNote(), buildAskRequest(input)].join('\n\n'),
+      [
+        '--system-prompt-file', PROMPT_FILE,
+        '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
+      ],
+      REPLY_SCHEMA,
+    ),
+  )
 
 /** 위키 문서 전체(약 100KB)를 프롬프트에 넣는다 */
 const askCodex = async (input: AskInput) =>
-  (await codexJson(
-    [
-      readFileSync(PROMPT_FILE, 'utf8'),
-      '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
-      `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
-      buildAskRequest(input),
-    ].join('\n\n'),
-    REPLY_SCHEMA,
-  )) as CliReply
+  checkAskReply(
+    await codexJson(
+      [
+        readFileSync(PROMPT_FILE, 'utf8'),
+        '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
+        `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
+        scheduleNote(),
+        buildAskRequest(input),
+      ].join('\n\n'),
+      REPLY_SCHEMA,
+    ),
+  )
 
 const ASK: Record<Engine, (input: AskInput) => Promise<CliReply>> = { claude: askClaude, codex: askCodex }
 
@@ -257,6 +278,24 @@ const editCodex = async (input: EditInput) =>
 
 const EDIT: Record<Engine, (input: EditInput) => Promise<EditReply>> = { claude: editClaude, codex: editCodex }
 
+const JIRA_TIMEOUT_MS = 180_000
+
+/**
+ * "Jira 스케줄 확인" — claude CLI에 연결된 Jira MCP 서버(서버 이름 "jira"로 등록했다고 가정)로 조회한다.
+ * 위키 질문과 달리 로컬 파일을 읽을 필요가 없어 Read·Grep·Glob은 열지 않고 mcp__jira 도구만 연다.
+ */
+async function askJiraSchedule(baseUrl: string, projectKey: string): Promise<JiraScheduleReply> {
+  return (await claudeJson(
+    buildJiraScheduleRequest(baseUrl, projectKey),
+    [
+      '--tools', 'mcp__jira',
+      '--append-system-prompt', 'Jira MCP 도구로 조회만 하고, 이슈를 수정하거나 새로 만들지 마라.',
+    ],
+    JIRA_SCHEDULE_SCHEMA,
+    JIRA_TIMEOUT_MS,
+  )) as JiraScheduleReply
+}
+
 export function cliBridge(): Plugin {
   return {
     name: 'cli-bridge',
@@ -269,11 +308,14 @@ export function cliBridge(): Plugin {
       const geminiModel = env.GEMINI_MODEL || process.env.GEMINI_MODEL
       // "새 문서" 기능(브랜치·PR 생성)이 쓸 토큰 — 없으면 그 버튼만 안내 메시지로 대체된다
       const githubToken = readGithubToken(env) || readGithubToken()
+      // Jira 스케줄 확인 — 회사 내부 주소·프로젝트 키라 개인별 .env.local에서만 읽는다
+      const jiraBaseUrl = readJiraBaseUrl(env) || readJiraBaseUrl()
+      const jiraProjectKey = readJiraProjectKey(env) || readJiraProjectKey()
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
       getEngineStatus().then((s) => {
         const mark = (e: Engine) => (!s[e].installed ? '✗ 미설치' : s[e].loggedIn ? '✓' : '⚠ 로그인 필요')
         log.info(
-          `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'} · github ${githubToken ? '✓ 토큰' : '✗ 토큰 없음(새 문서 비활성)'}`,
+          `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'} · github ${githubToken ? '✓ 토큰' : '✗ 토큰 없음(새 문서 비활성)'} · jira ${jiraBaseUrl && jiraProjectKey ? '✓ 설정됨' : '✗ 설정 안 됨(스케줄 확인 비활성)'}`,
         )
       })
 
@@ -349,6 +391,32 @@ export function cliBridge(): Plugin {
         for (const e of ENGINES) installed[e] = status[e].installed
         const gemini = Boolean(geminiKey)
         res.end(JSON.stringify({ ...status, gemini: { installed: gemini, loggedIn: gemini } }))
+      })
+
+      // Jira 스케줄 확인 — 로컬에 로그인된 claude CLI + Jira MCP로만 동작한다 (배포본엔 이 경로가 없음)
+      server.middlewares.use('/api/jiraSchedule', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        try {
+          if (!installed.claude) throw new Error('claude CLI가 설치되어 있지 않습니다')
+          if (!jiraBaseUrl || !jiraProjectKey) {
+            throw new Error(
+              'JIRA_BASE_URL / JIRA_PROJECT_KEY가 설정되지 않았습니다 (.env.local) — 팀 가이드를 참고해 개인별로 설정해 주세요',
+            )
+          }
+          const started = Date.now()
+          const reply = await askJiraSchedule(jiraBaseUrl, jiraProjectKey)
+          log.info(`[cli-bridge] jiraSchedule ${((Date.now() - started) / 1000).toFixed(1)}s · ${reply.items.length}건`)
+          res.end(JSON.stringify(reply))
+        } catch (err) {
+          log.error(`[cli-bridge] jiraSchedule ${(err as Error).message}`)
+          res.statusCode = 502
+          res.end(JSON.stringify({ error: (err as Error).message }))
+        }
       })
 
       server.middlewares.use('/api/login', (req, res) => {

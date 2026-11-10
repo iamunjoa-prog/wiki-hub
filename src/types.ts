@@ -119,7 +119,11 @@ export type ProductScope = 'PPM' | 'PPV'
  * `confirm` 에 '네'가 오면 `product` 로 넘어가고, 상품 유형까지 고르면 어드민 화면으로 보낸다.
  */
 export interface IntentPrompt {
-  kind: 'confirm' | 'product' | 'next'
+  /**
+   * `product` 는 어드민으로 넘기기 직전 확인,
+   * `product-qa` 는 질문만 받을 때의 확인 — 고르면 그 기준 문서로만 답한다 (어드민은 열지 않는다).
+   */
+  kind: 'confirm' | 'product' | 'product-qa' | 'next'
   question: string
 }
 

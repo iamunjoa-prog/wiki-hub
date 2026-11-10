@@ -1,4 +1,4 @@
-import { docs } from '../data/docs'
+import { categories, docs } from '../data/docs'
 import type {
   CampaignDraft,
   ChatMessage,
@@ -86,6 +86,8 @@ export function detectCampaignIntent(query: string): boolean {
   // "프로모션 어떤 순서로 진행돼?"는 절차를 묻는 사실 질문이다. '프로모션'+'진행'이 함께 있다고
   // 기획 상담으로 끌면, 문서에 그대로 적힌 절차 대신 "상품 유형에 따라 갈립니다"만 돌아간다.
   if (wantsSequence(query)) return false
+  // "프로모션 문서 작성하고 싶어"는 기획이 아니라 위키 작성이다 — 어드민 확인 칩이 끼어들지 않게 먼저 거른다.
+  if (detectKnowledgeEdit(query)) return false
   // "~로 진행 가능해?"는 하겠다는 말이 아니라 되는지 묻는 사실 질문이다. '진행'이 PLAN_VERBS에 걸린다고
   // 기획 상담으로 끌면 "가능해?"에 답 없이 확인 칩만 뜬다 — 분류가 어휘 우연에 기대지 않게 가능성 질문을 먼저 거른다.
   if (asksPossibility(query)) return false
@@ -94,6 +96,8 @@ export function detectCampaignIntent(query: string): boolean {
 
 export const INTENT_CONFIRM_QUESTION = '혹시 지금 진행하려는 프로모션이 있으신가요? 있으시면 프로모션 어드민 화면으로 바로 열어드리겠습니다.'
 export const INTENT_PRODUCT_QUESTION = '월정액(PPM)인가요, 단건(PPV)인가요? 고르시면 그 기준으로 어드민 화면을 엽니다.'
+/** 질문만 받을 때의 확인 — 답변 근거 문서가 상품 유형에 따라 갈려서 한 번은 확인하고 넘어간다 */
+export const INTENT_PRODUCT_QA_QUESTION = '월정액(PPM) 기준인가요, 단건(PPV) 기준인가요? 고르시면 그 기준 문서로만 답합니다.'
 
 /** 한 발화에 언급된 상품 유형 전부 — 배열 순서가 아니라 언급 여부만 본다 */
 function mentionedProducts(text: string): (typeof PRODUCTS)[number][] {
@@ -140,7 +144,7 @@ function detectBenefit(query: string): string | null {
 }
 
 /**
- * 혜택 스킴 — `insight/schemes.md`의 PPV 표기를 그대로 쓴다.
+ * 혜택 스킴 — `promotion/schemes.md`의 PPV 표기를 그대로 쓴다.
  * 쿠폰과 경품을 함께 말했으면 결합으로 본다.
  */
 const SCHEMES: { keywords: string[]; label: string }[] = [
@@ -215,7 +219,48 @@ export function isQuestion(query: string): boolean {
 
 /** 결정 발화는 평서문이어야 한다. 질문이 한 문장이라도 섞였으면 결정으로 보지 않고 질문에 답한다. */
 export function detectDecision(query: string): boolean {
-  return !isQuestion(query) && DECIDE_CUES.some((k) => query.includes(k))
+  // "문서 고칠게"의 '할게'류는 프로모션 방향 결정이 아니다
+  return !isQuestion(query) && !detectKnowledgeEdit(query) && DECIDE_CUES.some((k) => query.includes(k))
+}
+
+/**
+ * 위키 문서를 새로 쓰거나 고쳐 달라는 발화. 어시스턴트는 문서를 고칠 수 없으니 검색 결과 대신 제출 화면을 안내한다.
+ * 대상 명사(문서·위키·지식)와 쓰기 동사가 **함께** 있어야 한다 — "ACS 오퍼 등록 어떻게 해?" 같은 시스템 질문을 끌어오지 않게.
+ */
+const KNOWLEDGE_NOUNS = ['문서', '위키', '지식']
+const KNOWLEDGE_NEW_CUES = ['작성', '추가', '새로 쓰', '새로 써', '남겨', '남기', '등록', '올리', '올려']
+const KNOWLEDGE_FIX_CUES = ['수정', '고쳐', '고치', '고칠', '반영', '업데이트', '갱신', '바꿔', '정정']
+/** 문서 내용이 바뀌었다는 정정 — 명사 없이 "이거 바뀌었어"만 말해도 수정 요청이다 */
+const CORRECTION_PATTERN = /바뀌었|바뀐\s*거|변경됐|변경되었|달라졌|틀렸/
+/** "작성 규칙"·"있어?"는 문서를 묻는 질문이다 — 검색이 HUB-03 등을 직접 찾게 둔다 */
+const KNOWLEDGE_QUERY_PATTERN = /규칙|있(?:어|나|니|는지|을까|습니까)/
+
+export type KnowledgeEditKind = 'new' | 'fix'
+
+export function detectKnowledgeEdit(query: string): KnowledgeEditKind | null {
+  const q = query.replace(/\s+/g, ' ')
+  if (KNOWLEDGE_QUERY_PATTERN.test(q)) return null
+  // "어떻게 고쳐?"는 안내가 답이지만, "언제 바뀌었어?"·"누가 수정했어?"는 이력을 묻는 사실 질문이다
+  const asksFact = QUESTION_WORDS.some((k) => k !== '어떻게' && k !== '어디' && q.includes(k))
+  if (asksFact) return null
+  if (q.includes('새 문서') || q.includes('새문서')) return 'new'
+  const hasNoun = KNOWLEDGE_NOUNS.some((k) => q.includes(k))
+  if (hasNoun && KNOWLEDGE_FIX_CUES.some((k) => q.includes(k))) return 'fix'
+  if (hasNoun && KNOWLEDGE_NEW_CUES.some((k) => q.includes(k))) return 'new'
+  if (!/[?？]/.test(q) && CORRECTION_PATTERN.test(q)) return 'fix'
+  return null
+}
+
+/** 발화에 드러난 위키 카테고리 — 새 문서 화면에서 고를 이름을 그대로 돌려준다 */
+const CATEGORY_CUES: { id: (typeof categories)[number]['id']; keywords: string[] }[] = [
+  { id: 'programming', keywords: ['편성'] },
+  { id: 'promotion', keywords: ['프로모션', '마케팅', '쿠폰', '배너'] },
+  { id: 'guide', keywords: ['이용 안내', '허브 사용', '가이드'] },
+]
+
+function mentionedCategory(query: string): string | null {
+  const id = CATEGORY_CUES.find((c) => c.keywords.some((k) => query.includes(k)))?.id
+  return categories.find((c) => c.id === id)?.label ?? null
 }
 
 /** 지난 일을 말하는 서술 — 연도 생략 날짜를 다음 해로 넘기지 않는 단서 */
@@ -476,8 +521,37 @@ function usableSequence(doc: WikiDoc, search: SearchInput): { section: DocSectio
   return lines.length >= 2 ? { section, lines } : null
 }
 
+/** 지식 입력·수정 안내 — `assistant-prompt.md`의 같은 이름 규칙과 문구를 맞춘다 */
+function knowledgeEditReply(query: string, kind: KnowledgeEditKind): AssistantReply {
+  const guide = docs.find((d) => d.code === 'HUB-03')
+  const flow = docs.find((d) => d.code === 'HUB-02')
+  const category = mentionedCategory(query)
+  const newLine = '· 새 문서는 위키 문서 목록의 **+ 새 문서**에서 씁니다.'
+  const fixLine = '· 기존 문서는 그 문서 화면의 **✎ 수정 제안**에서 고칩니다.'
+  const lines = [
+    '위키 문서는 대화로 바로 고칠 수 없고, 화면에서 제출합니다.',
+    ...(kind === 'new' ? [newLine, fixLine] : [fixLine, newLine]),
+    '· 제출하면 GitHub PR이 열리고, 관리자가 머지한 뒤 다음 배포에서 위키에 반영됩니다.',
+  ]
+  if (kind === 'new' && category) lines.push(`· 새 문서 화면의 카테고리 칸에서 **${category}** 메뉴를 고르시면 됩니다.`)
+  // 정정만 들은 값은 문서가 고쳐지기 전까지 근거가 아니다 — 고친 척하지 않는다
+  if (CORRECTION_PATTERN.test(query)) lines.push('말씀하신 변경은 문서가 고쳐지기 전까지 답변 근거로 쓰지 않습니다.')
+  const refs = kind === 'fix' ? [guide, flow] : [guide]
+  return {
+    text: lines.join('\n'),
+    sources: refs
+      .filter((d): d is WikiDoc => Boolean(d))
+      .map((d) => ({ docId: d.id, label: `참고 · ${d.title}` })),
+  }
+}
+
 export function answer(query: string, history: ChatTurn[] = [], intentAsked = false): AssistantReply {
   const turns: ChatTurn[] = [...history, { role: 'user', text: query }]
+
+  // 문서를 쓰거나 고치겠다는 발화에 검색 문장을 쏟으면 관계없는 정책이 답처럼 보인다 — 제출 화면만 짧게 안내한다.
+  const edit = detectKnowledgeEdit(query)
+  if (edit) return knowledgeEditReply(query, edit)
+
   const intent = intentPromptFor(query, intentAsked)
 
   // 진행 의도만 던진 발화에는 정책을 쏟아내지 않는다 — 무엇을 만들지 모르니 어떤 정책이 걸리는지도 아직 알 수 없다.
@@ -618,8 +692,16 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   return { text: lines.join('\n'), sources }
 }
 
-/** 엔진 응답을 기다리는 한도 — 넘기면 다음 엔진, 마지막엔 규칙 기반으로 넘어간다. 서버 함수 한도(300초)까지 스피너를 보이지 않는다. */
-export const ENGINE_TIMEOUT_MS = 30_000
+/**
+ * 엔진 응답을 기다리는 한도 — 넘기면 다음 엔진, 마지막엔 규칙 기반으로 넘어간다.
+ * 그동안 대화창에는 "답을 정리하는 중…" 안내가 떠 있으므로, 서버 함수 한도(300초)까지 붙잡지 않고 엔진별로 끊는다.
+ * Gemini는 위키 전체를 systemInstruction 으로 넣어 평소에도 20~40초가 걸려 30초 한도로는 자주 끊겼다.
+ * CLI는 서버 중계 한도(claude 120초 · codex 180초)보다 길게 잡아 서버가 돌려주는 실패 사유를 받는다.
+ */
+export const ENGINE_TIMEOUT_MS: Record<Engine, number> = { claude: 150_000, codex: 210_000, gemini: 90_000 }
+
+/** 대화창 대기 안내에 쓰는 평소 소요 시간 — 수정 제안 화면의 AI_WAIT_HINT 와 같은 실측 기준이다 */
+export const ENGINE_WAIT_HINT: Record<Engine, string> = { claude: '30초~1분', codex: '1~2분', gemini: '20~40초' }
 
 async function askEngine(
   query: string,
@@ -628,12 +710,13 @@ async function askEngine(
   intentAsked: boolean,
 ): Promise<AssistantReply> {
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), ENGINE_TIMEOUT_MS)
+  const limit = ENGINE_TIMEOUT_MS[engine]
+  const timer = setTimeout(() => ctrl.abort(), limit)
   try {
     return await requestEngine(query, engine, history, intentAsked, ctrl.signal)
   } catch (err) {
     // 중단 사유를 라벨에 남긴다 — 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다
-    if (ctrl.signal.aborted) throw new Error(`${ENGINE_TIMEOUT_MS / 1000}초 안에 응답이 없어 중단했습니다 (시간 초과)`)
+    if (ctrl.signal.aborted) throw new Error(`${limit / 1000}초 안에 응답이 없어 중단했습니다 (시간 초과)`)
     throw err
   } finally {
     clearTimeout(timer)

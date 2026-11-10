@@ -4,13 +4,16 @@ import {
   type AskInput,
   buildDocsBlock,
   buildEditRequest,
+  checkAskReply,
   checkEditReply,
   EDIT_SCHEMA,
   REPLY_SCHEMA,
+  todayLine,
   type CliReply,
   type EditInput,
   type EditReply,
 } from './knowledge.js'
+import { buildScheduleDigest } from './scheduleDigest.js'
 
 /** GEMINI_MODEL 환경변수로 바꿀 수 있다 */
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash'
@@ -46,6 +49,9 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
     readFileSync(opts.promptFile, 'utf8'),
     '위키 문서 전체가 아래 <documents>에 들어 있다. 이 문서만 읽고 답하라.',
     `<documents>\n${buildDocsBlock(opts.knowledgeDir)}\n</documents>`,
+    '편성표(Today B tv·모바일 빅배너) 데이터는 아래 <schedule>에 들어 있다.',
+    todayLine(),
+    `<schedule>\n${buildScheduleDigest()}\n</schedule>`,
   ].join('\n\n')
 
   const model = opts.model || GEMINI_DEFAULT_MODEL
@@ -79,9 +85,7 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
   )
 
   if (!response.text) throw new Error('Gemini가 빈 응답을 반환했습니다')
-  const out = JSON.parse(response.text) as Partial<CliReply>
-  if (typeof out.text !== 'string') throw new Error('Gemini 응답 형식이 올바르지 않습니다')
-  return { text: out.text, sourcePaths: Array.isArray(out.sourcePaths) ? out.sourcePaths : [] }
+  return checkAskReply(JSON.parse(response.text))
 }
 
 /** 수정 제안 화면의 "AI로 수정" — 문서 본문과 요청만 넣고 고친 본문 전체를 { body, summary } 로 받는다 */

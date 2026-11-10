@@ -266,7 +266,7 @@ export function Approvals() {
                 <>
                   {promotion && (
                     <div className="hint">
-                      편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로 생성됩니다
+                      편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로 만들어지지만, 지금은 이 화면에만 표시되고 새로고침하면 사라집니다 (저장소 반영 준비 중)
                     </div>
                   )}
                   <div className="form-actions" style={{ marginTop: 'auto' }}>
