@@ -8,7 +8,8 @@ function RichText({ text }: { text: string }) {
   return (
     <>
       {text.split('\n').map((line, i) => {
-        const parts = line.split(/(\*\*[^*]+\*\*)/g)
+        // 굵게 안의 가린 이름(류*영)도 굵게로 묶이게 단일 `*` 는 허용한다
+        const parts = line.split(/(\*\*(?:[^*]|\*(?!\*))+?\*\*)/g)
         return (
           <p key={i}>
             {parts.map((p, j) =>

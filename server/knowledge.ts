@@ -175,12 +175,66 @@ export function unescapeNewlines(text: string): string {
   return text.replace(/\\([nt"\\])/g, (_, c: string) => (c === 'n' ? '\n' : c === 't' ? '\t' : c))
 }
 
+/**
+ * 문서가 이름을 `미디어**팀장` 처럼 별표 두 개로 가리던 곳이 있어(지금은 ○○ 표기로 바꿈), 모델이 그대로 옮기면 굵게 기호와 섞여 짝이 깨진다.
+ * 한 줄의 `**` 가 홀수일 때만 손댄다 — 짝이 맞는 줄은 정상 굵게로 본다.
+ * 여는 기호(앞이 공백·줄 처음) 사이에서 마지막으로 닫을 수 있는 `**` 를 닫는 기호로 고르고,
+ * 그 사이에 낀 `**` 는 가림 표시로 보고 전각 `＊＊` 로 바꿔 글자 그대로 보이게 한다. 단일 `*`(류*영)는 건드리지 않는다.
+ */
+export function balanceBold(text: string): string {
+  return text.split('\n').map(balanceBoldLine).join('\n')
+}
+
+function balanceBoldLine(line: string): string {
+  // 정확히 두 개짜리 별표 묶음만 굵게 후보로 본다
+  const marks = [...line.matchAll(/(?<!\*)\*\*(?!\*)/g)].map((m) => {
+    const at = m.index!
+    const prev = line[at - 1]
+    const next = line[at + 2]
+    return { at, open: next !== undefined && !/\s/.test(next), close: prev !== undefined && !/\s/.test(prev) }
+  })
+  if (marks.length % 2 === 0) return line
+  const literal = new Set<number>()
+  let i = 0
+  while (i < marks.length) {
+    if (!marks[i].open) {
+      literal.add(marks[i].at)
+      i++
+      continue
+    }
+    // 다음 '여는 기호만 되는' 자리 전까지가 이 굵게 구절이 닫힐 수 있는 범위다
+    let end = i + 1
+    while (end < marks.length && !(marks[end].open && !marks[end].close)) end++
+    let closer = -1
+    for (let j = end - 1; j > i; j--) {
+      if (marks[j].close) {
+        closer = j
+        break
+      }
+    }
+    if (closer < 0) {
+      literal.add(marks[i].at)
+      i++
+      continue
+    }
+    for (let j = i + 1; j < closer; j++) literal.add(marks[j].at)
+    i = closer + 1
+  }
+  let out = ''
+  let last = 0
+  for (const at of [...literal].sort((a, b) => a - b)) {
+    out += line.slice(last, at) + '＊＊'
+    last = at + 2
+  }
+  return out + line.slice(last)
+}
+
 /** 답변 검증 — claude·codex·gemini 세 엔진의 응답이 모두 이 함수를 지난다. */
 export function checkAskReply(out: unknown): CliReply {
   const r = (out ?? {}) as Partial<CliReply>
   if (typeof r.text !== 'string') throw new Error('답변 형식이 올바르지 않습니다')
   return {
-    text: unescapeNewlines(r.text).trim(),
+    text: balanceBold(unescapeNewlines(r.text).trim()),
     sourcePaths: Array.isArray(r.sourcePaths) ? r.sourcePaths.filter((p): p is string => typeof p === 'string') : [],
   }
 }
