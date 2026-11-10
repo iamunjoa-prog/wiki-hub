@@ -250,8 +250,8 @@ export function Approvals() {
                 <>
                   {!systemRequest && (
                     <div className="hint">
-                      승인 시 커밋 생성 → 위키트리 즉시 반영. 편성표 승격은 <b>요약 문서 + 원본 링크</b> 형태로
-                      생성됩니다
+                      승인은 지금 표시만 합니다. 저장소 반영(PR)은 준비 중입니다. 편성표 승격은 <b>요약 문서 + 원본 링크</b>{' '}
+                      형태로 만들어지며 새로고침하면 사라집니다
                     </div>
                   )}
                   <div className="form-actions" style={{ marginTop: 'auto' }}>

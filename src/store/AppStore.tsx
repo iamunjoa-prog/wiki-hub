@@ -436,7 +436,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const decideProposal = useCallback(
     async (id: string, decision: 'approved' | 'rejected', reason?: string) => {
-      // Git 반영이 실패할 수 있어 낙관적 업데이트를 쓰지 않는다.
+      // 아직 저장소에 반영하지 않고 메모리 상태만 바꾼다 — 지연은 2단계 PR 호출이 붙을 자리다.
       await new Promise((r) => setTimeout(r, 600))
       setProposals((prev) =>
         prev.map((p) => (p.id === id ? { ...p, status: decision, rejectReason: reason } : p)),
@@ -458,7 +458,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ),
           )
         }
-        setToast('승인 완료 · 커밋 생성 후 위키에 반영했습니다')
+        setToast('승인 표시만 했습니다 · 저장소에는 아직 반영되지 않습니다')
       } else {
         setToast('반려 처리했습니다')
       }
@@ -615,7 +615,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             },
           ])
         }
-        setToast('승격 완료 · 요약 문서를 생성했습니다')
+        setToast('승격 표시만 했습니다 · 요약 문서는 저장소에 아직 반영되지 않습니다')
       } else if (decision === 'rejected') {
         setToast('반려 처리했습니다')
       }

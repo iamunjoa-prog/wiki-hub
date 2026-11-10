@@ -13,7 +13,7 @@ const AI_WAIT_HINT = { claude: '1~2분', codex: '2~3분', gemini: '20~40초' } a
 
 /**
  * 내 PC의 Claude·Codex CLI(배포 허브는 Gemini)에게 수정 요청을 보내 본문을 고친다.
- * 결과는 편집 칸에만 들어가고, 변경 확인 → 제안 제출 → 승인을 거쳐야 반영된다.
+ * 결과는 편집 칸에만 들어가고, 변경 확인 → 제안 제출 → 승인 흐름을 거친다(저장소 반영은 아직 없다).
  */
 function AiEditBox({
   doc,
@@ -183,6 +183,10 @@ export function ProposeEdit() {
           <span className="mono muted" style={{ marginLeft: 'auto', fontSize: 11 }}>
             {doc.title} v{doc.version}
           </span>
+        </div>
+
+        <div className="hint" style={{ marginBottom: 14 }}>
+          제출한 제안은 새로고침하면 사라집니다. 실제 반영은 준비 중입니다 — 승인 단계를 거쳐도 위키 문서는 아직 바뀌지 않습니다.
         </div>
 
         {step === 1 ? (
