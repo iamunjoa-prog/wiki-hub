@@ -3,9 +3,11 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'reac
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
+import { forgetSessionSeen } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
+import { LocalHubOnboarding } from './LocalHubOnboarding'
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -400,7 +402,16 @@ function Sidebar() {
         </span>
         {account ? (
           // 권한은 관리자가 계정 관리에서 정한다 — 화면에서 바꿀 수 없고 표시만 한다
-          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={signOut} title={account.loginId}>
+          <button
+            className="btn sm"
+            style={{ marginLeft: 'auto' }}
+            onClick={() => {
+              // 같은 탭에서 다시 로그인해도 새 세션으로 보고 첫 안내 창 횟수를 센다
+              forgetSessionSeen(account.loginId)
+              signOut()
+            }}
+            title={account.loginId}
+          >
             로그아웃
           </button>
         ) : (
@@ -483,6 +494,7 @@ export function AppShell() {
           {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
         </button>
       )}
+      <LocalHubOnboarding />
       {toast && <div className="toast">{toast}</div>}
     </div>
   )
