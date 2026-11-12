@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { ENGINE_LABEL, requestLogin } from '../lib/assistant'
+import { isLocalStatus } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import type { CliEngine, EngineStatus } from '../types'
+import { LocalHubGuide } from './LocalHubGuide'
 
 const CLI_ENGINES: CliEngine[] = ['claude', 'codex']
 const LOGIN_WAIT_MS = 180_000
-const LOCAL_URL = 'http://localhost:5173'
-const DOWNLOAD_URL = '/api/download-hub'
 const INSTALL_CMD: Record<CliEngine, string> = {
   claude: 'npm i -g @anthropic-ai/claude-code',
   codex: 'npm i -g @openai/codex',
@@ -14,12 +14,6 @@ const INSTALL_CMD: Record<CliEngine, string> = {
 const LOGIN_CMD: Record<CliEngine, string> = { claude: 'claude auth login', codex: 'codex login' }
 
 type DotState = 'loading' | 'off' | 'ok' | 'warn'
-
-type Os = 'win' | 'mac'
-
-/** 브라우저가 알려 주는 OS. Mac이 아니면(판단 불가 포함) Windows 안내를 기본으로 한다. */
-const detectOs = (): Os =>
-  typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(`${navigator.platform} ${navigator.userAgent}`) ? 'mac' : 'win'
 
 const dotState = (s: EngineStatus | undefined): DotState =>
   !s ? 'loading' : !s.installed ? 'off' : s.loggedIn ? 'ok' : 'warn'
@@ -51,14 +45,10 @@ export function CliStatus() {
   const [checking, setChecking] = useState(false)
   const [waiting, setWaiting] = useState<CliEngine | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [downloading, setDownloading] = useState(false)
-  const [downloadError, setDownloadError] = useState('')
-  const [os, setOs] = useState<Os>(detectOs)
   const waitStart = useRef(0)
 
-  const isLocal = Boolean(status && CLI_ENGINES.some((e) => e in status))
+  const isLocal = isLocalStatus(status)
   const gemini = status?.gemini
-  const launcher = os === 'mac' ? 'start-hub.command' : 'start-hub.bat'
 
   const recheck = async () => {
     setChecking(true)
@@ -87,38 +77,6 @@ export function CliStatus() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [settingsOpen])
-
-  /**
-   * 허브 ZIP 내려받기. <a href>로 바로 받으면 서버가 503(토큰 없음)·401(로그인 필요) 등을 돌려줄 때
-   * 브라우저가 JSON 오류 파일을 저장하거나 아무 일도 없어 보인다. 저장소는 작으니(소스+문서) fetch → Blob으로
-   * 메모리에 받아도 부담이 없고, 실패 사유를 화면에 보여 줄 수 있어 이쪽을 택했다.
-   */
-  const downloadHub = async () => {
-    setDownloading(true)
-    setDownloadError('')
-    try {
-      const r = await fetch(DOWNLOAD_URL)
-      if (!r.ok) {
-        const body = (await r.json().catch(() => null)) as { error?: string } | null
-        throw new Error(body?.error ?? `내려받지 못했습니다 (HTTP ${r.status})`)
-      }
-      const url = URL.createObjectURL(await r.blob())
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'wiki-hub.zip'
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      showToast('wiki-hub.zip 을 받았습니다 — 압축을 풀고 wiki-hub 폴더의 start-hub 를 실행하세요')
-    } catch (err) {
-      const message = (err as Error).message || '내려받지 못했습니다'
-      setDownloadError(message)
-      showToast(message)
-    } finally {
-      setDownloading(false)
-    }
-  }
 
   const login = async (e: CliEngine) => {
     const r = await requestLogin(e)
@@ -206,9 +164,12 @@ export function CliStatus() {
           <div className="row cli-row">
             <span className="status-dot off" />
             <span className="grow">Claude · Codex CLI</span>
-            <button className="btn sm" onClick={() => setSettingsOpen(true)}>
-              내 PC에서 쓰기
-            </button>
+            <span className="cli-cta">
+              <button className="btn sm" onClick={() => setSettingsOpen(true)}>
+                내 PC에서 쓰기
+              </button>
+              <span className="cli-hint">내 Claude Code·Codex 계정으로 답받기</span>
+            </span>
           </div>
         </>
       )}
@@ -238,64 +199,7 @@ export function CliStatus() {
                     )}{' '}
                     CLI로 답받으려면 <b>내 PC에서 허브를 실행</b>하세요.
                   </p>
-                  <div className="cli-os">
-                    <b>{os === 'mac' ? 'Mac' : 'Windows'}</b>
-                    <button type="button" className="cli-os-switch" onClick={() => setOs(os === 'mac' ? 'win' : 'mac')}>
-                      {os === 'mac' ? 'Windows 안내 보기' : 'Mac 안내 보기'}
-                    </button>
-                  </div>
-                  <ol className="cli-steps">
-                    <li>
-                      아래 <b>로컬 허브 내려받기</b>로 <code>wiki-hub.zip</code> 을 받습니다
-                    </li>
-                    <li>
-                      {os === 'mac' ? (
-                        <><b>더블클릭해 압축 풀기</b> (ZIP 안에서 바로 실행 금지)</>
-                      ) : (
-                        <><b>우클릭 → 모두 압축 풀기</b> (ZIP 안에서 바로 실행 금지)</>
-                      )}
-                    </li>
-                    <li>
-                      {/* Windows는 확장자가 숨겨져 start-hub가 두 개 보이므로 탐색기의 "종류"로 고르게 한다 */}
-                      {os === 'mac' ? (
-                        <>
-                          풀린 <b>wiki-hub</b> 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>{launcher}</b> 를{' '}
-                          <b>우클릭 → 열기</b> ("확인되지 않은 개발자" 경고 때문)
-                        </>
-                      ) : (
-                        <>
-                          풀린 <b>wiki-hub</b> 폴더에서 <b>start-hub</b>(종류: Windows 배치 파일)를 더블클릭
-                        </>
-                      )}
-                    </li>
-                    <li>
-                      {os === 'mac' ? '터미널' : '검은 창'}이 묻는 대로 <b>Y</b>를 누르면 세팅이 끝나고 브라우저가 열립니다
-                    </li>
-                  </ol>
-                  <span className="muted" style={{ fontSize: 12.5 }}>
-                    wiki-hub 폴더에는 start-hub, 읽어주세요, hub 폴더만 있습니다. hub 폴더는 열지 않아도 됩니다.
-                  </span>
-                  <button
-                    type="button"
-                    className="btn sm primary"
-                    style={{ alignSelf: 'flex-start' }}
-                    disabled={downloading}
-                    onClick={downloadHub}
-                  >
-                    {downloading ? '받는 중…' : '로컬 허브 내려받기'}
-                  </button>
-                  {downloadError && (
-                    <span role="alert" style={{ fontSize: 12.5, color: 'var(--danger, #c0392b)' }}>
-                      {downloadError}
-                    </span>
-                  )}
-                  <span className="muted" style={{ fontSize: 12.5 }}>
-                    이미 받아 두셨다면:{' '}
-                    <a href={LOCAL_URL} target="_blank" rel="noreferrer">
-                      로컬 허브 열기 ↗
-                    </a>{' '}
-                    — 허브가 켜져 있을 때만 열립니다. 안 열리면 바탕화면 <b>플랫폼 담당 지식 허브</b>를 먼저 실행하세요.
-                  </span>
+                  <LocalHubGuide />
                 </>
               ) : (
                 <>
