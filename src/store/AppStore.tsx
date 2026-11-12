@@ -314,6 +314,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           intent: reply.intent,
           brief: reply.brief,
           answeredBy: reply.answeredBy,
+          fallback: reply.fallback,
         }),
       ])
       setPending(false)

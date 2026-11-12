@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ENGINE_LABEL, ENGINE_TIMEOUT_MS, ENGINE_WAIT_HINT, PLAN_STARTER, SUGGESTED_QUESTIONS } from '../lib/assistant'
+import {
+  ENGINE_LABEL,
+  ENGINE_TIMEOUT_MS,
+  ENGINE_WAIT_HINT,
+  PLAN_STARTER,
+  RULE_BASED_LABEL,
+  SUGGESTED_QUESTIONS,
+  fallbackCodes,
+  fallbackNotice,
+} from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
 import type { ChatMessage, Engine, PromotionBrief } from '../types'
 
@@ -92,6 +101,11 @@ function BriefCard({ brief }: { brief: PromotionBrief }) {
 
 function Message({ msg }: { msg: ChatMessage }) {
   const navigate = useNavigate()
+  const { session } = useApp()
+  // 안내는 규칙 기반으로 떨어진 답에만 — 다음 엔진이 답했으면 답은 정상이라 출처 줄만 남긴다
+  const notice = msg.fallback?.length && msg.answeredBy === RULE_BASED_LABEL ? fallbackNotice(msg.fallback) : null
+  // 관리자에게만 엔진·분류 코드를 붙인다 — 원문 사유는 관리자 화면에도 두지 않는다
+  const codes = session.role === 'admin' && msg.fallback?.length ? fallbackCodes(msg.fallback) : null
 
   if (msg.role === 'user') return <div className="msg user">{msg.text}</div>
 
@@ -110,7 +124,13 @@ function Message({ msg }: { msg: ChatMessage }) {
       {msg.brief && <BriefCard brief={msg.brief} />}
       {msg.intent && <IntentChip msg={msg} />}
       {msg.intentAnswer && <div className="intent-answer">선택 · {msg.intentAnswer}</div>}
-      {msg.answeredBy && <div className="by">답변 · {msg.answeredBy}</div>}
+      {notice && <div className="fallback-notice">{notice}</div>}
+      {msg.answeredBy && (
+        <div className="by">
+          답변 · {msg.answeredBy}
+          {codes && ` · ${codes}`}
+        </div>
+      )}
     </div>
   )
 }
