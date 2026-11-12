@@ -110,7 +110,7 @@ export function CliStatus() {
       a.click()
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      showToast('허브 ZIP을 내려받았습니다 — 압축을 풀고 start-hub 실행기를 실행하세요')
+      showToast('wiki-hub.zip 을 받았습니다 — 압축을 풀고 wiki-hub 폴더의 start-hub 를 실행하세요')
     } catch (err) {
       const message = (err as Error).message || '내려받지 못했습니다'
       setDownloadError(message)
@@ -245,7 +245,9 @@ export function CliStatus() {
                     </button>
                   </div>
                   <ol className="cli-steps">
-                    <li>아래 <b>로컬 허브 내려받기</b>로 ZIP을 받습니다</li>
+                    <li>
+                      아래 <b>로컬 허브 내려받기</b>로 <code>wiki-hub.zip</code> 을 받습니다
+                    </li>
                     <li>
                       {os === 'mac' ? (
                         <><b>더블클릭해 압축 풀기</b> (ZIP 안에서 바로 실행 금지)</>
@@ -254,15 +256,25 @@ export function CliStatus() {
                       )}
                     </li>
                     <li>
-                      <b>이름이 긴 폴더</b>(<code>owner-repo-커밋번호</code>) 안의 <b style={{ whiteSpace: 'nowrap' }}>{launcher}</b> 더블클릭
+                      {/* Windows는 확장자가 숨겨져 start-hub가 두 개 보이므로 탐색기의 "종류"로 고르게 한다 */}
+                      {os === 'mac' ? (
+                        <>
+                          풀린 <b>wiki-hub</b> 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>{launcher}</b> 를{' '}
+                          <b>우클릭 → 열기</b> ("확인되지 않은 개발자" 경고 때문)
+                        </>
+                      ) : (
+                        <>
+                          풀린 <b>wiki-hub</b> 폴더에서 <b>start-hub</b>(종류: Windows 배치 파일)를 더블클릭
+                        </>
+                      )}
                     </li>
-                    {os === 'mac' && (
-                      <li>
-                        "확인되지 않은 개발자" 경고는 <b>우클릭 → 열기</b>
-                      </li>
-                    )}
-                    <li><b>Y</b>만 누르면 세팅 끝, 브라우저가 열립니다</li>
+                    <li>
+                      {os === 'mac' ? '터미널' : '검은 창'}이 묻는 대로 <b>Y</b>를 누르면 세팅이 끝나고 브라우저가 열립니다
+                    </li>
                   </ol>
+                  <span className="muted" style={{ fontSize: 12.5 }}>
+                    wiki-hub 폴더에는 start-hub, 읽어주세요, hub 폴더만 있습니다. hub 폴더는 열지 않아도 됩니다.
+                  </span>
                   <button
                     type="button"
                     className="btn sm primary"
