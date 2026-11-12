@@ -28,12 +28,52 @@ function Test-LoggedIn($name) {
 # 1. Node.js
 if (-not (Has node)) {
   Write-Host '[필요] Node.js가 설치되어 있지 않습니다.' -ForegroundColor Yellow
-  if ((Has winget) -and (Ask 'Node.js LTS를 지금 설치할까요?')) {
-    winget install -e --id OpenJS.NodeJS.LTS
-    Update-SessionPath
+  $tried = Ask 'Node.js LTS를 지금 설치할까요?'
+  if ($tried) {
+    if (Has winget) {
+      Write-Host 'winget으로 Node.js를 설치합니다...'
+      # 원본을 winget으로 고정한다. Microsoft Store 원본 확인(SSL·인증서 폐기 확인)에 실패해도 winget 원본으로 설치되게 한다
+      winget install -e --id OpenJS.NodeJS.LTS --source winget --accept-source-agreements --accept-package-agreements
+      Update-SessionPath
+      if (-not (Has node)) { Write-Host '[실패] winget 설치가 끝나지 않았습니다. 설치 파일을 직접 받아 봅니다.' -ForegroundColor Yellow }
+    }
+    if (-not (Has node)) {
+      $msi = $null
+      try {
+        # Windows PowerShell 5.1 기본값으로는 TLS 1.2를 쓰지 않아 nodejs.org 접속이 막힌다
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        Write-Host '최신 LTS 버전을 확인하는 중...'
+        # 5.1은 JSON 배열을 한 덩어리로 넘기므로 변수에 담은 뒤 펼친다
+        $index = Invoke-RestMethod 'https://nodejs.org/dist/index.json' -UseBasicParsing
+        $lts = $index | Where-Object { $_.lts -and $_.files -contains 'win-x64-msi' } | Select-Object -First 1
+        if (-not $lts) { throw 'LTS 버전을 찾지 못했습니다' }
+        $msi = Join-Path $env:TEMP "node-$($lts.version)-x64.msi"
+        Write-Host "Node.js $($lts.version) 설치 파일을 받는 중... 1~2분 걸릴 수 있어요"
+        # 5.1의 진행 표시줄은 내려받기를 크게 늦춰서 끄고, 단계 안내로 대신한다
+        $ProgressPreference = 'SilentlyContinue'
+        Invoke-WebRequest "https://nodejs.org/dist/$($lts.version)/node-$($lts.version)-x64.msi" -OutFile $msi -UseBasicParsing
+        $ProgressPreference = 'Continue'
+        Write-Host '설치 중입니다. 관리자 권한 창이 뜨면 [예]를 눌러 주세요...'
+        $proc = Start-Process msiexec.exe -ArgumentList '/i', "`"$msi`"", '/passive', '/norestart' -Wait -PassThru
+        # 3010 = 설치는 됐고 재부팅만 권장
+        if ($proc.ExitCode -eq 1602) { throw '설치를 취소했습니다' }
+        if ($proc.ExitCode -notin 0, 3010) { throw "설치 프로그램이 오류 코드 $($proc.ExitCode)로 끝났습니다" }
+        # MSI는 PATH를 Machine에 넣는다. 이 창에 바로 반영되도록 다시 읽는다
+        Update-SessionPath
+      } catch {
+        $ProgressPreference = 'Continue'
+        Write-Host ('[실패] Node.js 자동 설치: ' + ($_.Exception.Message -replace '\s+', ' ')) -ForegroundColor Yellow
+      } finally {
+        if ($msi) { Remove-Item $msi -ErrorAction SilentlyContinue }
+      }
+    }
   }
   if (-not (Has node)) {
-    Write-Host 'Node.js를 설치한 뒤 다시 실행해 주세요: https://nodejs.org' -ForegroundColor Yellow
+    if ($tried) {
+      Write-Host '브라우저에서 Node.js 내려받기 페이지를 엽니다.' -ForegroundColor Yellow
+      try { Start-Process 'https://nodejs.org/ko/download' } catch { }
+    }
+    Write-Host 'LTS 설치 파일(.msi)을 받아 설치한 뒤, 이 창을 닫고 다시 실행해 주세요: https://nodejs.org/ko/download' -ForegroundColor Yellow
     exit 1
   }
 }
