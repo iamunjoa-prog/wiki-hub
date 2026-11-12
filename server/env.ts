@@ -9,6 +9,16 @@ export function readGeminiKey(env: Record<string, string | undefined> = process.
   return undefined
 }
 
+/** 답변·수정에 쓸 Gemini 모델 — 비워 두면 server/gemini.ts 의 기본 모델 */
+export function readGeminiModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.GEMINI_MODEL?.trim() || undefined
+}
+
+/** 기본 모델이 혼잡(503)·할당량(429)으로 끝내 실패할 때 한 번 더 시도할 예비 모델 — 비워 두면 기본 예비 모델, `none` 이면 끈다 */
+export function readGeminiFallbackModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.GEMINI_FALLBACK_MODEL?.trim() || undefined
+}
+
 /** "새 문서" 기능이 브랜치·PR을 만들 때 쓰는 GitHub 토큰 — repo contents·pull-requests 쓰기 권한 필요 */
 const GITHUB_TOKEN_NAMES = ['GITHUB_TOKEN', 'GH_TOKEN']
 

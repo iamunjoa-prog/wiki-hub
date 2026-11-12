@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { requireUser } from '../server/auth.js'
-import { readGeminiKey } from '../server/env.js'
-import { askGemini } from '../server/gemini.js'
+import { readGeminiFallbackModel, readGeminiKey, readGeminiModel } from '../server/env.js'
+import { askGemini, geminiErrorBody } from '../server/gemini.js'
 import { buildDocsBlock, parseAskInput, type AskInput } from '../server/knowledge.js'
 
 /**
@@ -57,13 +57,15 @@ export async function POST(request: Request): Promise<Response> {
   try {
     const reply = await askGemini(input, {
       apiKey,
-      model: process.env.GEMINI_MODEL,
+      model: readGeminiModel(),
+      fallbackModel: readGeminiFallbackModel(),
       knowledgeDir: KNOWLEDGE_DIR,
       promptFile: PROMPT_FILE,
     })
     return Response.json(reply)
   } catch (err) {
     console.error('[api/ask] gemini', err)
-    return error(502, (err as Error).message)
+    // 원문 API 오류는 위 로그와 server/gemini.ts 로그에만 — 화면에는 분류된 문장과 code 를 준다
+    return Response.json(geminiErrorBody(err), { status: 502 })
   }
 }

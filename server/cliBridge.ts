@@ -5,7 +5,7 @@ import { Readable } from 'node:stream'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
-import { readGeminiKey, readGithubRepo, readGithubToken, readJiraBaseUrl, readJiraProjectKey } from './env.js'
+import { readGeminiFallbackModel, readGeminiKey, readGeminiModel, readGithubRepo, readGithubToken, readJiraBaseUrl, readJiraProjectKey } from './env.js'
 import { proxyHubZip } from './hubZip.js'
 import { createDocPR, createEditPR, EditError, listProposalPrs, parseCreateDocInput, parseEditDocInput } from './github.js'
 import {
@@ -15,7 +15,7 @@ import {
   updateSystemsFile,
   type StoredRequest,
 } from './systemsFile.js'
-import { askGemini, editGemini } from './gemini.js'
+import { askGemini, editGemini, geminiErrorBody } from './gemini.js'
 import {
   type AskInput,
   buildAskRequest,
@@ -305,7 +305,8 @@ export function cliBridge(): Plugin {
       // CLI가 없거나 실패할 때 쓰는 Gemini API 키 — 허브 폴더의 .env.local 에서 읽는다 (브라우저로는 보내지 않음)
       const env = loadEnv(server.config.mode, server.config.root, '')
       const geminiKey = readGeminiKey(env) || readGeminiKey()
-      const geminiModel = env.GEMINI_MODEL || process.env.GEMINI_MODEL
+      const geminiModel = readGeminiModel(env) || readGeminiModel()
+      const geminiFallbackModel = readGeminiFallbackModel(env) || readGeminiFallbackModel()
       // "새 문서" 기능(브랜치·PR 생성)이 쓸 토큰 — 없으면 그 버튼만 안내 메시지로 대체된다
       const githubToken = readGithubToken(env) || readGithubToken()
       // Jira 스케줄 확인 — 회사 내부 주소·프로젝트 키라 개인별 .env.local에서만 읽는다
@@ -462,6 +463,7 @@ export function cliBridge(): Plugin {
               reply = await askGemini(input, {
                 apiKey: geminiKey,
                 model: geminiModel,
+                fallbackModel: geminiFallbackModel,
                 knowledgeDir: KNOWLEDGE_DIR,
                 promptFile: PROMPT_FILE,
               })
@@ -478,7 +480,8 @@ export function cliBridge(): Plugin {
           } catch (err) {
             log.error(`[cli-bridge] ${(err as Error).message}`)
             res.statusCode = 502
-            res.end(JSON.stringify({ error: (err as Error).message }))
+            // 배포 api/ask.ts 와 같은 형태 — Gemini 오류면 분류 code 를 함께 준다
+            res.end(JSON.stringify(geminiErrorBody(err)))
           }
         })
       })
@@ -510,7 +513,12 @@ export function cliBridge(): Plugin {
             let reply: EditReply
             if (engine === 'gemini') {
               if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
-              reply = await editGemini(input, { apiKey: geminiKey, model: geminiModel, promptFile: EDIT_PROMPT_FILE })
+              reply = await editGemini(input, {
+                apiKey: geminiKey,
+                model: geminiModel,
+                fallbackModel: geminiFallbackModel,
+                promptFile: EDIT_PROMPT_FILE,
+              })
             } else {
               if (!(engine in EDIT)) throw new Error(`알 수 없는 엔진: ${engine}`)
               if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
@@ -521,7 +529,7 @@ export function cliBridge(): Plugin {
           } catch (err) {
             log.error(`[cli-bridge] edit ${(err as Error).message}`)
             res.statusCode = 502
-            res.end(JSON.stringify({ error: (err as Error).message }))
+            res.end(JSON.stringify(geminiErrorBody(err)))
           }
         })
       })

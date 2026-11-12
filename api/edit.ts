@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { requireUser } from '../server/auth.js'
-import { readGeminiKey } from '../server/env.js'
-import { editGemini } from '../server/gemini.js'
+import { readGeminiFallbackModel, readGeminiKey, readGeminiModel } from '../server/env.js'
+import { editGemini, geminiErrorBody } from '../server/gemini.js'
 import { parseEditInput, type EditInput } from '../server/knowledge.js'
 
 /**
@@ -33,9 +33,17 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    return Response.json(await editGemini(input, { apiKey, model: process.env.GEMINI_MODEL, promptFile: PROMPT_FILE }))
+    return Response.json(
+      await editGemini(input, {
+        apiKey,
+        model: readGeminiModel(),
+        fallbackModel: readGeminiFallbackModel(),
+        promptFile: PROMPT_FILE,
+      }),
+    )
   } catch (err) {
     console.error('[api/edit] gemini', err)
-    return error(502, (err as Error).message)
+    // 원문 API 오류는 로그에만 — 화면에는 분류된 문장과 code 를 준다
+    return Response.json(geminiErrorBody(err), { status: 502 })
   }
 }
