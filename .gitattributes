@@ -1,2 +1,16 @@
 *.bat text eol=crlf
 *.command text eol=lf
+
+# 로컬 허브 내려받기(GitHub zipball)에서 뺀다 — 실무자 PC의 설치·실행(npm install · npm run dev · start-hub --check)에 쓰지 않는 것만
+/.claude export-ignore
+/.github export-ignore
+/docs/plan export-ignore
+/docs/campaign-handoff-mapping.md export-ignore
+/screenshots export-ignore
+/vercel.json export-ignore
+/게시판_본문.txt export-ignore
+/중간과제.md export-ignore
+/발표템플릿.html export-ignore
+/제출문서_src.html export-ignore
+# 파일명에 공백이 있어 따옴표 대신 와일드카드로 잡는다 (index.html 은 남긴다)
+/마케팅*지식*허브*구축*.html export-ignore

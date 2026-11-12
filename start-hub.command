@@ -83,7 +83,10 @@ if [ "$CHECK" = 0 ]; then
 
   # 4. 바탕화면 바로가기 (macOS에는 .lnk가 없어 심볼릭 링크를 만든다)
   if [ -d "$HOME/Desktop" ] && [ ! -e "$SHORTCUT" ] && [ ! -L "$SHORTCUT" ]; then
-    if ln -s "$ROOT/start-hub.command" "$SHORTCUT"; then
+    # 내려받은 ZIP의 루트 실행기가 HUB_LAUNCHER 로 자기 경로를 넘기면 그걸 가리킨다 (격리 승인을 받은 파일과 같게)
+    TARGET="${HUB_LAUNCHER:-$ROOT/start-hub.command}"
+    [ -f "$TARGET" ] || TARGET="$ROOT/start-hub.command"
+    if ln -s "$TARGET" "$SHORTCUT"; then
       ok "[완료] 바탕화면에 '플랫폼 담당 지식 허브' 바로가기를 만들었습니다. 다음부터는 그걸 더블클릭하세요."
     fi
   fi

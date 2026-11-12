@@ -61,8 +61,10 @@ foreach ($name in $cli.Keys) {
 $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '플랫폼 담당 지식 허브.lnk'
 if (-not $Check -and -not (Test-Path $shortcut)) {
   $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
-  $link.TargetPath = Join-Path $root 'start-hub.bat'
-  $link.WorkingDirectory = $root
+  # 내려받은 ZIP의 루트 실행기가 HUB_LAUNCHER 로 자기 경로를 넘기면 그걸 가리킨다 (실무자가 직접 누른 파일과 같게)
+  $launcher = if ($env:HUB_LAUNCHER -and (Test-Path $env:HUB_LAUNCHER)) { $env:HUB_LAUNCHER } else { Join-Path $root 'start-hub.bat' }
+  $link.TargetPath = $launcher
+  $link.WorkingDirectory = Split-Path -Parent $launcher
   $link.Save()
   Write-Host "[완료] 바탕화면에 '플랫폼 담당 지식 허브' 바로가기를 만들었습니다. 다음부터는 그걸 더블클릭하세요." -ForegroundColor Green
 }
