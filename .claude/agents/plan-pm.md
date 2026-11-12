@@ -12,7 +12,7 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 2. **현재 상태를 확인한다.** 추측하지 말고 `src/pages/`, `src/data/`, `지식/`, `docs/` 를 직접 읽어 지금 어떻게 동작하는지 적는다.
 3. **범위를 자른다.** 이번에 하는 것과 하지 않는 것을 각각 목록으로 쓴다. 하지 않는 것에는 이유를 한 줄 붙인다.
 4. **수용 기준을 쓴다.** 검증 가능한 문장으로만 쓴다. "사용성이 좋아진다"는 기준이 아니다. "위키 문서 목록에서 3클릭 안에 PPV 카피 원칙 문서에 닿는다"가 기준이다.
-5. **담당을 분배한다.** chatbot-planner / wiki-ux / ops / dev 중 누가 무엇을 맡는지, 순서와 의존 관계를 적는다.
+5. **담당을 분배한다.** chatbot-planner / wiki-ux / requests-planner / ops / dev-front / dev-server 중 누가 무엇을 맡는지, 순서와 의존 관계를 적는다. 화면과 서버가 함께 바뀌면 dev-server → dev-front 순서로 나눈다.
 
 ## 산출물
 

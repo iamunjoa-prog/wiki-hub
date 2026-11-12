@@ -12,6 +12,8 @@ tools: Read, Grep, Glob, Bash, Write, Edit
 - **운영 데이터** — `src/data/btvSchedule.ts`, `src/data/bigBannerSchedule.ts`, `src/data/systems.ts`, `server/systemsFile.ts`, `server/jiraSchedule.ts`, `server/scheduleDigest.ts`.
 - **환경·배포** — `.env.example`, `server/env.ts`, `vercel.json`, `api/`, `scripts/`.
 
+`server/*.ts`·`api/` 는 **코드 로직은 dev-server, 데이터 값·환경값·배포 설정은 ops** 가 맡는다. 코드 수정이 필요하면 고치지 말고 보고 표 "확인 필요"에 적어 dev-server 로 넘긴다.
+
 ## 지키는 선
 
 - **이 저장소는 공개된다.** 매출 금액·제휴사 실명은 올리지 않는다. 인사이트는 수치 대신 경향으로 쓴다.

@@ -15,9 +15,11 @@
 | --- | --- | --- |
 | 기획 PM | `plan-pm` | 요구사항 정의·범위·수용 기준·담당 분배안 (`docs/plan/`) |
 | AI 챗봇 기획 | `chatbot-planner` | 어시스턴트 대화 규약, `server/assistant-prompt.md`, 근거 인용 |
-| 위키 UI/UX·사용성 | `wiki-ux` | 정보구조·네비게이션·화면 흐름, 프론트엔드 반영 |
+| 위키 UI/UX·사용성 기획 | `wiki-ux` | 정보구조·네비게이션·화면 흐름 설계안 (`docs/ux/`). 반영은 `dev-front` |
+| 요청·승인·계정 섹션 기획 | `requests-planner` | 내 요청·승인 관리·계정 관리·수정 제안·새 문서의 흐름·상태·권한·안내 문구 (`docs/sections/requests*`) |
 | 운영 | `ops` | 문서 최신성·일관성, 편성표·시스템 목록, 환경·배포 |
-| 개발 | `dev` | 구현·리팩터링·서버/API·빌드 검증·PR |
+| 프론트 개발 | `dev-front` | 화면 구현(`src/`)·리팩터링·화면 검증·PR |
+| 서버 개발 | `dev-server` | `server/`·`api/` 구현, `server/knowledge.ts` 공유 규칙, API 계약·빌드 검증·PR |
 
 ### PM 데스크가 지키는 절차
 
