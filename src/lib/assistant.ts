@@ -451,6 +451,8 @@ const FAILURE_CAUSE: Record<EngineFailureCode, [cause: string, action: FailureAc
   config: ['AI 엔진 연결 설정에 문제가 있어', 'admin'],
   invalid: ['AI 엔진 응답을 받지 못해', 'persist'],
   unknown: ['AI 엔진 응답을 받지 못해', 'persist'],
+  maintenance: ['허브 점검 중이라', 'retry'],
+  rate: ['요청이 잠깐 많아', 'retry'],
 }
 const ADMIN_ACTION: Record<Exclude<FailureAction, 'retry'>, string> = {
   persist: '계속되면 관리자에게 알려 주세요.',
@@ -492,6 +494,7 @@ function failureFromResponse(status: number, body: { error?: string; code?: stri
   if (status === 503 || status === 500) return new EngineFailureError('config', message)
   if (status === 401 || status === 403) return new EngineFailureError('auth', message)
   if (status === 504) return new EngineFailureError('timeout', message)
+  if (status === 429) return new EngineFailureError('rate', message)
   return new EngineFailureError('unknown', message)
 }
 
@@ -784,6 +787,23 @@ async function askEngine(
   }
 }
 
+/**
+ * 서버가 쓰는 만큼만 보낸다 — 최근 12턴, 뒤에서부터 합쳐 8,000자(server/knowledge.ts parseAskInput 과 같은 규칙).
+ * 긴 대화의 전체 이력을 보내면 요청 크기 상한(64KB)에 걸린다
+ */
+function recentHistory(history: ChatTurn[]): ChatTurn[] {
+  const kept: ChatTurn[] = []
+  let chars = 0
+  for (const turn of history.slice(-12).reverse()) {
+    const text = turn.text.trim()
+    if (!text) continue
+    chars += text.length
+    if (chars > 8000) break
+    kept.unshift(turn)
+  }
+  return kept
+}
+
 async function requestEngine(
   query: string,
   engine: Engine,
@@ -794,7 +814,7 @@ async function requestEngine(
   const res = await fetch('/api/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, engine, history }),
+    body: JSON.stringify({ query, engine, history: recentHistory(history) }),
     signal,
   })
   if (!res.ok) {

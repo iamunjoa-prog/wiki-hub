@@ -13,7 +13,9 @@ import {
   toPublic,
   verifyPassword,
 } from '../server/accounts.js'
-import { clearCookie, currentAccount, requireUser, sameOrigin, sessionCookie } from '../server/auth.js'
+import { clearCookie, currentAccount, requireUser, sessionCookie } from '../server/auth.js'
+import { guardApi } from '../server/guard.js'
+import { MAX_FORM_BYTES } from '../server/knowledge.js'
 
 /**
  * 허브 로그인 — GET은 지금 로그인한 계정, POST는 로그인·로그아웃·비밀번호 변경.
@@ -31,19 +33,15 @@ export async function GET(request: Request): Promise<Response> {
 
 export async function POST(request: Request): Promise<Response> {
   if (!accountsEnabled()) return error(404, '계정 기능이 꺼져 있습니다')
-  if (!sameOrigin(request)) return error(403, '허용되지 않은 요청입니다')
-
-  let body: Record<string, unknown>
-  try {
-    body = (await request.json()) as Record<string, unknown>
-  } catch {
-    return error(400, '요청 형식이 올바르지 않습니다')
-  }
+  // 로그인 요청 자체라 로그인 확인은 건너뛴다 — 비밀번호 변경은 changePassword 가 따로 본다
+  const guard = await guardApi(request, { user: false, maxBytes: MAX_FORM_BYTES })
+  if (!guard.ok) return guard.response
+  const body = (guard.body ?? {}) as Record<string, unknown>
 
   try {
     switch (body.action) {
       case 'login':
-        return await login(normalizeLoginId(body.loginId), String(body.password ?? ''))
+        return await login(normalizeLoginId(body.loginId), String(body.password ?? ''), guard.ip)
       case 'logout':
         return Response.json({ ok: true }, { headers: { 'Set-Cookie': clearCookie() } })
       case 'password':
@@ -57,9 +55,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 }
 
-async function login(loginId: string, password: string): Promise<Response> {
+async function login(loginId: string, password: string, ip: string): Promise<Response> {
   if (!loginId || !password) return error(400, '아이디와 비밀번호를 입력해 주세요')
-  if (await isLocked(loginId)) return error(429, '로그인에 여러 번 실패했습니다. 10분 뒤에 다시 시도해 주세요')
+  // 아이디 기준과 접속 IP 기준을 함께 본다 — 아이디를 바꿔 가며 맞춰 보는 것도 막는다
+  if (await isLocked(loginId, ip)) return error(429, '로그인에 여러 번 실패했습니다. 10분 뒤에 다시 시도해 주세요')
 
   let account = await getAccount(loginId)
   if (!account) account = await bootstrapAdmin(loginId, password)
@@ -67,7 +66,7 @@ async function login(loginId: string, password: string): Promise<Response> {
 
   // 없는 아이디와 틀린 비밀번호를 같은 문구로 답한다 — 어떤 아이디가 있는지 드러내지 않는다
   if (!account) {
-    await recordFailure(loginId)
+    await recordFailure(loginId, ip)
     return error(401, '아이디 또는 비밀번호가 맞지 않습니다')
   }
   if (account.disabled) return error(403, '사용이 중지된 계정입니다. 관리자에게 문의해 주세요')

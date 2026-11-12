@@ -30,6 +30,17 @@ export interface AskInput {
   history: ChatTurn[]
 }
 
+/**
+ * 요청 본문 바이트 상한 — 배포 함수와 로컬 중계가 같은 값으로 자른다(server/guard.ts).
+ * 글자 수 검사(MAX_QUERY 등)보다 앞에서 큰 본문을 읽기 전에 거절하려는 것이다. 한글은 UTF-8 한 글자가 3바이트다
+ */
+export const MAX_ASK_BYTES = 64 * 1024
+export const MAX_EDIT_BYTES = 512 * 1024
+/** 새 문서·수정 제안 PR — 본문 50,000자 상한(server/github.ts)을 한글로 채워도 들어가는 크기 */
+export const MAX_PR_BYTES = 512 * 1024
+/** 로그인·계정 관리·시스템 목록·CLI 로그인 창처럼 작은 양식 */
+export const MAX_FORM_BYTES = 16 * 1024
+
 const MAX_QUERY = 2000
 /** 이력이 길어지면 앞쪽을 버린다 — 조건 수집에 필요한 건 최근 대화다 */
 const MAX_HISTORY_TURNS = 12

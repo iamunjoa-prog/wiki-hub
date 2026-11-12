@@ -10,7 +10,8 @@ import {
   type Account,
   type AccountRole,
 } from '../server/accounts.js'
-import { requireUser, sameOrigin } from '../server/auth.js'
+import { guardApi } from '../server/guard.js'
+import { MAX_FORM_BYTES } from '../server/knowledge.js'
 
 /**
  * 계정 관리(관리자 전용) — GET 목록, POST 발급, PATCH 권한·중지·비밀번호 초기화.
@@ -21,18 +22,11 @@ const error = (status: number, message: string) => Response.json({ error: messag
 
 const readRole = (raw: unknown): AccountRole | null => (raw === 'admin' || raw === 'member' ? raw : null)
 
-async function guard(request: Request) {
-  if (!sameOrigin(request)) return { ok: false as const, response: error(403, '허용되지 않은 요청입니다') }
-  return requireUser(request, { admin: true })
-}
+/** 관리자만, 같은 출처만 — 쓰기(POST·PATCH)는 JSON 본문을 상한까지 읽어 함께 돌려준다 */
+const guard = (request: Request) => guardApi(request, { user: { admin: true }, maxBytes: MAX_FORM_BYTES })
 
-async function readBody(request: Request): Promise<Record<string, unknown> | null> {
-  try {
-    return (await request.json()) as Record<string, unknown>
-  } catch {
-    return null
-  }
-}
+const readBody = (body: unknown): Record<string, unknown> | null =>
+  body && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : null
 
 export async function GET(request: Request): Promise<Response> {
   const auth = await guard(request)
@@ -45,7 +39,7 @@ export async function POST(request: Request): Promise<Response> {
   const auth = await guard(request)
   if (!auth.ok) return auth.response
   if (!auth.account) return error(404, '계정 기능이 꺼져 있습니다')
-  const body = await readBody(request)
+  const body = readBody(auth.body)
   if (!body) return error(400, '요청 형식이 올바르지 않습니다')
 
   const loginId = normalizeLoginId(body.loginId)
@@ -75,7 +69,7 @@ export async function PATCH(request: Request): Promise<Response> {
   const auth = await guard(request)
   if (!auth.ok) return auth.response
   if (!auth.account) return error(404, '계정 기능이 꺼져 있습니다')
-  const body = await readBody(request)
+  const body = readBody(auth.body)
   if (!body) return error(400, '요청 형식이 올바르지 않습니다')
 
   const target = await getAccount(normalizeLoginId(body.loginId))

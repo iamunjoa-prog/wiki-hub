@@ -154,9 +154,21 @@ export type CliEngine = Exclude<Engine, 'gemini'>
 
 /**
  * 엔진 실패 분류 — 서버 502 의 `code` 와 같은 값. `config` 는 code 없이 온 503·500(키 미설정·배포 구성 누락)을
- * 화면에서 붙인 것이다. 안내 문구는 이 코드로 고르고 원문 사유는 화면에 두지 않는다.
+ * 화면에서 붙인 것이다. `maintenance`(운영 점검 503)·`rate`(호출 횟수 초과 429)는 서버 입구(server/guard.ts)가 준다.
+ * 안내 문구는 이 코드로 고르고 원문 사유는 화면에 두지 않는다.
  */
-export type EngineFailureCode = 'overloaded' | 'quota' | 'network' | 'timeout' | 'auth' | 'model' | 'invalid' | 'unknown' | 'config'
+export type EngineFailureCode =
+  | 'overloaded'
+  | 'quota'
+  | 'network'
+  | 'timeout'
+  | 'auth'
+  | 'model'
+  | 'invalid'
+  | 'unknown'
+  | 'config'
+  | 'maintenance'
+  | 'rate'
 
 export interface EngineFailure {
   engine: Engine
