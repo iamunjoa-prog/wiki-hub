@@ -3,6 +3,8 @@ import type {
   CampaignDraft,
   ChatMessage,
   Engine,
+  EngineFailure,
+  EngineFailureCode,
   IntentPrompt,
   ProductScope,
   PromotionBrief,
@@ -419,8 +421,10 @@ export interface AssistantReply {
   intent?: IntentPrompt
   /** 방향을 정한 턴에 함께 보여 주는 프로모션 뼈대 */
   brief?: PromotionBrief
-  /** 답을 만든 쪽 — 화면 하단 라벨로 보여준다 */
+  /** 답을 만든 쪽 — 화면 하단 라벨로 보여준다. 짧은 출처만 두고 실패 사유는 fallback 으로 */
   answeredBy?: string
+  /** 이 답 전에 실패한 엔진과 분류 코드 — 안내 문구·관리자 표시를 여기서 고른다 */
+  fallback?: EngineFailure[]
 }
 
 /** 이번 답변에 진행 확인을 붙일지. 이미 묻거나 답을 들은 대화에는 다시 붙이지 않는다. */
@@ -432,11 +436,68 @@ export function intentPromptFor(query: string, alreadyAsked: boolean): IntentPro
 
 export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
 
-/** 화면 라벨에 넣을 실패 사유 — 원문을 살리되 라벨이 넘치지 않게 자른다 */
-const shortReason = (message: string) => {
-  const one = message.replace(/\s+/g, ' ').trim()
-  return one.length > 140 ? `${one.slice(0, 137)}…` : one || '사유 없음'
+/** 엔진이 없거나 모두 실패해 규칙 기반으로 답했을 때의 출처 — 규칙 기반도 위키 문서를 검색해 만든 답이다 */
+export const RULE_BASED_LABEL = '규칙 기반 (문서 기준)'
+
+/** 실패 코드별 원인 구절과 할 일 — 대화창 안내와 AI 수정 오류가 같은 분류를 쓴다 */
+type FailureAction = 'retry' | 'persist' | 'admin'
+const FAILURE_CAUSE: Record<EngineFailureCode, [cause: string, action: FailureAction]> = {
+  overloaded: ['AI 엔진이 잠시 붐벼', 'retry'],
+  timeout: ['AI 엔진 응답이 늦어', 'retry'],
+  network: ['AI 엔진 연결이 끊겨', 'retry'],
+  quota: ['AI 엔진 사용 한도에 걸려', 'persist'],
+  auth: ['AI 엔진 연결 설정에 문제가 있어', 'admin'],
+  model: ['AI 엔진 연결 설정에 문제가 있어', 'admin'],
+  config: ['AI 엔진 연결 설정에 문제가 있어', 'admin'],
+  invalid: ['AI 엔진 응답을 받지 못해', 'persist'],
+  unknown: ['AI 엔진 응답을 받지 못해', 'persist'],
 }
+const ADMIN_ACTION: Record<Exclude<FailureAction, 'retry'>, string> = {
+  persist: '계속되면 관리자에게 알려 주세요.',
+  admin: '관리자에게 알려 주세요.',
+}
+
+/** 규칙 기반으로 떨어진 답 위에 붙는 한 줄 — 여러 엔진이 실패했으면 마지막(답 직전) 실패로 고른다 */
+export function fallbackNotice(fallback: EngineFailure[]): string {
+  const [cause, action] = FAILURE_CAUSE[fallback[fallback.length - 1].code]
+  return `${cause} 문서 기준 규칙 기반으로 답했습니다. ${action === 'retry' ? '잠시 후 다시 물어보세요.' : ADMIN_ACTION[action]}`
+}
+
+/** AI 수정 실패 문구 — 수정은 규칙 기반 대체가 없어 "하지 못했습니다"로 끝난다 */
+function editFailureText(code: EngineFailureCode): string {
+  const [cause, action] = FAILURE_CAUSE[code]
+  return `${cause} 수정하지 못했습니다. ${action === 'retry' ? '잠시 후 다시 시도해 주세요.' : ADMIN_ACTION[action]}`
+}
+
+/** 관리자 출처 줄 끝에 붙는 엔진·코드 — 키·모델·할당량 중 어디부터 볼지 정하는 데만 쓴다 */
+export const fallbackCodes = (fallback: EngineFailure[]) =>
+  fallback.map((f) => `${ENGINE_LABEL[f.engine]} ${f.code}`).join(' · ')
+
+const FAILURE_CODES = new Set<string>(Object.keys(FAILURE_CAUSE))
+
+/** 분류 코드를 실은 엔진 실패 — message 는 원문 사유라 console 에만 남긴다 */
+class EngineFailureError extends Error {
+  readonly code: EngineFailureCode
+  constructor(code: EngineFailureCode, message: string) {
+    super(message)
+    this.code = code
+  }
+}
+
+/** 실패 응답을 분류한다. 서버가 code 를 주면 그대로, 없으면 HTTP 상태로 가른다 */
+function failureFromResponse(status: number, body: { error?: string; code?: string } | null): EngineFailureError {
+  const message = body?.error ? `${body.error} (HTTP ${status})` : `HTTP ${status}`
+  if (body?.code && FAILURE_CODES.has(body.code)) return new EngineFailureError(body.code as EngineFailureCode, message)
+  // code 없는 503·500 은 키 미설정·배포 구성 누락이다 — 사람이 손대야 풀리므로 설정 문구로 묶는다
+  if (status === 503 || status === 500) return new EngineFailureError('config', message)
+  if (status === 401 || status === 403) return new EngineFailureError('auth', message)
+  if (status === 504) return new EngineFailureError('timeout', message)
+  return new EngineFailureError('unknown', message)
+}
+
+/** 던져진 오류를 코드로 — fetch 자체가 실패하면(TypeError) 연결 끊김이다 */
+const failureCode = (err: unknown): EngineFailureCode =>
+  err instanceof EngineFailureError ? err.code : err instanceof TypeError ? 'network' : 'unknown'
 
 /** 자동 선택 순서 — CLI가 있으면 CLI, 없으면 Gemini API */
 export const ENGINE_PRIORITY: Engine[] = ['claude', 'codex', 'gemini']
@@ -715,8 +776,8 @@ async function askEngine(
   try {
     return await requestEngine(query, engine, history, intentAsked, ctrl.signal)
   } catch (err) {
-    // 중단 사유를 라벨에 남긴다 — 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다
-    if (ctrl.signal.aborted) throw new Error(`${limit / 1000}초 안에 응답이 없어 중단했습니다 (시간 초과)`)
+    // 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다 — 시간 초과로 분류해 넘긴다
+    if (ctrl.signal.aborted) throw new EngineFailureError('timeout', `${limit / 1000}초 안에 응답이 없어 중단했습니다`)
     throw err
   } finally {
     clearTimeout(timer)
@@ -737,10 +798,9 @@ async function requestEngine(
     signal,
   })
   if (!res.ok) {
-    // 서버는 실패 사유를 { error } 로 돌려준다. 상태 코드만 들고 올라가면 화면에는
-    // "응답 실패" 네 글자만 남아서, 키 문제인지 모델명 문제인지 끝까지 알 수 없다.
-    const body = (await res.json().catch(() => null)) as { error?: string } | null
-    throw new Error(body?.error ? `${body.error} (HTTP ${res.status})` : `HTTP ${res.status}`)
+    // 서버는 실패를 { error, code } 로 돌려준다. 화면은 code 로 안내를 고르고 error 는 console 에만 둔다
+    const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
+    throw failureFromResponse(res.status, body)
   }
   const data = (await res.json()) as { text: string; sourcePaths: string[] }
 
@@ -776,21 +836,24 @@ export async function askAssistant(
     return { ...reply, intent: next, brief: reply.brief ?? readBrief(turns) }
   }
 
-  const failed: string[] = []
+  const failed: EngineFailure[] = []
   for (const engine of engines) {
     try {
       const reply = await askEngine(query, engine, history, intentAsked)
-      return withNextStep(
-        failed.length ? { ...reply, answeredBy: `${reply.answeredBy} (${failed.join(' · ')})` } : reply,
-      )
+      if (!failed.length) return withNextStep(reply)
+      // 답은 정상이다 — 앞선 실패는 엔진 이름만 남기고 사유는 console 에 둔다
+      const names = failed.map((f) => ENGINE_LABEL[f.engine]).join('·')
+      return withNextStep({ ...reply, answeredBy: `${reply.answeredBy} (${names} 응답 실패)`, fallback: failed })
     } catch (err) {
-      console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패:`, (err as Error).message)
-      failed.push(`${ENGINE_LABEL[engine]}: ${shortReason((err as Error).message)}`)
+      const code = failureCode(err)
+      console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패 (${code}):`, (err as Error).message)
+      failed.push({ engine, code })
     }
   }
   return withNextStep({
     ...answer(query, history, intentAsked),
-    answeredBy: failed.length ? `규칙 기반 (${failed.join(' · ')})` : '규칙 기반',
+    answeredBy: RULE_BASED_LABEL,
+    fallback: failed.length ? failed : undefined,
   })
 }
 
@@ -813,7 +876,7 @@ export async function requestAiEdit(
 ): Promise<AiEditResult> {
   if (engines.length === 0) throw new Error('쓸 수 있는 AI 엔진이 없습니다')
   const failed: string[] = []
-  let lastError = ''
+  let lastCode: EngineFailureCode = 'unknown'
   for (const engine of engines) {
     try {
       const res = await fetch('/api/edit', {
@@ -821,8 +884,9 @@ export async function requestAiEdit(
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ engine, title: doc.title, code: doc.code, path: doc.path, body, instruction }),
       })
-      const data = (await res.json().catch(() => ({}))) as { body?: string; summary?: string; error?: string }
-      if (!res.ok || typeof data.body !== 'string') throw new Error(data.error || `HTTP ${res.status}`)
+      const data = (await res.json().catch(() => ({}))) as { body?: string; summary?: string; error?: string; code?: string }
+      if (!res.ok) throw failureFromResponse(res.status, data)
+      if (typeof data.body !== 'string') throw new EngineFailureError('invalid', data.error || '본문 없는 응답')
       const label = ENGINE_LABEL[engine]
       return {
         body: data.body,
@@ -830,12 +894,13 @@ export async function requestAiEdit(
         by: failed.length ? `${label} (${failed.join('·')} 실패)` : label,
       }
     } catch (err) {
-      lastError = (err as Error).message
-      console.info(`[ai-edit] ${ENGINE_LABEL[engine]} 실패:`, lastError)
+      lastCode = failureCode(err)
+      console.info(`[ai-edit] ${ENGINE_LABEL[engine]} 실패 (${lastCode}):`, (err as Error).message)
       failed.push(ENGINE_LABEL[engine])
     }
   }
-  throw new Error(`AI 수정에 실패했습니다 — ${lastError}`)
+  // 원문 사유는 위 console 에만 — 화면에는 분류된 한 줄만 보인다
+  throw new Error(editFailureText(lastCode))
 }
 
 export function makeMessage(role: ChatMessage['role'], text: string, extra?: Partial<ChatMessage>): ChatMessage {

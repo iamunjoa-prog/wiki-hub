@@ -152,6 +152,17 @@ export type Engine = 'claude' | 'codex' | 'gemini'
 /** 로그인·설치가 필요한 로컬 CLI 엔진 (Gemini는 서버의 API 키로 동작) */
 export type CliEngine = Exclude<Engine, 'gemini'>
 
+/**
+ * 엔진 실패 분류 — 서버 502 의 `code` 와 같은 값. `config` 는 code 없이 온 503·500(키 미설정·배포 구성 누락)을
+ * 화면에서 붙인 것이다. 안내 문구는 이 코드로 고르고 원문 사유는 화면에 두지 않는다.
+ */
+export type EngineFailureCode = 'overloaded' | 'quota' | 'network' | 'timeout' | 'auth' | 'model' | 'invalid' | 'unknown' | 'config'
+
+export interface EngineFailure {
+  engine: Engine
+  code: EngineFailureCode
+}
+
 export interface EngineStatus {
   installed: boolean
   loggedIn: boolean
@@ -170,6 +181,8 @@ export interface ChatMessage {
   /** 확인에 이미 답했으면 그 답 (버튼 대신 선택한 값을 보여준다) */
   intentAnswer?: string
   answeredBy?: string
+  /** 이 답 전에 실패한 엔진들 — 없던 시절 메시지는 answeredBy 만 있으므로 비어 있어도 그린다 */
+  fallback?: EngineFailure[]
 }
 
 /** 시스템 메뉴의 구분 — 편성 관련 / 마케팅 관련 */
