@@ -1,4 +1,5 @@
 import { spawn, spawnSync } from 'node:child_process'
+import type { IncomingMessage, ServerResponse } from 'node:http'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { Readable } from 'node:stream'
@@ -15,6 +16,14 @@ import {
   readJiraBaseUrl,
   readJiraProjectKey,
 } from './env.js'
+import {
+  bodyHeaderProblem,
+  LOCAL_HUB_ORIGINS,
+  readOriginProblem,
+  TOO_LARGE,
+  writeOriginProblem,
+  type Rejection,
+} from './guard.js'
 import { parseHubAccount, proxyHubZip } from './hubZip.js'
 import { createDocPR, createEditPR, EditError, listProposalPrs, parseCreateDocInput, parseEditDocInput } from './github.js'
 import {
@@ -33,6 +42,10 @@ import {
   checkEditReply,
   EDIT_SCHEMA,
   checkAskReply,
+  MAX_ASK_BYTES,
+  MAX_EDIT_BYTES,
+  MAX_FORM_BYTES,
+  MAX_PR_BYTES,
   parseAskInput,
   parseEditInput,
   REPLY_SCHEMA,
@@ -326,6 +339,58 @@ async function askJiraSchedule(baseUrl: string, projectKey: string): Promise<Jir
   )) as JiraScheduleReply
 }
 
+/* ── 요청 입구 — 배포 api/ 와 같은 판정 함수(server/guard.ts)를 쓴다 ── */
+
+const isLocalHub = (url: URL) => LOCAL_HUB_ORIGINS.includes(url.origin)
+
+const headerOf = (req: IncomingMessage, name: string): string | undefined => {
+  const v = req.headers[name]
+  return Array.isArray(v) ? v[0] : v
+}
+
+function sendRejection(res: ServerResponse, r: Rejection): void {
+  res.statusCode = r.status
+  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+  res.end(JSON.stringify(r.code ? { error: r.error, code: r.code } : { error: r.error }))
+}
+
+/**
+ * 허브를 켠 채 다른 사이트를 열면 그 페이지가 localhost 로 text/plain POST 를 보낼 수 있다 — 출처는 허브 화면(5173)만,
+ * 형식은 JSON 만 받고 본문은 상한까지만 읽는다. 통과하면 본문 문자열, 막았으면 응답을 쓰고 null
+ */
+function readGuardedBody(req: IncomingMessage, res: ServerResponse, maxBytes: number): Promise<string | null> {
+  const problem =
+    writeOriginProblem(headerOf(req, 'origin'), headerOf(req, 'referer'), isLocalHub) ??
+    bodyHeaderProblem(headerOf(req, 'content-type'), headerOf(req, 'content-length'), maxBytes)
+  if (problem) {
+    req.resume()
+    sendRejection(res, problem)
+    return Promise.resolve(null)
+  }
+  return new Promise((done) => {
+    // 조각을 Buffer 로 모아 한 번에 푼다 — 문자열로 이어 붙이면 한글이 조각 경계에서 깨진다
+    const chunks: Buffer[] = []
+    let size = 0
+    req.on('data', (c: Buffer) => {
+      size += c.length
+      if (size <= maxBytes) chunks.push(c)
+    })
+    req.on('end', () => {
+      if (size <= maxBytes) return done(Buffer.concat(chunks).toString('utf8'))
+      sendRejection(res, TOO_LARGE)
+      done(null)
+    })
+    req.on('error', () => done(null))
+  })
+}
+
+/** 읽기 요청 — 다른 사이트가 링크·이미지로 불러 CLI·토큰을 쓰게 하지 못하게 한다. 막았으면 응답을 쓰고 true */
+function blockedRead(req: IncomingMessage, res: ServerResponse): boolean {
+  const problem = readOriginProblem(headerOf(req, 'origin'), headerOf(req, 'sec-fetch-site'), isLocalHub)
+  if (problem) sendRejection(res, problem)
+  return Boolean(problem)
+}
+
 export function cliBridge(): Plugin {
   return {
     name: 'cli-bridge',
@@ -361,9 +426,10 @@ export function cliBridge(): Plugin {
         `[cli-bridge] 시스템 목록 ${systemsShared ? '공유' : '이 PC에만'} 저장 · ${systemsPath}`,
       )
 
-      server.middlewares.use('/api/systems', (req, res) => {
-        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+      server.middlewares.use('/api/systems', async (req, res) => {
         if (req.method === 'GET') {
+          if (blockedRead(req, res)) return
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
           res.end(JSON.stringify({ ...readSystemsFile(systemsPath), shared: systemsShared }))
           return
         }
@@ -372,52 +438,52 @@ export function cliBridge(): Plugin {
           res.end()
           return
         }
-        let body = ''
-        req.on('data', (c) => (body += c))
-        req.on('end', () => {
-          try {
-            const action = JSON.parse(body || '{}') as
-              | { kind: 'request'; request: StoredRequest }
-              | { kind: 'decide'; id: string; decision: 'approved' | 'rejected'; reason?: string }
-            const next = updateSystemsFile(systemsPath, (data) => {
-              if (action.kind === 'request') {
-                return { ...data, requests: [action.request, ...data.requests] }
-              }
-              const target = data.requests.find((r) => r.id === action.id)
-              const requests = data.requests.map((r) =>
-                r.id === action.id ? { ...r, status: action.decision, rejectReason: action.reason } : r,
-              )
-              if (!target || action.decision !== 'approved') return { ...data, requests }
-              // 승인된 요청만 목록에 반영한다 — 주소만 채우는 요청과 새 시스템을 나눠 담는다
-              if (target.targetSystemId) {
-                return { ...data, requests, urls: { ...data.urls, [target.targetSystemId]: target.url } }
-              }
-              return {
-                ...data,
-                requests,
-                added: [
-                  ...data.added,
-                  {
-                    id: target.id,
-                    name: target.name,
-                    desc: target.desc,
-                    url: target.url || undefined,
-                    access: target.access,
-                    group: target.group,
-                  },
-                ],
-              }
-            })
-            res.end(JSON.stringify({ ...next, shared: systemsShared }))
-          } catch (err) {
-            log.error(`[cli-bridge] 시스템 목록 저장 실패 — ${(err as Error).message}`)
-            res.statusCode = 500
-            res.end(JSON.stringify({ error: (err as Error).message }))
-          }
-        })
+        const body = await readGuardedBody(req, res, MAX_FORM_BYTES)
+        if (body === null) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        try {
+          const action = JSON.parse(body || '{}') as
+            | { kind: 'request'; request: StoredRequest }
+            | { kind: 'decide'; id: string; decision: 'approved' | 'rejected'; reason?: string }
+          const next = updateSystemsFile(systemsPath, (data) => {
+            if (action.kind === 'request') {
+              return { ...data, requests: [action.request, ...data.requests] }
+            }
+            const target = data.requests.find((r) => r.id === action.id)
+            const requests = data.requests.map((r) =>
+              r.id === action.id ? { ...r, status: action.decision, rejectReason: action.reason } : r,
+            )
+            if (!target || action.decision !== 'approved') return { ...data, requests }
+            // 승인된 요청만 목록에 반영한다 — 주소만 채우는 요청과 새 시스템을 나눠 담는다
+            if (target.targetSystemId) {
+              return { ...data, requests, urls: { ...data.urls, [target.targetSystemId]: target.url } }
+            }
+            return {
+              ...data,
+              requests,
+              added: [
+                ...data.added,
+                {
+                  id: target.id,
+                  name: target.name,
+                  desc: target.desc,
+                  url: target.url || undefined,
+                  access: target.access,
+                  group: target.group,
+                },
+              ],
+            }
+          })
+          res.end(JSON.stringify({ ...next, shared: systemsShared }))
+        } catch (err) {
+          log.error(`[cli-bridge] 시스템 목록 저장 실패 — ${(err as Error).message}`)
+          res.statusCode = 500
+          res.end(JSON.stringify({ error: (err as Error).message }))
+        }
       })
 
-      server.middlewares.use('/api/engines', async (_req, res) => {
+      server.middlewares.use('/api/engines', async (req, res) => {
+        if (blockedRead(req, res)) return
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         const status = await getEngineStatus()
         for (const e of ENGINES) installed[e] = status[e].installed
@@ -432,6 +498,7 @@ export function cliBridge(): Plugin {
           res.end()
           return
         }
+        if (blockedRead(req, res)) return
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         try {
           if (!installed.claude) throw new Error('claude CLI가 설치되어 있지 않습니다')
@@ -451,118 +518,117 @@ export function cliBridge(): Plugin {
         }
       })
 
-      server.middlewares.use('/api/login', (req, res) => {
+      server.middlewares.use('/api/login', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end()
           return
         }
-        let body = ''
-        req.on('data', (c) => (body += c))
-        req.on('end', () => {
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          const { engine } = JSON.parse(body || '{}') as { engine?: Engine }
-          if (!engine || !ENGINES.includes(engine) || !installed[engine]) {
-            res.statusCode = 400
-            res.end(JSON.stringify({ error: '설치된 CLI가 아닙니다' }))
-            return
-          }
-          const opened = openLoginTerminal(engine)
-          log.info(`[cli-bridge] ${engine} 로그인 창 ${opened ? '열림' : '열 수 없음'}`)
-          res.end(JSON.stringify({ opened, command: LOGIN_ARGS[engine].join(' ') }))
-        })
+        const body = await readGuardedBody(req, res, MAX_FORM_BYTES)
+        if (body === null) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        let engine: Engine | undefined
+        try {
+          engine = (JSON.parse(body || '{}') as { engine?: Engine }).engine
+        } catch {
+          engine = undefined
+        }
+        if (!engine || !ENGINES.includes(engine) || !installed[engine]) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ error: '설치된 CLI가 아닙니다' }))
+          return
+        }
+        const opened = openLoginTerminal(engine)
+        log.info(`[cli-bridge] ${engine} 로그인 창 ${opened ? '열림' : '열 수 없음'}`)
+        res.end(JSON.stringify({ opened, command: LOGIN_ARGS[engine].join(' ') }))
       })
 
-      server.middlewares.use('/api/ask', (req, res) => {
+      server.middlewares.use('/api/ask', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end()
           return
         }
-        let body = ''
-        req.on('data', (c) => (body += c))
-        req.on('end', async () => {
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          try {
-            const raw = JSON.parse(body) as { engine?: Engine | 'gemini' }
-            const engine = raw.engine ?? 'claude'
-            const input = parseAskInput(raw)
-            const started = Date.now()
-            let reply: CliReply
-            if (engine === 'gemini') {
-              if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
-              reply = await askGemini(input, {
-                apiKey: geminiKey,
-                model: geminiModel,
-                fallbackModel: geminiFallbackModel,
-                knowledgeDir: KNOWLEDGE_DIR,
-                promptFile: PROMPT_FILE,
-              })
-            } else {
-              if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)
-              if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
-              reply = await ASK[engine](input)
-            }
-            log.info(
-              `[cli-bridge] ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.query}` +
-                (input.history.length ? ` (이력 ${input.history.length}턴)` : ''),
-            )
-            res.end(JSON.stringify(reply))
-          } catch (err) {
-            log.error(`[cli-bridge] ${(err as Error).message}`)
-            res.statusCode = 502
-            // 배포 api/ask.ts 와 같은 형태 — Gemini 오류면 분류 code 를 함께 준다
-            res.end(JSON.stringify(geminiErrorBody(err)))
+        const body = await readGuardedBody(req, res, MAX_ASK_BYTES)
+        if (body === null) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        try {
+          const raw = JSON.parse(body) as { engine?: Engine | 'gemini' }
+          const engine = raw.engine ?? 'claude'
+          const input = parseAskInput(raw)
+          const started = Date.now()
+          let reply: CliReply
+          if (engine === 'gemini') {
+            if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
+            reply = await askGemini(input, {
+              apiKey: geminiKey,
+              model: geminiModel,
+              fallbackModel: geminiFallbackModel,
+              knowledgeDir: KNOWLEDGE_DIR,
+              promptFile: PROMPT_FILE,
+            })
+          } else {
+            if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)
+            if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
+            reply = await ASK[engine](input)
           }
-        })
+          log.info(
+            `[cli-bridge] ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.query}` +
+              (input.history.length ? ` (이력 ${input.history.length}턴)` : ''),
+          )
+          res.end(JSON.stringify(reply))
+        } catch (err) {
+          log.error(`[cli-bridge] ${(err as Error).message}`)
+          res.statusCode = 502
+          // 배포 api/ask.ts 와 같은 형태 — Gemini 오류면 분류 code 를 함께 준다
+          res.end(JSON.stringify(geminiErrorBody(err)))
+        }
       })
 
       // 수정 제안 화면의 "AI로 수정" — 고친 본문을 돌려줄 뿐 파일에는 쓰지 않는다 (반영은 승인 흐름으로)
-      server.middlewares.use('/api/edit', (req, res) => {
+      server.middlewares.use('/api/edit', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end()
           return
         }
-        let body = ''
-        req.on('data', (c) => (body += c))
-        req.on('end', async () => {
-          res.setHeader('Content-Type', 'application/json; charset=utf-8')
-          let engine: Engine | 'gemini'
-          let input: EditInput
-          try {
-            const raw = JSON.parse(body || '{}') as { engine?: Engine | 'gemini' }
-            engine = raw.engine ?? 'claude'
-            input = parseEditInput(raw)
-          } catch (err) {
-            res.statusCode = 400
-            res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
-            return
+        const body = await readGuardedBody(req, res, MAX_EDIT_BYTES)
+        if (body === null) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        let engine: Engine | 'gemini'
+        let input: EditInput
+        try {
+          const raw = JSON.parse(body || '{}') as { engine?: Engine | 'gemini' }
+          engine = raw.engine ?? 'claude'
+          input = parseEditInput(raw)
+        } catch (err) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+          return
+        }
+        try {
+          const started = Date.now()
+          let reply: EditReply
+          if (engine === 'gemini') {
+            if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
+            reply = await editGemini(input, {
+              apiKey: geminiKey,
+              model: geminiModel,
+              fallbackModel: geminiFallbackModel,
+              promptFile: EDIT_PROMPT_FILE,
+            })
+          } else {
+            if (!(engine in EDIT)) throw new Error(`알 수 없는 엔진: ${engine}`)
+            if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
+            reply = await EDIT[engine](input)
           }
-          try {
-            const started = Date.now()
-            let reply: EditReply
-            if (engine === 'gemini') {
-              if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
-              reply = await editGemini(input, {
-                apiKey: geminiKey,
-                model: geminiModel,
-                fallbackModel: geminiFallbackModel,
-                promptFile: EDIT_PROMPT_FILE,
-              })
-            } else {
-              if (!(engine in EDIT)) throw new Error(`알 수 없는 엔진: ${engine}`)
-              if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
-              reply = await EDIT[engine](input)
-            }
-            log.info(`[cli-bridge] edit ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.code} · ${input.instruction}`)
-            res.end(JSON.stringify(reply))
-          } catch (err) {
-            log.error(`[cli-bridge] edit ${(err as Error).message}`)
-            res.statusCode = 502
-            res.end(JSON.stringify(geminiErrorBody(err)))
-          }
-        })
+          log.info(`[cli-bridge] edit ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.code} · ${input.instruction}`)
+          res.end(JSON.stringify(reply))
+        } catch (err) {
+          log.error(`[cli-bridge] edit ${(err as Error).message}`)
+          res.statusCode = 502
+          res.end(JSON.stringify(geminiErrorBody(err)))
+        }
       })
 
       // 로컬 허브 내려받기 — 배포의 api/download-hub.ts 와 같은 중계 (화면 버튼은 배포 허브에만 뜨지만 404 경로를 남기지 않는다)
@@ -572,6 +638,7 @@ export function cliBridge(): Plugin {
           res.end()
           return
         }
+        if (blockedRead(req, res)) return
         // 배포와 같은 쿼리 계약 — ?account=claude|codex|both 면 ZIP에 계정 선택 파일을 넣는다
         const account = new URL(req.url ?? '/', 'http://localhost').searchParams.get('account')
         const upstream = await proxyHubZip(githubToken, readGithubRepo({ ...process.env, ...env }), parseHubAccount(account))
@@ -585,61 +652,57 @@ export function cliBridge(): Plugin {
       })
 
       // 위키 문서 목록의 "+ 새 문서" — GitHub API로 브랜치·PR을 만든다 (로컬도 배포와 같은 경로)
-      server.middlewares.use('/api/createDoc', (req, res) => {
+      server.middlewares.use('/api/createDoc', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end()
           return
         }
+        const body = await readGuardedBody(req, res, MAX_PR_BYTES)
+        if (body === null) return
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         if (!githubToken) {
           res.statusCode = 503
           res.end(JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았습니다 (.env.local)' }))
           return
         }
-        let body = ''
-        req.on('data', (c) => (body += c))
-        req.on('end', async () => {
-          try {
-            const input = parseCreateDocInput(JSON.parse(body || '{}'))
-            const result = await createDocPR(input, { token: githubToken })
-            log.info(`[cli-bridge] createDoc ${result.code} · ${input.title} · ${input.requestedBy}`)
-            res.end(JSON.stringify(result))
-          } catch (err) {
-            log.error(`[cli-bridge] createDoc ${(err as Error).message}`)
-            res.statusCode = err instanceof SyntaxError ? 400 : 502
-            res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
-          }
-        })
+        try {
+          const input = parseCreateDocInput(JSON.parse(body || '{}'))
+          const result = await createDocPR(input, { token: githubToken })
+          log.info(`[cli-bridge] createDoc ${result.code} · ${input.title} · ${input.requestedBy}`)
+          res.end(JSON.stringify(result))
+        } catch (err) {
+          log.error(`[cli-bridge] createDoc ${(err as Error).message}`)
+          res.statusCode = err instanceof SyntaxError ? 400 : 502
+          res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+        }
       })
 
       // 위키 문서의 "✎ 수정 제안" — 기존 파일을 고치는 PR (로컬도 배포와 같은 경로)
-      server.middlewares.use('/api/proposeEdit', (req, res) => {
+      server.middlewares.use('/api/proposeEdit', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
           res.end()
           return
         }
+        const body = await readGuardedBody(req, res, MAX_PR_BYTES)
+        if (body === null) return
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         if (!githubToken) {
           res.statusCode = 503
           res.end(JSON.stringify({ error: 'GITHUB_TOKEN이 설정되지 않았습니다 (.env.local)' }))
           return
         }
-        let body = ''
-        req.on('data', (c) => (body += c))
-        req.on('end', async () => {
-          try {
-            const input = parseEditDocInput(JSON.parse(body || '{}'))
-            const result = await createEditPR(input, { token: githubToken, env: { ...process.env, ...env } })
-            log.info(`[cli-bridge] proposeEdit ${input.code} · ${input.title} · ${input.requestedBy} · PR #${result.prNumber}`)
-            res.end(JSON.stringify(result))
-          } catch (err) {
-            log.error(`[cli-bridge] proposeEdit ${(err as Error).message}`)
-            res.statusCode = err instanceof SyntaxError ? 400 : err instanceof EditError ? err.status : 502
-            res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
-          }
-        })
+        try {
+          const input = parseEditDocInput(JSON.parse(body || '{}'))
+          const result = await createEditPR(input, { token: githubToken, env: { ...process.env, ...env } })
+          log.info(`[cli-bridge] proposeEdit ${input.code} · ${input.title} · ${input.requestedBy} · PR #${result.prNumber}`)
+          res.end(JSON.stringify(result))
+        } catch (err) {
+          log.error(`[cli-bridge] proposeEdit ${(err as Error).message}`)
+          res.statusCode = err instanceof SyntaxError ? 400 : err instanceof EditError ? err.status : 502
+          res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+        }
       })
 
       // 문서 제안 목록 — GitHub PR 에서 읽는다
@@ -649,6 +712,7 @@ export function cliBridge(): Plugin {
           res.end()
           return
         }
+        if (blockedRead(req, res)) return
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
         if (!githubToken) {
           res.statusCode = 503

@@ -1,9 +1,9 @@
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { requireUser } from '../server/auth.js'
+import { guardApi, RATE_ASK } from '../server/guard.js'
 import { readGeminiFallbackModel, readGeminiKey, readGeminiModel } from '../server/env.js'
 import { askGemini, geminiErrorBody } from '../server/gemini.js'
-import { buildDocsBlock, parseAskInput, type AskInput } from '../server/knowledge.js'
+import { buildDocsBlock, MAX_ASK_BYTES, parseAskInput, type AskInput } from '../server/knowledge.js'
 
 /**
  * 배포 허브(Vercel)의 챗봇 답변 — CLI가 없으므로 Gemini API로 답한다.
@@ -29,20 +29,16 @@ export function GET(): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  // 다른 사이트의 페이지가 이 함수를 불러 API 키를 쓰지 못하게 — 출처·형식·크기·로그인·호출 횟수를 입구에서 본다
+  const guard = await guardApi(request, { paid: true, maxBytes: MAX_ASK_BYTES, rate: RATE_ASK })
+  if (!guard.ok) return guard.response
+
   const apiKey = readGeminiKey()
   if (!apiKey) return error(503, 'GEMINI_API_KEY가 설정되지 않았습니다')
 
-  // 다른 사이트의 페이지가 이 함수를 불러 API 키를 쓰지 못하게, 브라우저 요청은 같은 출처만 받는다
-  const origin = request.headers.get('origin')
-  if (origin && new URL(origin).host !== new URL(request.url).host) return error(403, '허용되지 않은 요청입니다')
-
-  // 계정 기능이 켜진 배포면 로그인한 담당자만 쓴다
-  const auth = await requireUser(request)
-  if (!auth.ok) return auth.response
-
   let input: AskInput
   try {
-    input = parseAskInput(await request.json())
+    input = parseAskInput(guard.body)
   } catch (err) {
     return error(400, (err as Error).message || '요청 형식이 올바르지 않습니다')
   }

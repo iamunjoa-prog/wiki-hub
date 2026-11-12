@@ -126,20 +126,36 @@ export function tempPassword(): string {
 
 const MAX_FAILURES = 5
 const LOCK_SECONDS = 10 * 60
+// 아이디를 바꿔 가며 비밀번호를 맞춰 보는 것을 막는다 — 한 사무실이 같은 IP 를 쓰므로 아이디 기준보다 넉넉하게 둔다
+const MAX_IP_FAILURES = 30
 const failKey = (loginId: string) => `hub:login-fail:${loginId}`
+const ipFailKey = (ip: string) => `hub:login-fail-ip:${ip}`
 
-export async function isLocked(loginId: string): Promise<boolean> {
-  const n = Number(await redis<string | null>(['GET', failKey(loginId)]))
-  return n >= MAX_FAILURES
+export async function isLocked(loginId: string, ip: string): Promise<boolean> {
+  const [byId, byIp] = await redis<(string | null)[]>(['MGET', failKey(loginId), ipFailKey(ip)])
+  return Number(byId) >= MAX_FAILURES || Number(byIp) >= MAX_IP_FAILURES
 }
 
-export async function recordFailure(loginId: string): Promise<void> {
-  const n = await redis<number>(['INCR', failKey(loginId)])
-  if (n === 1) await redis(['EXPIRE', failKey(loginId), LOCK_SECONDS])
+export async function recordFailure(loginId: string, ip: string): Promise<void> {
+  await countHit(failKey(loginId), LOCK_SECONDS)
+  await countHit(ipFailKey(ip), LOCK_SECONDS)
 }
 
+/** 로그인에 성공하면 아이디 기준만 푼다 — IP 기준까지 풀면 아는 계정 하나로 잠금을 계속 되돌릴 수 있다 */
 export async function clearFailures(loginId: string): Promise<void> {
   await redis(['DEL', failKey(loginId)])
+}
+
+/* ── 호출 횟수 제한 ─────────────────────────────────────── */
+
+/** 저장소가 연결됐는지 — 호출 횟수 제한은 저장소가 있을 때만 건다(server/guard.ts) */
+export const storeConnected = (env: Env = process.env) => Boolean(readRedis(env))
+
+/** 키의 횟수를 하나 올리고 올린 뒤 값을 돌려준다. 처음 올릴 때 창 길이만큼 만료를 건다 */
+export async function countHit(key: string, windowSeconds: number): Promise<number> {
+  const n = await redis<number>(['INCR', key])
+  if (n === 1) await redis(['EXPIRE', key, windowSeconds])
+  return n
 }
 
 /**

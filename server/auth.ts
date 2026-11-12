@@ -74,9 +74,3 @@ export async function requireUser(
   if (opts.admin && account.role !== 'admin') return deny(403, '관리자만 할 수 있습니다')
   return { ok: true, account }
 }
-
-/** 다른 사이트의 페이지가 로그인 쿠키를 실어 이 API를 부르지 못하게, 브라우저 요청은 같은 출처만 받는다 */
-export function sameOrigin(request: Request): boolean {
-  const origin = request.headers.get('origin')
-  return !origin || new URL(origin).host === new URL(request.url).host
-}
