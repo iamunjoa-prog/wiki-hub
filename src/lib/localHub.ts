@@ -10,6 +10,19 @@ const CLI_ENGINES: CliEngine[] = ['claude', 'codex']
 
 export type Os = 'win' | 'mac'
 
+/** 첫 안내 창·설정 창에서 고르는 계정. ZIP 설정 파일에 실려 설치·로그인할 연결 프로그램을 정한다 */
+export type HubAccount = 'claude' | 'codex' | 'both'
+export type AccountChoice = HubAccount | 'unknown'
+
+/** 초보자 화면의 계정 이름 — ENGINE_LABEL(챗 답변 출처 표시)과 따로 둔다 */
+export const ACCOUNT_NAME: Record<CliEngine, string> = { claude: 'Claude', codex: 'ChatGPT' }
+
+export const accountNames = (a: HubAccount): string =>
+  a === 'both' ? `${ACCOUNT_NAME.claude}와 ${ACCOUNT_NAME.codex}` : ACCOUNT_NAME[a === 'claude' ? 'claude' : 'codex']
+
+/** 내려받기 실패 시 사용자에게 보이는 한 줄 — 서버 원문은 "담당자용 정보"로 접는다 */
+export const DOWNLOAD_FAIL_TEXT = '지금 받을 수 없어요. 잠시 뒤 다시 눌러 보고, 계속 안 되면 허브 담당자에게 알려 주세요.'
+
 /** 브라우저가 알려 주는 OS. Mac이 아니면(판단 불가 포함) Windows 안내를 기본으로 한다. */
 export const detectOs = (): Os =>
   typeof navigator !== 'undefined' && /Mac|iPhone|iPad/i.test(`${navigator.platform} ${navigator.userAgent}`) ? 'mac' : 'win'
@@ -23,15 +36,16 @@ export const isLocalStatus = (status: Partial<Record<Engine, EngineStatus>> | nu
  * 브라우저가 JSON 오류 파일을 저장하거나 아무 일도 없어 보인다. 저장소는 작으니(소스+문서) fetch → Blob으로
  * 메모리에 받아도 부담이 없고, 실패 사유를 화면에 보여 줄 수 있어 이쪽을 택했다.
  */
-export function useHubDownload(showToast: (msg: string) => void, onDownloaded?: () => void) {
+export function useHubDownload(showToast: (msg: string) => void, account: HubAccount, onDownloaded?: () => void) {
   const [downloading, setDownloading] = useState(false)
+  // 서버 원문(담당자용). 화면에는 DOWNLOAD_FAIL_TEXT 를 먼저 보인다
   const [error, setError] = useState('')
 
   const download = useCallback(async () => {
     setDownloading(true)
     setError('')
     try {
-      const r = await fetch(DOWNLOAD_URL)
+      const r = await fetch(`${DOWNLOAD_URL}?account=${account}`)
       if (!r.ok) {
         const body = (await r.json().catch(() => null)) as { error?: string } | null
         throw new Error(body?.error ?? `내려받지 못했습니다 (HTTP ${r.status})`)
@@ -44,16 +58,16 @@ export function useHubDownload(showToast: (msg: string) => void, onDownloaded?: 
       a.click()
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      showToast('wiki-hub.zip 을 받았습니다 — 압축을 풀고 wiki-hub 폴더의 start-hub 를 실행하세요')
+      showToast('wiki-hub.zip 을 받았어요. 다운로드 폴더에서 압축을 풀고 start-hub 를 더블클릭하세요')
       onDownloaded?.()
     } catch (err) {
       const message = (err as Error).message || '내려받지 못했습니다'
       setError(message)
-      showToast(message)
+      showToast(DOWNLOAD_FAIL_TEXT)
     } finally {
       setDownloading(false)
     }
-  }, [showToast, onDownloaded])
+  }, [showToast, account, onDownloaded])
 
   return { downloading, error, download }
 }

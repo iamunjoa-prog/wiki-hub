@@ -769,16 +769,26 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .cli-setting-head > span:last-child { margin-left: auto; }
 .cli-note { font-size: 12.5px; word-break: keep-all; }
 .cli-cta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.cli-alert { margin: 4px 0 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--surface-subtle); color: var(--text); font-size: 13.5px; }
+/* 담당자용 접힘 — 초보자에게 보이지 않아도 되는 명령·키·서버 원문 */
+.cli-fold > summary { cursor: pointer; font-size: 12.5px; color: var(--muted); }
+.cli-fold[open] > summary { margin-bottom: 8px; }
+.cli-fold > .muted { display: block; word-break: break-all; }
 .cli-hint { font-size: 12px; color: var(--muted); text-align: right; }
 
-/* 첫 안내 창 — 내 Claude Code·Codex 계정으로 챗봇 쓰기 */
+/* 첫 안내 창 — 내 Claude·ChatGPT 계정으로 챗봇 쓰기 (계정 4지선다는 설정 창도 같이 쓴다) */
 .modal-back.onb-back { padding-top: 8vh; }
 .modal.onb-modal { width: 560px; max-width: calc(100vw - 32px); max-height: calc(88vh - 24px); display: flex; flex-direction: column; }
 .onb-modal .modal-body { overflow-y: auto; gap: 12px; word-break: keep-all; }
 .onb-hello { margin: 0; font: 600 15px var(--sans); }
 .onb-why { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; color: var(--text-2); }
 .onb-why li { display: list-item; }
-.onb-choice { display: grid; grid-template-columns: 1.15fr 1fr; gap: 8px; }
+.onb-ask { display: flex; flex-direction: column; gap: 4px; }
+.onb-q { font: 600 14px var(--sans); }
+.onb-q-sub { font-size: 12.5px; margin-bottom: 4px; }
+.onb-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.onb-choice-text { display: flex; flex-direction: column; gap: 1px; }
+.onb-choice-text small { font: 400 12px var(--sans); color: var(--muted); }
 .onb-choice button {
   display: flex;
   align-items: center;
