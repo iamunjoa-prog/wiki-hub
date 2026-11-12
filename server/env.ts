@@ -1,3 +1,6 @@
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+
 /** Gemini API 키를 찾을 환경변수 이름들 — 표준 이름을 먼저 보고, Vercel에 이미 저장된 이름(Gemini_API)도 받는다 */
 const GEMINI_KEY_NAMES = ['GEMINI_API_KEY', 'Gemini_API']
 
@@ -42,4 +45,13 @@ export function readJiraBaseUrl(env: Record<string, string | undefined> = proces
 
 export function readJiraProjectKey(env: Record<string, string | undefined> = process.env): string | undefined {
   return env.JIRA_PROJECT_KEY?.trim() || undefined
+}
+
+/**
+ * 실행 스크립트(scripts/setup.ps1 · start-hub.command)가 휴대용 허브 실행 준비물(node)과 챗봇 연결 프로그램(tools)을 까는 사용자 폴더.
+ * 관리자 권한 없이 쓸 수 있는 자리라 Windows는 LOCALAPPDATA, Mac은 홈 아래 숨김 폴더다
+ */
+export function readHubHomeDir(env: Record<string, string | undefined> = process.env, platform: NodeJS.Platform = process.platform): string {
+  if (platform === 'win32') return join(env.LOCALAPPDATA?.trim() || join(homedir(), 'AppData', 'Local'), 'wiki-hub')
+  return join(homedir(), '.wiki-hub')
 }

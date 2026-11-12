@@ -1,6 +1,6 @@
 import { requireUser, sameOrigin } from '../server/auth.js'
 import { readGithubRepo, readGithubToken } from '../server/env.js'
-import { proxyHubZip } from '../server/hubZip.js'
+import { parseHubAccount, proxyHubZip } from '../server/hubZip.js'
 
 /**
  * "로컬 허브 내려받기" — 저장소가 private이라 GitHub 링크는 실무자에게 404다.
@@ -15,5 +15,7 @@ export async function GET(request: Request): Promise<Response> {
   const auth = await requireUser(request)
   if (!auth.ok) return auth.response
 
-  return proxyHubZip(readGithubToken(), readGithubRepo())
+  // 안내 창에서 고른 계정(?account=claude|codex|both)을 ZIP 설정 파일로 넣는다 — 없거나 모르는 값이면 넣지 않는다
+  const account = new URL(request.url, 'http://localhost').searchParams.get('account')
+  return proxyHubZip(readGithubToken(), readGithubRepo(), parseHubAccount(account))
 }

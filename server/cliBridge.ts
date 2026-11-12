@@ -2,11 +2,20 @@ import { spawn, spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { Readable } from 'node:stream'
-import { dirname, join, resolve } from 'node:path'
+import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
-import { readGeminiFallbackModel, readGeminiKey, readGeminiModel, readGithubRepo, readGithubToken, readJiraBaseUrl, readJiraProjectKey } from './env.js'
-import { proxyHubZip } from './hubZip.js'
+import {
+  readGeminiFallbackModel,
+  readGeminiKey,
+  readGeminiModel,
+  readGithubRepo,
+  readGithubToken,
+  readHubHomeDir,
+  readJiraBaseUrl,
+  readJiraProjectKey,
+} from './env.js'
+import { parseHubAccount, proxyHubZip } from './hubZip.js'
 import { createDocPR, createEditPR, EditError, listProposalPrs, parseCreateDocInput, parseEditDocInput } from './github.js'
 import {
   isShared,
@@ -56,6 +65,21 @@ const EDIT_TIMEOUT_MS: Record<Engine, number> = { claude: 240_000, codex: 300_00
 /** Windows의 npm 셸 래퍼(claude.cmd, codex.cmd)는 cmd.exe를 거쳐야 실행되므로 인자 속 따옴표를 이스케이프한다. */
 const IS_WIN = process.platform === 'win32'
 const quote = (arg: string) => (IS_WIN ? `"${arg.replace(/"/g, '\\"')}"` : arg)
+
+/**
+ * 실행 스크립트가 사용자 폴더에 깐 챗봇 연결 프로그램(tools)과 휴대용 node 경로 — 전역 설치를 쓰지 않아 PATH 에 없을 수 있다.
+ * 스크립트가 이미 PATH 앞에 넣고 허브를 켜지만, npm run dev 로 직접 켜거나 나중에 설치돼도 같은 CLI를 찾게 여기서도 넣는다
+ */
+function hubToolDirs(): string[] {
+  const home = readHubHomeDir()
+  return [join(home, 'tools', 'node_modules', '.bin'), IS_WIN ? join(home, 'node') : join(home, 'node', 'bin')]
+}
+
+function addHubToolsToPath(): void {
+  const current = (process.env.PATH ?? '').split(delimiter)
+  const missing = hubToolDirs().filter((dir) => !current.includes(dir))
+  if (missing.length) process.env.PATH = [...missing, ...current].filter(Boolean).join(delimiter)
+}
 
 function isInstalled(cmd: Engine): boolean {
   return spawnSync(IS_WIN ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0
@@ -110,7 +134,10 @@ async function getEngineStatus(): Promise<Record<Engine, EngineStatus>> {
   return Object.fromEntries(entries) as Record<Engine, EngineStatus>
 }
 
-const LOGIN_ARGS: Record<Engine, string[]> = { claude: ['claude', 'auth', 'login'], codex: ['codex', 'login'] }
+// claude 는 구독 로그인을 명시한다 — 기본값이 바뀌어도 Console(API 과금) 화면으로 가지 않게 (docs/plan/2026-11-12-cli-login-research.md)
+const LOGIN_ARGS: Record<Engine, string[]> = { claude: ['claude', 'auth', 'login', '--claudeai'], codex: ['codex', 'login'] }
+
+const shQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`
 
 /** 로그인은 브라우저 OAuth를 거치므로 페이지 안에서 처리할 수 없다 — 이 PC에 로그인용 터미널 창을 띄운다. */
 function openLoginTerminal(engine: Engine): boolean {
@@ -120,7 +147,10 @@ function openLoginTerminal(engine: Engine): boolean {
     return true
   }
   if (process.platform === 'darwin') {
-    spawn('osascript', ['-e', `tell application "Terminal" to do script "${args.join(' ')}"`], {
+    // 터미널 새 창은 이 서버의 PATH 를 물려받지 않아, 사용자 폴더의 연결 프로그램·node 경로를 앞에 붙여 실행한다
+    const script = `export PATH=${hubToolDirs().map(shQuote).join(':')}:"$PATH"; ${args.join(' ')}`
+    const appleString = script.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    spawn('osascript', ['-e', `tell application "Terminal" to do script "${appleString}"`], {
       detached: true,
       stdio: 'ignore',
     }).unref()
@@ -312,6 +342,7 @@ export function cliBridge(): Plugin {
       // Jira 스케줄 확인 — 회사 내부 주소·프로젝트 키라 개인별 .env.local에서만 읽는다
       const jiraBaseUrl = readJiraBaseUrl(env) || readJiraBaseUrl()
       const jiraProjectKey = readJiraProjectKey(env) || readJiraProjectKey()
+      addHubToolsToPath()
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
       getEngineStatus().then((s) => {
         const mark = (e: Engine) => (!s[e].installed ? '✗ 미설치' : s[e].loggedIn ? '✓' : '⚠ 로그인 필요')
@@ -541,7 +572,9 @@ export function cliBridge(): Plugin {
           res.end()
           return
         }
-        const upstream = await proxyHubZip(githubToken, readGithubRepo({ ...process.env, ...env }))
+        // 배포와 같은 쿼리 계약 — ?account=claude|codex|both 면 ZIP에 계정 선택 파일을 넣는다
+        const account = new URL(req.url ?? '/', 'http://localhost').searchParams.get('account')
+        const upstream = await proxyHubZip(githubToken, readGithubRepo({ ...process.env, ...env }), parseHubAccount(account))
         res.statusCode = upstream.status
         upstream.headers.forEach((v, k) => res.setHeader(k, v))
         if (!upstream.body) {
