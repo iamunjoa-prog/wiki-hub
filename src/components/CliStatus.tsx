@@ -3,6 +3,7 @@ import { requestLogin } from '../lib/assistant'
 import { ACCOUNT_NAME, isLocalStatus, type AccountChoice as Choice } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import type { CliEngine, EngineStatus } from '../types'
+import { EngineGuideModal } from './EngineGuide'
 import { AccountChoice, LocalHubGuide } from './LocalHubGuide'
 
 const CLI_ENGINES: CliEngine[] = ['claude', 'codex']
@@ -46,6 +47,7 @@ export function CliStatus() {
   const [waiting, setWaiting] = useState<CliEngine | null>(null)
   const [timedOut, setTimedOut] = useState<CliEngine | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const [account, setAccount] = useState<Choice | null>(null)
   const waitStart = useRef(0)
 
@@ -186,6 +188,14 @@ export function CliStatus() {
           </div>
         </>
       )}
+
+      {/* 머리 버튼 줄은 좁은 패널에서 넘친다 — 차이 안내는 패널 아래 작은 링크로 둔다 */}
+      <div className="cli-hint engine-guide-link">
+        <button type="button" className="cli-os-switch" onClick={() => setGuideOpen(true)}>
+          내 AI 계정과 공용 엔진, 무슨 차이가 있나요?
+        </button>
+      </div>
+      {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
 
       {settingsOpen && (
         <div className="modal-back" onClick={() => setSettingsOpen(false)}>
