@@ -477,6 +477,9 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   margin-bottom: 14px;
 }
 .page-title { font: 700 18px var(--mono); }
+/* 위키 목록 머리의 처음 쓰는 사람 안내 한 줄 */
+.wiki-first { margin: -6px 0 12px; font-size: 13.5px; color: var(--text-2); word-break: keep-all; }
+.wiki-first a { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; }
 
 /* ---------- dashboard ---------- */
 
@@ -610,7 +613,8 @@ button.row:hover { background: var(--surface-subtle); }
 
 .doc-layout { display: flex; gap: 18px; align-items: flex-start; padding: 16px 18px; }
 .doc-body { flex: 1; min-width: 0; max-width: var(--w-doc); }
-.doc-toc { width: var(--w-toc); flex: none; position: sticky; top: 0; }
+/* 목차가 길면(CBS 25줄) 목차 안에서 스크롤한다. 아래 여백은 오른쪽 아래 챗봇 버튼(.fab) 높이만큼 — 끝 항목이 버튼에 가리지 않게 */
+.doc-toc { width: var(--w-toc); flex: none; position: sticky; top: 0; max-height: calc(100vh - var(--h-topbar) - 32px); overflow-y: auto; padding-bottom: 64px; scrollbar-width: thin; }
 .doc-toc a {
   display: block;
   padding: 4px 0;

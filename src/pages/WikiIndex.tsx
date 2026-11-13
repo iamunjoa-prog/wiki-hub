@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
 import { categories, categoryShort, docRank, subcategories } from '../data/docs'
 import { useApp } from '../store/AppStore'
@@ -49,6 +49,8 @@ export function WikiIndex() {
   const categoryCount = (id: CategoryId) => docs.filter((d) => d.category === id).length
   const subCount = (id: string) =>
     id === '__unassigned__' ? unassigned.length : byCategory.filter((d) => d.subcategory === id).length
+  // 처음 온 사람이 이용 안내를 찾아 내려가지 않게 — 이용 안내 첫 문서로 바로 가는 줄 (IA-9)
+  const firstGuide = docs.find((d) => d.category === 'guide')
   const filledFirst = <T,>(items: T[], count: (item: T) => number) =>
     [...items].sort((a, b) => Number(count(b) > 0) - Number(count(a) > 0))
 
@@ -74,6 +76,12 @@ export function WikiIndex() {
             + 새 문서
           </button>
         </div>
+
+        {!active && firstGuide && (
+          <p className="wiki-first">
+            처음이라면: <Link to={`/wiki/${firstGuide.id}`}>{firstGuide.title}</Link>
+          </p>
+        )}
 
         <div className="filter-bar">
           <button

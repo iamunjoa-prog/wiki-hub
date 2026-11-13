@@ -3,7 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'reac
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
-import { forgetSessionSeen } from '../lib/localHub'
+import { detectOs, forgetSessionSeen } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
@@ -502,7 +502,8 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
           placeholder="지식 문서 검색"
           aria-label="지식 문서 검색"
         />
-        <span className="kbd">⌘K</span>
+        {/* 실무자 PC는 Windows다 — 맥이 아니면 Ctrl 로 보여 준다(단축키는 둘 다 받는다) */}
+        <span className="kbd">{detectOs() === 'mac' ? '⌘K' : 'Ctrl K'}</span>
       </form>
       {children}
     </div>

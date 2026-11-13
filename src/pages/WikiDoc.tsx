@@ -2,6 +2,7 @@ import { Children, isValidElement, useEffect, useMemo, useRef, useState } from '
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
@@ -49,9 +50,56 @@ export function WikiDoc() {
   const [activeHeading, setActiveHeading] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const inlineTocRef = useRef<HTMLDetailsElement>(null)
+  const tocRef = useRef<HTMLElement>(null)
 
   const headings = useMemo(() => (doc ? parseHeadings(doc.body) : []), [doc])
   const scoped = useMemo(() => splitScope(doc?.body ?? ''), [doc])
+  /**
+   * ReactMarkdown 에 넘기는 렌더러는 렌더마다 새로 만들면 React 가 본문 제목·표를 통째로 다시 만든다.
+   * 그러면 목차 강조용 IntersectionObserver 가 지켜보던 제목이 문서에서 떨어져 나가 현재 위치가 첫 항목에 멈춘다 — 한 번만 만든다.
+   */
+  const md = useMemo(() => {
+    /** 본문·적용대상 태그가 같이 쓰는 링크 — 문서 코드면 허브 안 이동, 아니면 새 창 */
+    const mdLink = ({ href, children }: { href?: string; children?: ReactNode }) => {
+      // 문서 코드 뒤에 #소제목을 붙이면(예: PPC-P-02#h-다크패턴-대응) 그 소제목으로 바로 스크롤한다
+      const [code, anchor] = (href ?? '').split('#')
+      const target = docs.find((d) => d.code === code)
+      if (target) {
+        const to = `/wiki/${target.id}${anchor ? `#${anchor}` : ''}`
+        return (
+          <a
+            href={to}
+            onClick={(e) => {
+              e.preventDefault()
+              navigate(to)
+            }}
+          >
+            {children}
+          </a>
+        )
+      }
+      return (
+        // 새 창으로 열리는 바깥 주소는 ↗ 로 문서 안 이동과 구분한다
+        <a href={href} target="_blank" rel="noreferrer" className={/^https?:/i.test(href ?? '') ? 'ext' : undefined}>
+          {children}
+        </a>
+      )
+    }
+    const body: Components = {
+      h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
+      h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
+      a: mdLink,
+      // 좁은 폭에서 표만 옆으로 밀고 본문 화면 전체가 밀리지 않게
+      table: ({ children }) => (
+        <div className="table-wrap">
+          <table>{children}</table>
+        </div>
+      ),
+    }
+    const scope: Components = { p: ({ children }) => <>{children}</>, a: mdLink }
+    return { body, scope }
+  }, [docs, navigate])
+
   // location.hash는 퍼센트 인코딩된 상태다 — getElementById는 원문(디코딩된) id로 찾아야 한다
   const hashId = location.hash ? decodeURIComponent(location.hash.slice(1)) : null
 
@@ -90,7 +138,19 @@ export function WikiDoc() {
       if (el) observer.observe(el)
     })
     return () => observer.disconnect()
-  }, [headings, docId])
+  }, [headings, docId, md])
+
+  // 목차가 길어 스크롤되면 지금 읽는 항목을 목차 안에서 보이게 한다 — 본문 스크롤은 건드리지 않게 목차 상자만 움직인다
+  useEffect(() => {
+    const toc = tocRef.current
+    const on = toc?.querySelector<HTMLElement>('a.on')
+    if (!toc || !on || toc.scrollHeight <= toc.clientHeight) return
+    const pad = parseFloat(getComputedStyle(toc).paddingBottom) || 0
+    if (on.offsetTop < toc.scrollTop) toc.scrollTop = on.offsetTop - 8
+    else if (on.offsetTop + on.offsetHeight > toc.scrollTop + toc.clientHeight - pad) {
+      toc.scrollTop = on.offsetTop + on.offsetHeight - toc.clientHeight + pad
+    }
+  }, [activeHeading])
 
   if (!doc) {
     return (
@@ -115,33 +175,6 @@ export function WikiDoc() {
     { label: categories.find((c) => c.id === doc.category)?.label ?? categoryShort[doc.category], to: `/wiki?category=${doc.category}` },
     ...(sub ? [{ label: sub.label, to: `/wiki?category=${doc.category}&sub=${sub.id}` }] : []),
   ]
-
-  /** 본문·적용대상 태그가 같이 쓰는 링크 — 문서 코드면 허브 안 이동, 아니면 새 창 */
-  const mdLink = ({ href, children }: { href?: string; children?: ReactNode }) => {
-    // 문서 코드 뒤에 #소제목을 붙이면(예: PPC-P-02#h-다크패턴-대응) 그 소제목으로 바로 스크롤한다
-    const [code, anchor] = (href ?? '').split('#')
-    const target = docs.find((d) => d.code === code)
-    if (target) {
-      const to = `/wiki/${target.id}${anchor ? `#${anchor}` : ''}`
-      return (
-        <a
-          href={to}
-          onClick={(e) => {
-            e.preventDefault()
-            navigate(to)
-          }}
-        >
-          {children}
-        </a>
-      )
-    }
-    return (
-      // 새 창으로 열리는 바깥 주소는 ↗ 로 문서 안 이동과 구분한다
-      <a href={href} target="_blank" rel="noreferrer" className={/^https?:/i.test(href ?? '') ? 'ext' : undefined}>
-        {children}
-      </a>
-    )
-  }
 
   const tocLinks = (onPick?: () => void) =>
     headings.map((h, i) => {
@@ -189,7 +222,7 @@ export function WikiDoc() {
                     <span key={i} className="doc-scope">
                       <ReactMarkdown
                         remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
-                        components={{ p: ({ children }) => <>{children}</>, a: mdLink }}
+                        components={md.scope}
                       >
                         {s}
                       </ReactMarkdown>
@@ -235,24 +268,14 @@ export function WikiDoc() {
               {/* `**용어(설명)**를`처럼 닫는 ** 앞이 문장부호이고 뒤에 조사가 붙으면 표준 규칙상 굵게가 안 닫혀 별표가 남는다 */}
               <ReactMarkdown
                 remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
-                components={{
-                  h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
-                  h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
-                  a: mdLink,
-                  // 좁은 폭에서 표만 옆으로 밀고 본문 화면 전체가 밀리지 않게
-                  table: ({ children }) => (
-                    <div className="table-wrap">
-                      <table>{children}</table>
-                    </div>
-                  ),
-                }}
+                components={md.body}
               >
                 {scoped.body}
               </ReactMarkdown>
             </div>
           </div>
 
-          <nav className="doc-toc">
+          <nav className="doc-toc" ref={tocRef}>
             <div className="label" style={{ marginBottom: 8 }}>
               목차
             </div>
