@@ -640,6 +640,11 @@ button.row:hover { background: var(--surface-subtle); }
 .doc-title { flex: 1; min-width: 0; }
 .doc-head h1 { font: 700 24px var(--mono); margin: 0; word-break: keep-all; }
 .doc-meta { font: 12.5px var(--mono); color: var(--text-2); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
+/* 문서 첫 줄 적용대상 인용을 옮긴 태그 — 안에 굵게·링크가 섞여 .tag(inline-flex) 대신 글자 흐름대로 */
+.doc-scope { display: inline-block; padding: 1px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-subtle); line-height: 1.5; }
+.doc-scope strong { color: var(--text); }
+.doc-scope a { text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; }
+.doc-scope a:hover { color: var(--text); }
 
 /* 본문이 좁으면 목차 열을 접어 본문 폭을 지키고, 제목 줄 버튼은 아래로 내린다 */
 @container (max-width: 720px) {
@@ -650,7 +655,8 @@ button.row:hover { background: var(--surface-subtle); }
   .doc-title { flex-basis: 100%; }
 }
 
-.md { font-size: 16px; line-height: 1.8; color: var(--text-body); }
+/* 한글은 어절 단위로만 줄을 바꾼다("생성·승 / 인·발급" 방지). 긴 영문·주소만 아무 데서나 끊는다 */
+.md { font-size: 16px; line-height: 1.8; color: var(--text-body); word-break: keep-all; overflow-wrap: anywhere; }
 /* 장이 바뀌는 것이 보이게 h2 위에 구분선, h3 는 본문(16px)보다 크게 */
 .md h2 { font: 700 20px var(--mono); margin: 36px 0 12px; padding-top: 16px; border-top: 1px solid var(--border); }
 .md > h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
@@ -659,8 +665,11 @@ button.row:hover { background: var(--surface-subtle); }
 .md p { margin: 0 0 12px; }
 .md ul, .md ol { margin: 0 0 12px; padding-left: 20px; }
 .md li { margin-bottom: 4px; }
+/* 표는 감싸개 안에서만 옆으로 스크롤한다 — 셀은 anywhere 대신 break-word 라 좁아져도 글자 단위로 부서지지 않고 감싸개가 스크롤된다 */
+.md .table-wrap { overflow-x: auto; margin: 0 0 14px; }
 .md table { border-collapse: collapse; width: 100%; margin: 0 0 14px; font-size: 15px; }
-.md th, .md td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; }
+.md .table-wrap > table { margin: 0; }
+.md th, .md td { border: 1px solid var(--border); padding: 7px 9px; text-align: left; overflow-wrap: break-word; }
 .md th { background: var(--surface-subtle); font: 600 14px var(--mono); }
 .md code { font-family: var(--code); font-size: 14.5px; background: var(--surface-code); padding: 1px 4px; }
 .md pre { background: var(--surface-subtle); border: 1px solid var(--border); padding: 10px; overflow: auto; }

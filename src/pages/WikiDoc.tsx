@@ -22,6 +22,16 @@ function parseHeadings(body: string): Heading[] {
     .map((m) => ({ level: m[1].length as 2 | 3, text: headingPlain(m[2].trim()) }))
 }
 
+/**
+ * 문서 첫 줄 `> 대상 독자 … · 적용대상 …` 인용은 메타 줄 옆 태그로 옮긴다 — 원문·검색·챗봇 근거는 그대로, 화면에서만.
+ * 이 줄 다음이 빈 줄·빈 `>` 줄·문서 끝일 때만 떼어 낸다. 뒤에 이어지는 주의 인용은 본문에 남긴다.
+ */
+function splitScope(body: string): { scope: string[]; body: string } {
+  const m = body.match(/^\s*> ((?:대상 독자|적용대상) [^\r\n]*)(?:\r?\n>[ \t]*(?=\r?\n)|(?=\r?\n[ \t]*(?:\r?\n|$))|$)/)
+  if (!m) return { scope: [], body }
+  return { scope: m[1].split(' · '), body: body.slice(m[0].length) }
+}
+
 /** 렌더된 제목의 글자만 — 굵게·코드가 섞이면 children 이 배열이라 String() 하면 [object Object] 가 된다 */
 function textOf(node: ReactNode): string {
   return Children.toArray(node)
@@ -41,6 +51,7 @@ export function WikiDoc() {
   const inlineTocRef = useRef<HTMLDetailsElement>(null)
 
   const headings = useMemo(() => (doc ? parseHeadings(doc.body) : []), [doc])
+  const scoped = useMemo(() => splitScope(doc?.body ?? ''), [doc])
   // location.hash는 퍼센트 인코딩된 상태다 — getElementById는 원문(디코딩된) id로 찾아야 한다
   const hashId = location.hash ? decodeURIComponent(location.hash.slice(1)) : null
 
@@ -105,6 +116,33 @@ export function WikiDoc() {
     ...(sub ? [{ label: sub.label, to: `/wiki?category=${doc.category}&sub=${sub.id}` }] : []),
   ]
 
+  /** 본문·적용대상 태그가 같이 쓰는 링크 — 문서 코드면 허브 안 이동, 아니면 새 창 */
+  const mdLink = ({ href, children }: { href?: string; children?: ReactNode }) => {
+    // 문서 코드 뒤에 #소제목을 붙이면(예: PPC-P-02#h-다크패턴-대응) 그 소제목으로 바로 스크롤한다
+    const [code, anchor] = (href ?? '').split('#')
+    const target = docs.find((d) => d.code === code)
+    if (target) {
+      const to = `/wiki/${target.id}${anchor ? `#${anchor}` : ''}`
+      return (
+        <a
+          href={to}
+          onClick={(e) => {
+            e.preventDefault()
+            navigate(to)
+          }}
+        >
+          {children}
+        </a>
+      )
+    }
+    return (
+      // 새 창으로 열리는 바깥 주소는 ↗ 로 문서 안 이동과 구분한다
+      <a href={href} target="_blank" rel="noreferrer" className={/^https?:/i.test(href ?? '') ? 'ext' : undefined}>
+        {children}
+      </a>
+    )
+  }
+
   const tocLinks = (onPick?: () => void) =>
     headings.map((h, i) => {
       const id = headingId(h.text)
@@ -147,6 +185,16 @@ export function WikiDoc() {
                   <span>
                     최종 수정 {doc.updatedBy} · {doc.updatedAt} · v{doc.version}
                   </span>
+                  {scoped.scope.map((s, i) => (
+                    <span key={i} className="doc-scope">
+                      <ReactMarkdown
+                        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
+                        components={{ p: ({ children }) => <>{children}</>, a: mdLink }}
+                      >
+                        {s}
+                      </ReactMarkdown>
+                    </span>
+                  ))}
                 </div>
               </div>
               <button className="btn sm" onClick={() => setShowHistory((v) => !v)}>
@@ -190,34 +238,16 @@ export function WikiDoc() {
                 components={{
                   h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
                   h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
-                  a: ({ href, children }) => {
-                    // 문서 코드 뒤에 #소제목을 붙이면(예: PPC-P-02#h-다크패턴-대응) 그 소제목으로 바로 스크롤한다
-                    const [code, anchor] = (href ?? '').split('#')
-                    const target = docs.find((d) => d.code === code)
-                    if (target) {
-                      const to = `/wiki/${target.id}${anchor ? `#${anchor}` : ''}`
-                      return (
-                        <a
-                          href={to}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            navigate(to)
-                          }}
-                        >
-                          {children}
-                        </a>
-                      )
-                    }
-                    return (
-                      // 새 창으로 열리는 바깥 주소는 ↗ 로 문서 안 이동과 구분한다
-                      <a href={href} target="_blank" rel="noreferrer" className={/^https?:/i.test(href ?? '') ? 'ext' : undefined}>
-                        {children}
-                      </a>
-                    )
-                  },
+                  a: mdLink,
+                  // 좁은 폭에서 표만 옆으로 밀고 본문 화면 전체가 밀리지 않게
+                  table: ({ children }) => (
+                    <div className="table-wrap">
+                      <table>{children}</table>
+                    </div>
+                  ),
                 }}
               >
-                {doc.body}
+                {scoped.body}
               </ReactMarkdown>
             </div>
           </div>
