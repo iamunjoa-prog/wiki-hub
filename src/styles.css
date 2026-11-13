@@ -139,7 +139,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 
 /* ---------- app shell ---------- */
 
-.shell { display: flex; height: 100%; min-width: 1120px; }
+/* 최소 폭을 두지 않는다 — 창이 좁아도 페이지 전체가 가로로 밀리지 않고, 넘치는 내용은 각 화면의 .content 안에서 처리한다 */
+.shell { display: flex; height: 100%; }
 
 .sidebar {
   width: var(--w-sidebar);
@@ -440,9 +441,10 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .kpi .sub { font: 13px var(--mono); color: var(--text-2); }
 button.kpi:hover { background: var(--surface-subtle); }
 
-.dash-cols { display: flex; gap: 14px; align-items: stretch; margin-top: 14px; }
-.dash-cols .left { flex: 1.6; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-.dash-cols .right { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+/* 기준 폭을 1.6:1(480:300)로 맞춰 넓은 화면의 비율은 그대로 두고, 두 열이 안 들어가면 오른쪽 열을 아래로 내린다 */
+.dash-cols { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; margin-top: 14px; }
+.dash-cols .left { flex: 1.6 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.dash-cols .right { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 /* 오른쪽 열의 마지막 패널이 남는 세로 공간을 채워서 왼쪽 열과 바닥선이 맞도록 한다 */
 .dash-cols .right > .panel:last-child { flex: 1; display: flex; flex-direction: column; }
 .dash-cols .right > .panel:last-child .sys-grid,
@@ -499,7 +501,7 @@ button.row:hover { background: var(--surface-subtle); }
 /* 별표를 카드 위에 겹쳐 두어 링크 영역을 쪼개지 않는다 */
 .sys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
 /* 대시보드 오른쪽 열은 폭이 좁아 두 칸으로 나누면 시스템명이 줄바꿈된다 */
-.right .sys-grid { grid-template-columns: 1fr; }
+.right .sys-grid { grid-template-columns: minmax(0, 1fr); }
 .sys-card { position: relative; }
 .sys-card .sys-main { height: 100%; padding-right: 30px; }
 .sys-card .link-card.off { color: var(--muted); cursor: default; }
