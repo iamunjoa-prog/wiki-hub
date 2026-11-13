@@ -101,7 +101,7 @@ export function LocalHubGuide({ account, onDownloaded }: { account: HubAccount; 
             받은 <code>wiki-hub.zip</code> 을 <b>더블클릭</b>해 압축 풀기 (Safari로 받았다면 이미 풀려 있어요)
           </li>
           <li>
-            풀린 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-mac.command</b> <b>우클릭 → 열기 → 열기</b>
+            풀린 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-mac.command</b> <b>우클릭 → 열기 → 열기</b> (확장자가 안 보이면 <b>start-hub-mac</b>으로 보여요)
             {/* macOS 15부터는 우클릭 → 열기로 넘어가지지 않아 시스템 설정 경로를 접어 둔다 */}
             <details className="cli-fold">
               <summary>[열기] 버튼이 안 보이면</summary>
@@ -126,7 +126,7 @@ export function LocalHubGuide({ account, onDownloaded }: { account: HubAccount; 
             받은 <code>wiki-hub.zip</code> 을 <b>우클릭 → 모두 압축 풀기 → 압축 풀기</b> (더블클릭으로 열기만 하면 안 돼요)
           </li>
           <li>
-            풀린 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-windows</b> 더블클릭 (hub 폴더는 열지 않아도 돼요)
+            풀린 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-windows.bat</b> 더블클릭 (확장자가 안 보이면 <b>start-hub-windows</b>로 보여요)
           </li>
           <li>
             파란 <b>"Windows의 PC 보호"</b> 창이 뜨면 <b>추가 정보 → 실행</b> ("보안 경고" 창이면 <b>실행</b>)
