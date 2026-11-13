@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
 import { EngineToggle } from '../components/AssistantDock'
@@ -299,7 +300,7 @@ export function ProposeEdit() {
                 />
               ) : (
                 <div className="md" style={{ minHeight: 380 }}>
-                  <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{body}</ReactMarkdown>
+                  <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}>{body}</ReactMarkdown>
                 </div>
               )}
 

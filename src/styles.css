@@ -24,6 +24,7 @@
   --w-sidebar: 248px;
   --w-sidebar-doc: 248px;
   --w-toc: 200px;
+  --w-doc: 820px; /* 위키 본문 최대 폭 — 넓은 창에서 한 줄이 한글 50자 안팎을 넘지 않게 */
   --w-rail: 44px;
   --w-dock: clamp(320px, 33vw, 560px); /* 초기값 — 실제 너비는 드래그로 바뀐다 */
   --w-detail: 320px;
@@ -243,8 +244,9 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   padding-left: 6px;
   border-left: 1px solid var(--border);
 }
-.nav-children.depth2 { margin-left: 18px; }
-.nav-children.depth3 { margin-left: 36px; }
+/* 2·3단은 부모 화살표 아래에 가이드선이 오도록 조금만 들인다 — 단마다 크게 쌓이면 문서 제목이 9~10자에서 잘린다 */
+.nav-children.depth2,
+.nav-children.depth3 { margin-left: 6px; padding-left: 4px; }
 
 .nav-item.has-toggle { padding: 0; gap: 0; }
 .nav-toggle {
@@ -354,6 +356,16 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .camp-day-meta dd { margin: 0; font-weight: 600; }
 .camp-day-foot { display: flex; justify-content: flex-end; padding: 10px 14px; border-top: 1px solid var(--border); }
 .nav-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 지금 보고 있는 문서만 두 줄까지 보여 준다 — 나머지는 한 줄로 잘라 트리 길이를 지킨다 */
+.nav-item.leaf.on .nav-ellipsis {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
 .nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
 
 /* 아직 화면이 없는 편성 메뉴 — 눌러도 되는 메뉴와 구분되게 상태를 옆에 붙인다 */
@@ -367,6 +379,10 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   font-size: 10.5px;
   letter-spacing: -0.01em;
 }
+
+/* 문서가 아직 없는 위키 카테고리·서브메뉴 — 펼칠 수 없고 맨 아래로 내린다 */
+.nav-item.sub.nav-unready { cursor: default; color: var(--muted); }
+.nav-item.sub.nav-unready:hover { background: none; color: var(--muted); }
 
 /* 편성/스케줄 자리표시 화면 */
 .schedule-soon { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -550,7 +566,7 @@ button.row:hover { background: var(--surface-subtle); }
 /* ---------- wiki doc ---------- */
 
 .doc-layout { display: flex; gap: 18px; align-items: flex-start; padding: 16px 18px; }
-.doc-body { flex: 1; min-width: 0; }
+.doc-body { flex: 1; min-width: 0; max-width: var(--w-doc); }
 .doc-toc { width: var(--w-toc); flex: none; position: sticky; top: 0; }
 .doc-toc a {
   display: block;

@@ -65,6 +65,16 @@ function WikiTree() {
 
   const rootOn = location.pathname === '/wiki' && !activeCategory
 
+  // 문서가 0건인 메뉴는 막다른 길이라 맨 아래로 내리고 펼치지 못하게 한다. 건수는 문서 데이터에서 세므로 문서가 생기면 저절로 열린다
+  const emptyRow = (key: string, label: string) => (
+    <div key={key} className="nav-item sub no-toggle nav-unready" aria-disabled="true" title={`${label} — 아직 문서가 없습니다`}>
+      <span className="nav-ellipsis">{label}</span>
+      <span className="nav-soon">준비중</span>
+    </div>
+  )
+  const filledFirst = <T,>(items: T[], count: (item: T) => number) =>
+    [...items].sort((a, b) => Number(count(b) > 0) - Number(count(a) > 0))
+
   const docLeaf = (d: (typeof docs)[number]) => (
     <button
       key={d.id}
@@ -86,9 +96,10 @@ function WikiTree() {
         위키 문서
       </NavLink>
       <div className="nav-children">
-        {categories.map((c) => {
+        {filledFirst(categories, (c) => docs.filter((d) => d.category === c.id).length).map((c) => {
           const open = openCategory === c.id
           const children = docs.filter((d) => d.category === c.id)
+          if (children.length === 0) return emptyRow(c.id, c.label)
           const catOn = activeCategory === c.id && !activeSub
           const catTrail = activeDoc?.category === c.id
           const subs = subcategories[c.id]
@@ -129,9 +140,12 @@ function WikiTree() {
               )}
               {open && subsWithOthers.length > 0 && (
                 <div className="nav-children depth2">
-                  {subsWithOthers.map((s) => {
+                  {filledFirst(subsWithOthers, (s) =>
+                    s.id === '__unassigned__' ? unassigned.length : children.filter((d) => d.subcategory === s.id).length,
+                  ).map((s) => {
                     const subOpen = openSub === s.id
                     const subChildren = s.id === '__unassigned__' ? unassigned : children.filter((d) => d.subcategory === s.id)
+                    if (subChildren.length === 0) return emptyRow(s.id, s.label)
                     const subOn = activeCategory === c.id && activeSub === s.id
                     const subTrail = activeDoc?.category === c.id && activeDoc?.subcategory === s.id
                     return (

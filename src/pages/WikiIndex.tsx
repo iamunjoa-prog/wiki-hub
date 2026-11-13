@@ -20,6 +20,13 @@ export function WikiIndex() {
     activeSub === '__unassigned__' ? !subs.some((s) => s.id === d.subcategory) : d.subcategory === activeSub
   const list = active && activeSub ? byCategory.filter(subFilter) : byCategory
 
+  // 사이드바와 같은 기준 — 문서가 0건인 칩은 뒤로 보내고 누를 수 없게 한다
+  const categoryCount = (id: CategoryId) => docs.filter((d) => d.category === id).length
+  const subCount = (id: string) =>
+    id === '__unassigned__' ? unassigned.length : byCategory.filter((d) => d.subcategory === id).length
+  const filledFirst = <T,>(items: T[], count: (item: T) => number) =>
+    [...items].sort((a, b) => Number(count(b) > 0) - Number(count(a) > 0))
+
   return (
     <>
       <TopBar />
@@ -50,13 +57,15 @@ export function WikiIndex() {
           >
             전체 {docs.length}
           </button>
-          {categories.map((c) => (
+          {filledFirst(categories, (c) => categoryCount(c.id)).map((c) => (
             <button
               key={c.id}
               className={`btn sm${active === c.id ? ' primary' : ''}`}
+              disabled={categoryCount(c.id) === 0}
+              title={categoryCount(c.id) === 0 ? '아직 문서가 없습니다' : undefined}
               onClick={() => setParams({ category: c.id })}
             >
-              {c.label} {docs.filter((d) => d.category === c.id).length}
+              {c.label} {categoryCount(c.id)}
             </button>
           ))}
         </div>
@@ -69,13 +78,15 @@ export function WikiIndex() {
             >
               전체 {byCategory.length}
             </button>
-            {subsWithOthers.map((s) => (
+            {filledFirst(subsWithOthers, (s) => subCount(s.id)).map((s) => (
               <button
                 key={s.id}
                 className={`btn sm${activeSub === s.id ? ' primary' : ''}`}
+                disabled={subCount(s.id) === 0}
+                title={subCount(s.id) === 0 ? '아직 문서가 없습니다' : undefined}
                 onClick={() => setParams({ category: active, sub: s.id })}
               >
-                {s.label} {s.id === '__unassigned__' ? unassigned.length : byCategory.filter((d) => d.subcategory === s.id).length}
+                {s.label} {subCount(s.id)}
               </button>
             ))}
           </div>
