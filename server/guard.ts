@@ -13,10 +13,22 @@ export interface Rejection {
   status: number
   error: string
   code?: 'maintenance' | 'rate'
+  /** 429 일 때 걸린 한도 — RateRule.name(ask·edit·pr·download). 화면이 "잠시 뒤"와 "내일"을 가른다 */
+  rule?: string
+  /** 429 일 때 그 한도의 창(초) — 86400 이면 하루 한도 */
+  windowSeconds?: number
 }
 
 export const MAINTENANCE_TEXT = '허브 점검 중이에요. 잠시 뒤 다시 시도해 주세요'
 export const RATE_TEXT = '요청이 잠깐 많았어요. 잠시 뒤 다시 시도해 주세요'
+/** 하루 한도(제안 PR)는 잠시 기다려도 풀리지 않는다 */
+export const RATE_DAY_TEXT = (limit: number) => `오늘 올릴 수 있는 제안 수(하루 ${limit}건)를 넘었습니다. 내일 다시 제출해 주세요`
+
+/** 거절 응답 본문 — 배포(rejectionResponse)와 로컬(cliBridge sendRejection)이 같은 칸을 내보낸다 */
+export function rejectionBody(r: Rejection): Record<string, unknown> {
+  const { status: _status, ...rest } = r
+  return rest
+}
 const FORBIDDEN: Rejection = { status: 403, error: '허용되지 않은 요청입니다' }
 const BAD_TYPE: Rejection = { status: 415, error: '요청 형식이 올바르지 않습니다' }
 export const TOO_LARGE: Rejection = { status: 413, error: '보내는 내용이 너무 커요. 내용을 줄여 다시 시도해 주세요' }
@@ -121,7 +133,14 @@ export async function rateProblem(rule: RateRule, who: string, env: Env = proces
     const n = await countHit(`hub:rate:${rule.name}:${who}`, rule.windowSeconds)
     if (n <= rule.limit) return null
     console.warn(`[guard] ${rule.name} 호출 제한 — ${rule.limit}회/${rule.windowSeconds}초 초과`)
-    return { status: 429, error: RATE_TEXT, code: 'rate' }
+    const daily = rule.windowSeconds >= 24 * 60 * 60
+    return {
+      status: 429,
+      error: daily ? RATE_DAY_TEXT(rule.limit) : RATE_TEXT,
+      code: 'rate',
+      rule: rule.name,
+      windowSeconds: rule.windowSeconds,
+    }
   } catch (err) {
     console.error(`[guard] 호출 횟수를 세지 못했습니다 — ${(err as Error).message}`)
     return null
@@ -130,8 +149,7 @@ export async function rateProblem(rule: RateRule, who: string, env: Env = proces
 
 /* ── 배포 함수(api/) 입구 ───────────────────────────────── */
 
-export const rejectionResponse = (r: Rejection) =>
-  Response.json(r.code ? { error: r.error, code: r.code } : { error: r.error }, { status: r.status })
+export const rejectionResponse = (r: Rejection) => Response.json(rejectionBody(r), { status: r.status })
 
 /** 웹 스트림 본문을 상한까지만 읽는다. 넘으면 null */
 async function readLimited(request: Request, maxBytes: number): Promise<string | null> {

@@ -1,6 +1,6 @@
 import { guardApi, RATE_PR } from '../server/guard.js'
 import { readGithubToken } from '../server/env.js'
-import { createDocPR, parseCreateDocInput } from '../server/github.js'
+import { createDocPR, EditError, editErrorBody, parseCreateDocInput } from '../server/github.js'
 import { MAX_PR_BYTES } from '../server/knowledge.js'
 
 /**
@@ -30,6 +30,8 @@ export async function POST(request: Request): Promise<Response> {
     const result = await createDocPR(input, { token })
     return Response.json(result)
   } catch (err) {
+    // 입력 문제는 400 — 화면이 GitHub 실패와 갈라 "고쳐서 다시 제출"로 안내한다
+    if (err instanceof EditError) return Response.json(editErrorBody(err), { status: err.status })
     console.error('[api/createDoc]', err)
     return error(502, (err as Error).message)
   }

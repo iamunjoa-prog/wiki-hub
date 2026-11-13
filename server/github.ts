@@ -1,10 +1,38 @@
 import { readGithubRepo } from './env.js'
+import { isKnownPlace, MAX_DOC_BODY, MAX_DOC_TITLE } from './knowledge.js'
 
 /**
  * "새 문서"·"문서 수정" — GitHub REST API로 브랜치를 만들고 마크다운 파일을 추가·수정해 PR을 연다.
  * 로컬 개발 서버(cliBridge.ts)와 배포 함수(api/createDoc.ts)가 이 모듈을 함께 쓴다 —
  * 로컬도 배포도 git 명령이 아니라 GitHub API 하나로 동일하게 동작한다.
  */
+
+/** 제안이 어디서 왔는지 — PR 본문 `- 진입:` 줄에 이 이름으로 남고, 제안 목록이 같은 이름을 읽어 간다 */
+export const VIA_LABEL = {
+  propose: '수정 제안 화면',
+  form: '새 문서 화면',
+  chat: '챗봇 대화',
+  attachment: '첨부 파일',
+} as const
+
+export type EditVia = 'propose' | 'chat' | 'attachment'
+export type CreateVia = 'form' | 'chat' | 'attachment'
+
+/** 호출한 쪽이 고쳐서 다시 보낼 수 있는 문제 — API 입구가 상태 코드로 내려 준다. 새 문서·수정 제안이 함께 쓴다 */
+export class EditError extends Error {
+  constructor(
+    readonly status: 400 | 404 | 409,
+    message: string,
+    /** 응답 JSON 에 함께 싣는 칸 — 화면이 문구를 고르거나(code) 초안을 다시 만드는 데(mainBody) 쓴다 */
+    readonly detail: Record<string, unknown> = {},
+  ) {
+    super(message)
+    this.name = 'EditError'
+  }
+}
+
+/** 실패 응답 본문 — 배포 api/ 와 로컬 중계가 같은 형태로 내보낸다 */
+export const editErrorBody = (err: EditError) => ({ error: err.message, ...err.detail })
 
 export interface CreateDocInput {
   category: string
@@ -16,34 +44,45 @@ export interface CreateDocInput {
   requestedBy: string
   /** 같은 서브메뉴(없으면 같은 카테고리) 문서들의 현재 코드 — 다음 번호를 여기서 뽑는다 */
   siblingCodes: string[]
+  /** 승인자가 읽는 등록 사유 — 비면 PR 본문에 절을 넣지 않는다(사유 칸이 없던 화면 대비) */
+  reason: string
+  via: CreateVia
 }
 
 export interface CreateDocResult {
   prUrl: string
+  prNumber: number
   code: string
   path: string
 }
 
-const MAX_TITLE = 80
-const MAX_BODY = 50_000
+const MAX_TITLE = MAX_DOC_TITLE
+const MAX_BODY = MAX_DOC_BODY
+const MAX_REASON = 2_000
 
 export function parseCreateDocInput(raw: unknown): CreateDocInput {
   const r = (raw ?? {}) as Record<string, unknown>
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
   const category = str(r.category).trim()
-  if (!category) throw new Error('카테고리가 비어 있습니다')
+  if (!category) throw new EditError(400, '카테고리가 비어 있습니다')
   const subRaw = str(r.subcategory).trim()
+  // 카테고리가 파일 경로(지식/{카테고리}/…)에 그대로 들어가므로 목록에 있는 값만 받는다
+  if (!isKnownPlace(category, subRaw)) throw new EditError(400, '카테고리·서브메뉴가 올바르지 않습니다')
   const title = str(r.title).trim().replace(/[\r\n]+/g, ' ')
-  if (!title) throw new Error('제목이 비어 있습니다')
-  if (title.length > MAX_TITLE) throw new Error(`제목은 ${MAX_TITLE}자 이내로 입력해 주세요`)
+  if (!title) throw new EditError(400, '제목이 비어 있습니다')
+  if (title.length > MAX_TITLE) throw new EditError(400, `제목은 ${MAX_TITLE}자 이내로 입력해 주세요`)
   const body = str(r.body).replace(/\r\n?/g, '\n').trim()
-  if (!body) throw new Error('본문이 비어 있습니다')
-  if (body.length > MAX_BODY) throw new Error('본문이 너무 깁니다')
+  if (!body) throw new EditError(400, '본문이 비어 있습니다')
+  if (body.length > MAX_BODY) throw new EditError(400, '본문이 너무 깁니다')
+  if (/^---\s*\n/.test(body)) throw new EditError(400, '본문에 프론트매터(--- 블록)가 들어 있습니다. 본문만 보내 주세요')
+  const reason = str(r.reason).replace(/\r\n?/g, '\n').trim()
+  if (reason.length > MAX_REASON) throw new EditError(400, `등록 사유는 ${MAX_REASON}자 이내로 입력해 주세요`)
   const scopeRaw = str(r.scope)
   const scope = scopeRaw === 'PPM' || scopeRaw === 'PPV' ? scopeRaw : '공통'
   const requestedBy = str(r.requestedBy).trim() || '알 수 없음'
   const siblingCodes = Array.isArray(r.siblingCodes) ? r.siblingCodes.filter((c): c is string => typeof c === 'string') : []
-  return { category, subcategory: subRaw || null, title, scope, body, requestedBy, siblingCodes }
+  const via: CreateVia = r.via === 'chat' || r.via === 'attachment' ? r.via : 'form'
+  return { category, subcategory: subRaw || null, title, scope, body, requestedBy, siblingCodes, reason, via }
 }
 
 /**
@@ -204,9 +243,9 @@ export async function createDocPR(
   const { token } = opts
 
   const code = nextCode(input.siblingCodes, input.subcategory)
-  if (!code) {
-    throw new Error('이 서브메뉴는 문서 코드 체계가 불규칙해 자동으로 새 코드를 만들 수 없습니다')
-  }
+  // 화면이 "다른 서브메뉴를 골라 주세요"로 안내할 수 있게 code 를 붙인다
+  if (!code)
+    throw new EditError(400, '이 서브메뉴는 문서 코드 체계가 불규칙해 자동으로 새 코드를 만들 수 없습니다', { code: 'no_auto_code' })
 
   const path = `지식/${input.category}/${slugify(code)}.md`
   const content = buildMarkdown(input, code)
@@ -221,31 +260,23 @@ export async function createDocPR(
   const pr = await openPr(repo, token, {
     title: `새 문서: ${input.title} (${code})`,
     head: branch,
+    // 형식은 docs/sections/requests-chat-draft.md 8-2 — parseProposalPr 가 첫 줄·진입·사유 절을 다시 읽는다
     body: [
-      `${input.requestedBy}님이 위키 허브 "+"로 새 문서를 요청했습니다.`,
+      `${input.requestedBy}님이 위키 허브에서 새 문서를 제안했습니다.`,
       '',
       `- 카테고리: ${input.category}${input.subcategory ? ` › ${input.subcategory}` : ''}`,
       `- 문서 코드: ${code}`,
+      `- 진입: ${VIA_LABEL[input.via]}`,
       '',
+      ...(input.reason ? ['## 등록 사유', '', input.reason, ''] : []),
       '내용을 확인하고 이상 없으면 머지해 주세요. 머지되면 다음 배포에서 위키에 반영됩니다.',
     ].join('\n'),
   })
 
-  return { prUrl: pr.html_url, code, path }
+  return { prUrl: pr.html_url, prNumber: pr.number, code, path }
 }
 
 // ── 기존 문서 수정 PR ──────────────────────────────────────────────────────────
-
-/** 호출한 쪽이 고쳐서 다시 보낼 수 있는 문제 — API 입구가 상태 코드로 내려 준다 */
-export class EditError extends Error {
-  constructor(
-    readonly status: 400 | 404 | 409,
-    message: string,
-  ) {
-    super(message)
-    this.name = 'EditError'
-  }
-}
 
 export interface EditDocInput {
   /** `지식/` 를 뺀 상대 경로 — WikiDoc.path 그대로 */
@@ -260,7 +291,7 @@ export interface EditDocInput {
   /** 편집을 시작할 때 화면이 보고 있던 버전 */
   baseVersion: number
   /** 어디서 왔는지 — PR 본문에 한 줄로 남긴다 */
-  via?: 'propose' | 'chat'
+  via?: EditVia
 }
 
 export interface EditDocResult {
@@ -271,8 +302,6 @@ export interface EditDocResult {
   /** 새로 올라간 버전 */
   version: number
 }
-
-const MAX_REASON = 2_000
 
 export function parseEditDocInput(raw: unknown): EditDocInput {
   const r = (raw ?? {}) as Record<string, unknown>
@@ -309,7 +338,7 @@ export function parseEditDocInput(raw: unknown): EditDocInput {
     reason,
     requestedBy: oneLine(r.requestedBy) || '알 수 없음',
     baseVersion,
-    via: r.via === 'chat' ? 'chat' : 'propose',
+    via: r.via === 'chat' || r.via === 'attachment' ? r.via : 'propose',
   }
 }
 
@@ -403,7 +432,12 @@ export async function createEditPR(
   // 최신성 — 화면의 본문은 배포 당시 번들이다. 머지는 됐지만 아직 재배포 전이면, 이 제안이 남의 수정을 되돌린다
   const mainVersion = Number(current.values.version) || 1
   if (mainVersion !== input.baseVersion)
-    throw new EditError(409, `이 문서는 그 사이 v${mainVersion}으로 바뀌었습니다. 문서를 다시 열어 수정해 주세요`)
+    // 최신 본문을 함께 실어, 화면이 다음 배포를 기다리지 않고 이 본문으로 초안을 다시 만들게 한다(requests-chat-draft.md 5-7 A안)
+    throw new EditError(409, `이 문서는 그 사이 v${mainVersion}으로 바뀌었습니다. 문서를 다시 열어 수정해 주세요`, {
+      code: 'stale',
+      mainVersion,
+      mainBody: current.body,
+    })
 
   if (/^\s*---\s*\n/.test(input.body)) throw new EditError(400, '본문에 프론트매터(--- 블록)가 들어 있습니다. 본문만 보내 주세요')
   const body = input.body.replace(/\r\n?/g, '\n').replace(/\s*$/, '')
@@ -433,7 +467,7 @@ export async function createEditPR(
       `- 문서: ${input.title} (${input.code})`,
       `- 경로: ${path}`,
       `- 버전: v${input.baseVersion} → v${bumped.version}`,
-      `- 진입: ${input.via === 'chat' ? '챗봇 대화' : '수정 제안 화면'}`,
+      `- 진입: ${VIA_LABEL[input.via ?? 'propose']}`,
       '',
       '## 수정 사유',
       '',
@@ -455,6 +489,8 @@ export interface ProposalPr {
   docCode: string | null
   docTitle: string
   reason: string
+  /** PR 본문 `- 진입:` 줄의 이름 그대로(VIA_LABEL 값). 진입 줄이 없는 옛 PR 은 null */
+  via: string | null
   requestedBy: string
   status: 'pending' | 'approved' | 'rejected'
   requestedAt: string
@@ -499,13 +535,17 @@ export function parseProposalPr(pr: PullJson): ProposalPr | null {
   }
   if (!docTitle) docTitle = pr.title ?? ''
 
+  // 수정은 `## 수정 사유`, 새 문서는 `## 등록 사유` — 사유 절이 없는 옛 새 문서 PR 은 빈 값
   let reason = ''
-  const at = text.indexOf('## 수정 사유\n')
-  if (at >= 0) {
-    const rest = text.slice(at + '## 수정 사유\n'.length)
+  const heading = /^## (?:수정|등록) 사유\n/m.exec(text)
+  if (heading) {
+    const rest = text.slice(heading.index + heading[0].length)
     const end = rest.lastIndexOf(PR_FOOTER)
     reason = (end >= 0 ? rest.slice(0, end) : rest).trim()
   }
+
+  // 진입 줄이 없는 옛 PR 은 null — 추측해 채우지 않는다
+  const via = text.match(/^- 진입: (.+)$/m)?.[1].trim() || null
 
   return {
     prNumber: pr.number,
@@ -514,6 +554,7 @@ export function parseProposalPr(pr: PullJson): ProposalPr | null {
     docCode,
     docTitle,
     reason,
+    via,
     requestedBy,
     status: pr.merged_at ? 'approved' : pr.state === 'open' ? 'pending' : 'rejected',
     requestedAt: (pr.created_at ?? '').slice(0, 10),
