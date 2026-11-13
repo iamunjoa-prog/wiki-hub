@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
@@ -8,6 +8,9 @@ import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
 import { LocalHubOnboarding } from './LocalHubOnboarding'
+
+/** 휴대폰 폭(760px 이하)에서 사이드바를 서랍으로 연다 — 버튼은 각 화면의 TopBar 에 있어 상태를 셸에서 나눠 준다 */
+const DrawerContext = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({ open: false, setOpen: () => {} })
 
 function Chevron({ open }: { open: boolean }) {
   return (
@@ -206,7 +209,8 @@ function ScheduleTree() {
   const activePlatform = trail?.[1] ?? null
   const activeGroup = trail?.length === 4 ? trail[2] : null
 
-  const [openPlatform, setOpenPlatform] = useState<string | null>(activePlatform ?? 'B tv')
+  // 다른 화면에서는 접어 둔다 — 늘 펼쳐 두면 아래 1단 메뉴가 첫 화면 밖으로 밀린다
+  const [openPlatform, setOpenPlatform] = useState<string | null>(activePlatform ?? (inSchedule ? 'B tv' : null))
   const [openGroup, setOpenGroup] = useState<string | null>(activeGroup)
 
   useEffect(() => {
@@ -347,7 +351,7 @@ function useSidebarResize() {
   return { width, dragging, startDrag: () => setDragging(true), onKeyDown }
 }
 
-function Sidebar() {
+function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
   const { session, setRole, proposals, promotions, systemRequests } = useApp()
   const { user: account, signOut } = useAuth()
   const pendingCount =
@@ -357,7 +361,7 @@ function Sidebar() {
   const { width, dragging, startDrag, onKeyDown } = useSidebarResize()
 
   return (
-    <aside className="sidebar" style={{ width }}>
+    <aside className={`sidebar${drawerOpen ? ' drawer-open' : ''}`} style={{ width }} id="app-sidebar">
       <div
         className={`sidebar-resizer${dragging ? ' on' : ''}`}
         role="separator"
@@ -375,22 +379,27 @@ function Sidebar() {
         플랫폼 담당 지식 허브
       </div>
       <nav className="nav">
+        {/* 1단 메뉴가 한 줄로 이어지면 문서·업무 화면·요청이 섞여 보여 묶음 제목으로 나눈다 */}
+        <div className="label nav-section">찾기</div>
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           메인
         </NavLink>
 
         <WikiTree />
 
+        <div className="label nav-section">업무 화면</div>
         <ScheduleTree />
-
-        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          시스템
-        </NavLink>
 
         <NavLink to="/jira-schedule" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           Jira 스케줄 확인
         </NavLink>
 
+        {/* 위키의 '시스템 매뉴얼'과 헷갈리지 않게 접속 주소 화면이라는 것을 이름에 담는다 */}
+        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+          시스템 바로가기
+        </NavLink>
+
+        <div className="label nav-section">내 업무</div>
         <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           내 요청 현황
         </NavLink>
@@ -448,6 +457,7 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
   const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
+  const drawer = useContext(DrawerContext)
 
   useEffect(() => {
     if (!location.pathname.startsWith('/search')) setQ('')
@@ -466,6 +476,17 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
 
   return (
     <div className="topbar">
+      <button
+        className="nav-burger"
+        onClick={() => drawer.setOpen(!drawer.open)}
+        aria-label={drawer.open ? '메뉴 닫기' : '메뉴 열기'}
+        aria-expanded={drawer.open}
+        aria-controls="app-sidebar"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
       <form
         className="search-input"
         onSubmit={(e) => {
@@ -490,26 +511,43 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
 
 export function AppShell() {
   const { assistant, openDock, toast } = useApp()
+  const location = useLocation()
+  const [drawerOpen, setDrawerOpen] = useState(false)
+
+  // 메뉴를 고르면(주소가 바뀌면) 서랍을 닫는다
+  useEffect(() => {
+    setDrawerOpen(false)
+  }, [location.pathname, location.search])
+
+  useEffect(() => {
+    if (!drawerOpen) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDrawerOpen(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [drawerOpen])
 
   return (
-    <div className="shell">
-      <Sidebar />
-      <div className="main">
-        <Outlet />
+    <DrawerContext.Provider value={{ open: drawerOpen, setOpen: setDrawerOpen }}>
+      <div className="shell">
+        <Sidebar drawerOpen={drawerOpen} />
+        {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden="true" />}
+        <div className="main">
+          <Outlet />
+        </div>
+        {assistant.open ? (
+          <AssistantDock />
+        ) : (
+          <button className="fab" onClick={openDock} title="무엇이든 물어보세요 — 편성·프로모션 챗봇">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
+            </svg>
+            챗봇
+            {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
+          </button>
+        )}
+        <LocalHubOnboarding />
+        {toast && <div className="toast">{toast}</div>}
       </div>
-      {assistant.open ? (
-        <AssistantDock />
-      ) : (
-        <button className="fab" onClick={openDock} title="무엇이든 물어보세요 — 편성·프로모션 챗봇">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
-          </svg>
-          챗봇
-          {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
-        </button>
-      )}
-      <LocalHubOnboarding />
-      {toast && <div className="toast">{toast}</div>}
-    </div>
+    </DrawerContext.Provider>
   )
 }
