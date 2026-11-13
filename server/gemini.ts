@@ -7,6 +7,7 @@ import {
   checkAskReply,
   checkEditReply,
   EDIT_SCHEMA,
+  historyTurnText,
   REPLY_SCHEMA,
   todayLine,
   type CliReply,
@@ -206,7 +207,7 @@ export interface GeminiOptions {
 }
 
 /**
- * CLI가 없는 사용자용 — Gemini API에 위키 문서 전체를 system instruction으로 넣고 { text, sourcePaths } JSON으로 받는다.
+ * CLI가 없는 사용자용 — Gemini API에 위키 문서 전체를 system instruction으로 넣고 { text, sourcePaths, action } JSON으로 받는다.
  * 호출은 항상 서버(로컬 vite 중계 또는 Vercel 함수)에서 해서 API 키가 브라우저에 노출되지 않게 한다.
  */
 export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<CliReply> {
@@ -226,9 +227,9 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
       const started = Date.now()
       const response = await ai.models.generateContent({
         model,
-        // 기획 상담은 여러 턴에 걸쳐 조건을 모으므로 이력을 그대로 넘긴다
+        // 기획 상담은 여러 턴에 걸쳐 조건을 모으므로 이력을 그대로 넘긴다 — 답 턴에는 CLI 와 같은 근거·초안 줄을 붙인다
         contents: [
-          ...input.history.map((t) => ({ role: t.role === 'user' ? 'user' : 'model', parts: [{ text: t.text }] })),
+          ...input.history.map((t) => ({ role: t.role === 'user' ? 'user' : 'model', parts: [{ text: historyTurnText(t) }] })),
           { role: 'user', parts: [{ text: input.query }] },
         ],
         config: {
@@ -253,7 +254,7 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
 
       if (!response.text) throw new GeminiError('invalid', 'Gemini가 빈 응답을 반환했습니다')
       try {
-        return checkAskReply(JSON.parse(response.text))
+        return checkAskReply(JSON.parse(response.text), opts.knowledgeDir)
       } catch (err) {
         throw invalid(err)
       }

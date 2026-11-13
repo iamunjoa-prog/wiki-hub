@@ -3,26 +3,96 @@ import { join, relative } from 'node:path'
 
 /** 로컬 CLI 중계(vite 플러그인)와 배포 함수(api/)가 함께 쓰는 답변 형식·문서 묶음 */
 
+/**
+ * 대화로 만든 문서 초안 재료(server/assistant-prompt.md 「지식 입력·수정」). 서버는 GitHub 을 부르지 않고 재료만 돌려준다 —
+ * 수정은 화면이 이 칸으로 /api/edit 를 부르고, 제출은 사용자가 카드의 [제안 제출]을 눌러야만 된다
+ */
+export interface AskAction {
+  type: 'none' | 'edit' | 'new'
+  /** edit — `지식/` 기준 경로 */
+  docPath: string
+  /** edit — /api/edit 의 instruction 으로 그대로 넘긴다 */
+  instruction: string
+  /** edit·new — 사용자가 밝힌 근거. 없으면 '' (화면이 "근거 미기재"를 붙인다) */
+  reason: string
+  category: string
+  /** 서브메뉴 없는 카테고리(이용 안내)는 '' */
+  subcategory: string
+  title: string
+  scope: 'PPM' | 'PPV' | '공통' | ''
+  body: string
+}
+
 export interface CliReply {
   text: string
   sourcePaths: string[]
+  action: AskAction
 }
 
-// OpenAI·Gemini 구조화 출력 모두 받아들이는 형태: additionalProperties:false 와 전체 required
+export const NO_ACTION: AskAction = {
+  type: 'none',
+  docPath: '',
+  instruction: '',
+  reason: '',
+  category: '',
+  subcategory: '',
+  title: '',
+  scope: '',
+  body: '',
+}
+
+// OpenAI·Gemini 구조화 출력 모두 받아들이는 형태: 중첩 객체까지 additionalProperties:false 와 전체 required
 export const REPLY_SCHEMA = {
   type: 'object',
   properties: {
     text: { type: 'string' },
     sourcePaths: { type: 'array', items: { type: 'string' } },
+    action: {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: ['none', 'edit', 'new'] },
+        docPath: { type: 'string' },
+        instruction: { type: 'string' },
+        reason: { type: 'string' },
+        category: { type: 'string' },
+        subcategory: { type: 'string' },
+        title: { type: 'string' },
+        scope: { type: 'string' },
+        body: { type: 'string' },
+      },
+      required: ['type', 'docPath', 'instruction', 'reason', 'category', 'subcategory', 'title', 'scope', 'body'],
+      additionalProperties: false,
+    },
   },
-  required: ['text', 'sourcePaths'],
+  required: ['text', 'sourcePaths', 'action'],
   additionalProperties: false,
+}
+
+/**
+ * 새 문서가 놓일 수 있는 카테고리·서브메뉴 — src/data/docs.ts 의 categories·subcategories 와 같아야 한다.
+ * 서버는 화면 모듈(import.meta.glob 을 쓰는 knowledgeDocs.ts)을 불러올 수 없어 id 만 옮겨 둔다
+ */
+export const DOC_SUBCATEGORIES: Record<string, string[]> = {
+  programming: ['movie-series', 'tv', 'animation', 'kids', 'free'],
+  promotion: ['start', 'policy', 'process', 'system', 'banner-spec', 'insight', 'copy-guide', 'ops-reference'],
+  guide: [],
+}
+
+/** 카테고리·서브메뉴 조합이 목록에 있는가 — 서브메뉴 없는 카테고리는 빈 값만 맞다 */
+export function isKnownPlace(category: string, subcategory: string): boolean {
+  const subs = DOC_SUBCATEGORIES[category]
+  if (!subs) return false
+  return subs.length === 0 ? subcategory === '' : subs.includes(subcategory)
 }
 
 /** 어시스턴트 대화 한 턴 — 기획 상담은 여러 턴에 걸쳐 조건을 모으므로 이력이 필요하다 */
 export interface ChatTurn {
   role: 'user' | 'assistant'
   text: string
+  /** assistant 턴 — 그 답의 근거 문서. 엔진은 앞 답의 근거를 따로 볼 수 없어 이력에 한 줄로 붙인다 */
+  sourcePaths?: string[]
+  /** assistant 턴 — 그 답에 실린 초안. 다음 턴의 "두 번째 줄은 빼줘"가 어느 초안을 고치는지 알게 한다 */
+  action?: Pick<AskAction, 'type' | 'docPath' | 'instruction' | 'title'>
 }
 
 export interface AskInput {
@@ -62,17 +132,49 @@ export function parseAskInput(raw: unknown): AskInput {
     const text = String(t.text ?? '').trim()
     const role = t.role === 'assistant' ? 'assistant' : 'user'
     if (!text) continue
+    // 글자 수는 본문만 센다 — 화면(src/lib/assistant.ts recentHistory)이 같은 규칙으로 잘라 보낸다
     chars += text.length
     if (chars > MAX_HISTORY_CHARS) break
-    history.unshift({ role, text })
+    history.unshift(role === 'assistant' ? { role, text, ...parseTurnExtras(t) } : { role, text })
   }
   return { query, history }
+}
+
+const MAX_TURN_PATHS = 5
+const MAX_TURN_FIELD = 300
+
+/** 이력 턴의 선택 칸 — 프롬프트에 그대로 들어가므로 짧은 한 줄 값만 받는다 */
+function parseTurnExtras(t: Record<string, unknown>): Pick<ChatTurn, 'sourcePaths' | 'action'> {
+  const line = (v: unknown, max = MAX_TURN_FIELD) => (typeof v === 'string' ? v.replace(/[\r\n]+/g, ' ').trim().slice(0, max) : '')
+  const out: Pick<ChatTurn, 'sourcePaths' | 'action'> = {}
+  if (Array.isArray(t.sourcePaths)) {
+    const paths = t.sourcePaths.map((p) => line(p, 200)).filter(Boolean).slice(0, MAX_TURN_PATHS)
+    if (paths.length) out.sourcePaths = paths
+  }
+  const a = (t.action ?? null) as Record<string, unknown> | null
+  if (a && (a.type === 'edit' || a.type === 'new'))
+    out.action = { type: a.type, docPath: line(a.docPath, 200), instruction: line(a.instruction), title: line(a.title, 80) }
+  return out
+}
+
+/**
+ * 이력 한 턴을 엔진에 넘길 글로 편다 — CLI(한 덩어리 프롬프트)와 Gemini(멀티턴) 모두 이 글을 쓴다.
+ * assistant 턴에는 근거 문서와 초안을 한 줄씩 붙여, "그 문서 고쳐줘"·"두 번째 줄은 빼줘"가 앞 답을 가리킬 수 있게 한다
+ */
+export function historyTurnText(t: ChatTurn): string {
+  if (t.role !== 'assistant') return t.text
+  const lines = [t.text]
+  const paths = [...new Set([...(t.sourcePaths ?? []), ...(t.action?.type === 'edit' && t.action.docPath ? [t.action.docPath] : [])])]
+  if (paths.length) lines.push(`근거: ${paths.join(', ')}`)
+  if (t.action?.type === 'edit') lines.push(`초안: 문서 수정 · ${t.action.docPath} · 요청: ${t.action.instruction}`)
+  else if (t.action?.type === 'new') lines.push(`초안: 새 문서 · 「${t.action.title}」`)
+  return lines.join('\n')
 }
 
 /** 이력을 프롬프트 한 덩어리로 편다 — 멀티턴 입력을 받지 않는 CLI 엔진용 */
 export function buildAskRequest({ query, history }: AskInput): string {
   if (history.length === 0) return `## 질문\n\n${query}`
-  const transcript = history.map((t) => `${t.role === 'user' ? '사용자' : '어시스턴트'}: ${t.text}`).join('\n\n')
+  const transcript = history.map((t) => `${t.role === 'user' ? '사용자' : '어시스턴트'}: ${historyTurnText(t)}`).join('\n\n')
   return [
     '## 지금까지의 대화',
     // 되물은 문장이 사용자의 조건으로 굳어지면 PPV 질문에 PPM 정책이 딸려 나온다
@@ -150,6 +252,16 @@ function listDocs(dir: string): string[] {
 }
 
 const docsCache = new Map<string, string>()
+const pathsCache = new Map<string, Set<string>>()
+
+/** 위키 문서 경로(`지식/` 기준, `/` 구분) — 초안의 docPath 가 실제 문서인지 본다 */
+export function listDocPaths(knowledgeDir: string): Set<string> {
+  const cached = pathsCache.get(knowledgeDir)
+  if (cached) return cached
+  const paths = new Set(listDocs(knowledgeDir).map((file) => relative(knowledgeDir, file).replace(/\\/g, '/')))
+  pathsCache.set(knowledgeDir, paths)
+  return paths
+}
 
 /**
  * 위키 문서 전체(약 100KB)를 한 프롬프트 블록으로 묶는다 — 문서를 직접 열어볼 수 없는 엔진(Codex 샌드박스, Gemini API)용.
@@ -240,12 +352,58 @@ function balanceBoldLine(line: string): string {
   return out + line.slice(last)
 }
 
-/** 답변 검증 — claude·codex·gemini 세 엔진의 응답이 모두 이 함수를 지난다. */
-export function checkAskReply(out: unknown): CliReply {
+/** 초안을 버렸을 때 본문 끝에 붙는 줄 — docs/sections/requests-chat-draft.md 5-8 */
+export const ACTION_DROPPED_TEXT = '초안을 만들지 못했습니다. 바꿀 내용을 한 번 더 알려 주세요.'
+
+/** 새 문서 제목·본문 상한 — server/github.ts 의 PR 입력 검사와 같은 값이라 카드에서 제출해도 걸리지 않는다 */
+export const MAX_DOC_TITLE = 80
+export const MAX_DOC_BODY = 50_000
+const MAX_ACTION_REASON = 2000
+
+/** 모델이 `./`·`지식/`·역슬래시를 붙여 보내도 같은 문서로 본다 */
+const normalizeDocPath = (p: string) => p.trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^지식\//, '')
+
+/**
+ * 초안 재료 검증. 쓸 수 없는 초안은 none 으로 바꾸고 dropped 로 알린다 — 카드가 틀린 문서·빈 본문으로 뜨지 않게.
+ * 안 쓰는 칸은 비워서 돌려준다(모델이 edit 에 body 를 채워 보내도 화면이 헷갈리지 않게)
+ */
+function checkAction(raw: unknown, docPaths: Set<string>): { action: AskAction; dropped: boolean } {
+  const a = (raw ?? {}) as Record<string, unknown>
+  const str = (v: unknown) => (typeof v === 'string' ? unescapeNewlines(v).replace(/\r\n?/g, '\n').trim() : '')
+  const line = (v: unknown) => str(v).replace(/\n+/g, ' ')
+  const reason = line(a.reason).slice(0, MAX_ACTION_REASON)
+  const drop = { action: NO_ACTION, dropped: true }
+
+  if (a.type === 'edit') {
+    const docPath = normalizeDocPath(str(a.docPath))
+    const instruction = str(a.instruction)
+    if (!docPaths.has(docPath) || !instruction || instruction.length > MAX_INSTRUCTION) return drop
+    return { action: { ...NO_ACTION, type: 'edit', docPath, instruction, reason }, dropped: false }
+  }
+  if (a.type === 'new') {
+    const category = line(a.category)
+    const subcategory = line(a.subcategory)
+    const title = line(a.title)
+    const body = str(a.body)
+    if (!isKnownPlace(category, subcategory)) return drop
+    if (!title || title.length > MAX_DOC_TITLE) return drop
+    // 프론트매터는 서버가 PR 을 만들 때 쓴다 — 본문에 --- 블록이 오면 지어낸 것이다
+    if (!body || body.length > MAX_DOC_BODY || /^---\s*\n/.test(body)) return drop
+    const scope = a.scope === 'PPM' || a.scope === 'PPV' ? a.scope : '공통'
+    return { action: { ...NO_ACTION, type: 'new', reason, category, subcategory, title, scope, body }, dropped: false }
+  }
+  return { action: NO_ACTION, dropped: false }
+}
+
+/** 답변 검증 — claude·codex·gemini 세 엔진의 응답이 모두 이 함수를 지난다. knowledgeDir 는 초안 docPath 를 대조할 위키 폴더 */
+export function checkAskReply(out: unknown, knowledgeDir: string): CliReply {
   const r = (out ?? {}) as Partial<CliReply>
   if (typeof r.text !== 'string') throw new Error('답변 형식이 올바르지 않습니다')
-  return {
-    text: balanceBold(unescapeNewlines(r.text).trim()),
-    sourcePaths: Array.isArray(r.sourcePaths) ? r.sourcePaths.filter((p): p is string => typeof p === 'string') : [],
-  }
+  const sourcePaths = Array.isArray(r.sourcePaths) ? r.sourcePaths.filter((p): p is string => typeof p === 'string') : []
+  const { action, dropped } = checkAction(r.action, listDocPaths(knowledgeDir))
+  let text = balanceBold(unescapeNewlines(r.text).trim())
+  if (dropped) text = text ? `${text}\n\n${ACTION_DROPPED_TEXT}` : ACTION_DROPPED_TEXT
+  // 수정 대상은 근거 칩에도 보여야 한다 — 화면이 sourcePaths 로 출처를 그린다
+  if (action.type === 'edit' && !sourcePaths.map(normalizeDocPath).includes(action.docPath)) sourcePaths.unshift(action.docPath)
+  return { text, sourcePaths, action }
 }
