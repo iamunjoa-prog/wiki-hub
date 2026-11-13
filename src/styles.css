@@ -1374,4 +1374,25 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .account-bulk-table tr.fail td { color: var(--danger); }
 .account-role { width: auto; padding-top: 3px; padding-bottom: 3px; font-size: 12px; }
 .account-form .form-actions { margin-top: 12px; }
+
+/* 휴대폰 폭 — 사이드바를 화면 밖 서랍으로 빼고 상단바의 메뉴 버튼으로 연다. 바깥을 누르거나 메뉴를 고르면 닫힌다 */
+.nav-burger { display: none; flex: none; align-items: center; justify-content: center; width: 32px; height: 30px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.drawer-backdrop { display: none; }
+@media (max-width: 760px) {
+  .nav-burger { display: inline-flex; }
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    width: min(300px, 84vw) !important;
+    transform: translateX(-100%);
+    transition: transform 0.18s;
+    visibility: hidden;
+  }
+  .sidebar.drawer-open { transform: none; visibility: visible; box-shadow: 0 0 24px rgba(0, 0, 0, 0.18); }
+  .sidebar-resizer { display: none; }
+  .drawer-backdrop { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(0, 0, 0, 0.3); }
+}
 @media (max-width: 600px) { .account-form .form-grid { grid-template-columns: 1fr; } }
