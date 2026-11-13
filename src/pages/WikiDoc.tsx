@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
 import { categoryShort, docCommits } from '../data/docs'
@@ -128,8 +129,9 @@ export function WikiDoc() {
             )}
 
             <div className="md">
+              {/* `**용어(설명)**를`처럼 닫는 ** 앞이 문장부호이고 뒤에 조사가 붙으면 표준 규칙상 굵게가 안 닫혀 별표가 남는다 */}
               <ReactMarkdown
-                remarkPlugins={[[remarkGfm, { singleTilde: false }]]}
+                remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
                 components={{
                   h2: ({ children }) => <h2 id={headingId(String(children))}>{children}</h2>,
                   h3: ({ children }) => <h3 id={headingId(String(children))}>{children}</h3>,
