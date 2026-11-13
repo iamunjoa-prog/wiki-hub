@@ -275,7 +275,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   font: inherit;
   color: inherit;
 }
-.nav-count { padding-right: 8px; font-size: 12px; color: var(--muted); }
+.nav-count { padding-right: 8px; font-size: 12px; color: var(--text-2); }
 .chev { transition: transform 0.15s; }
 .chev.open { transform: rotate(90deg); }
 
@@ -588,28 +588,46 @@ button.row:hover { background: var(--surface-subtle); }
   display: block;
   padding: 4px 0;
   font: 13px var(--mono);
-  color: var(--muted);
+  color: var(--text-2);
   line-height: 1.4;
 }
+.doc-toc a:hover { color: var(--text); }
 .doc-toc a.h3 { padding-left: 10px; }
 .doc-toc a.on { color: var(--text); font-weight: 600; }
 
+/* 좁은 폭에서만 보이는 접는 목차 — 목차 열과 같은 링크 모양을 쓴다 */
+.doc-toc-inline { display: none; margin-bottom: 16px; }
+.doc-toc-inline summary { padding: 9px 12px; font: 600 13px var(--mono); color: var(--text-2); cursor: pointer; }
+.doc-toc-inline[open] summary { border-bottom: 1px solid var(--border); }
+.doc-toc-inline-list { padding: 6px 12px 10px; max-height: 50vh; overflow-y: auto; }
+.doc-toc-inline-list a { display: block; padding: 4px 0; font: 13px var(--mono); color: var(--text-2); line-height: 1.4; }
+.doc-toc-inline-list a.h3 { padding-left: 10px; }
+.doc-toc-inline-list a.on { color: var(--text); font-weight: 600; }
+
+/* 현재 위치 줄 — 편성/스케줄 경로 줄과 같은 라벨 글자. 각 칸은 해당 목록으로 가는 링크 */
+.crumb { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 6px; font: 600 12.5px var(--mono); letter-spacing: 0.04em; color: var(--text-2); word-break: keep-all; }
+.crumb a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.crumb-sep { margin: 0 6px; color: var(--muted); }
+
 .doc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
 .doc-title { flex: 1; min-width: 0; }
-.doc-head h1 { font: 700 23px var(--mono); margin: 0; word-break: keep-all; }
-.doc-meta { font: 12.5px var(--mono); color: var(--muted); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
+.doc-head h1 { font: 700 24px var(--mono); margin: 0; word-break: keep-all; }
+.doc-meta { font: 12.5px var(--mono); color: var(--text-2); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
 
 /* 본문이 좁으면 목차 열을 접어 본문 폭을 지키고, 제목 줄 버튼은 아래로 내린다 */
 @container (max-width: 720px) {
   .doc-layout { padding: 14px 14px; }
   .doc-toc { display: none; }
+  .doc-toc-inline { display: block; }
   .doc-head { flex-wrap: wrap; }
   .doc-title { flex-basis: 100%; }
 }
 
 .md { font-size: 16px; line-height: 1.8; color: #222; }
-.md h2 { font: 700 18px var(--mono); margin: 26px 0 10px; padding-top: 4px; }
-.md h3 { font: 700 15.5px var(--mono); margin: 20px 0 8px; }
+/* 장이 바뀌는 것이 보이게 h2 위에 구분선, h3 는 본문(16px)보다 크게 */
+.md h2 { font: 700 20px var(--mono); margin: 36px 0 12px; padding-top: 16px; border-top: 1px solid var(--border); }
+.md > h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+.md h3 { font: 700 17px var(--mono); margin: 24px 0 8px; }
 .md p { margin: 0 0 12px; }
 .md ul, .md ol { margin: 0 0 12px; padding-left: 20px; }
 .md li { margin-bottom: 4px; }
@@ -622,6 +640,10 @@ button.row:hover { background: var(--surface-subtle); }
 .md blockquote { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--text); background: var(--surface-subtle); color: var(--text-2); }
 .md hr { border: 0; border-top: 1px solid var(--border); margin: 20px 0; }
 .md .hl { background: #fff2b8; }
+/* 전역 a 는 밑줄이 없어 본문 링크가 글자와 구분되지 않는다 */
+.md a { text-decoration: underline; text-decoration-color: var(--text-2); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.md a:hover { color: var(--text); text-decoration-color: var(--text); text-decoration-thickness: 2px; }
+.md a.ext::after { content: '↗'; margin-left: 2px; font-size: 0.8em; color: var(--text-2); }
 
 /* ---------- assistant dock ---------- */
 
