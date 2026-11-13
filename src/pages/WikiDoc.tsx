@@ -56,7 +56,7 @@ export function WikiDoc() {
   const scoped = useMemo(() => splitScope(doc?.body ?? ''), [doc])
   /**
    * ReactMarkdown 에 넘기는 렌더러는 렌더마다 새로 만들면 React 가 본문 제목·표를 통째로 다시 만든다.
-   * 그러면 목차 강조용 IntersectionObserver 가 지켜보던 제목이 문서에서 떨어져 나가 현재 위치가 첫 항목에 멈춘다 — 한 번만 만든다.
+   * 그러면 스크롤할 때마다(목차 강조가 바뀔 때마다) 본문 DOM 이 새로 생기고 붙잡아 둔 제목 노드가 문서에서 떨어져 나간다 — 한 번만 만든다.
    */
   const md = useMemo(() => {
     /** 본문·적용대상 태그가 같이 쓰는 링크 — 문서 코드면 허브 안 이동, 아니면 새 창 */
@@ -124,20 +124,37 @@ export function WikiDoc() {
     setActiveHeading(hashId && headings.some((h) => headingId(h.text) === hashId) ? hashId : headings[0] ? headingId(headings[0].text) : null)
   }, [docId, headings, hashId])
 
+  // 지금 읽는 장 = 본문 위쪽 기준선을 마지막으로 넘은 제목. 바뀐 제목만 알려 주는 IntersectionObserver 는
+  // 빠르게 스크롤하면 기준 구역을 건너뛰고, 목차로 이동하면 바로 아래 소제목을 잡아서 위치로 직접 잰다
   useEffect(() => {
-    if (headings.length === 0) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting)
-        if (visible[0]) setActiveHeading(visible[0].target.id)
-      },
-      { rootMargin: '0px 0px -70% 0px', threshold: 0 },
-    )
-    headings.forEach((h) => {
-      const el = document.getElementById(headingId(h.text))
-      if (el) observer.observe(el)
-    })
-    return () => observer.disconnect()
+    const box = contentRef.current
+    if (!box || headings.length === 0) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const els = headings.map((h) => document.getElementById(headingId(h.text))).filter((el): el is HTMLElement => Boolean(el))
+      if (els.length === 0) return
+      // 끝까지 내렸으면 마지막 제목 — 짧은 마지막 장은 기준선까지 올라오지 못한다
+      if (box.scrollTop > 0 && box.scrollTop + box.clientHeight >= box.scrollHeight - 2) {
+        setActiveHeading(els[els.length - 1].id)
+        return
+      }
+      const line = box.getBoundingClientRect().top + 96
+      let current = els[0].id
+      for (const el of els) {
+        if (el.getBoundingClientRect().top > line) break
+        current = el.id
+      }
+      setActiveHeading(current)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    box.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      box.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(frame)
+    }
   }, [headings, docId, md])
 
   // 목차가 길어 스크롤되면 지금 읽는 항목을 목차 안에서 보이게 한다 — 본문 스크롤은 건드리지 않게 목차 상자만 움직인다
