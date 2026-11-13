@@ -93,7 +93,7 @@ export function WikiDoc() {
         <div className="doc-layout">
           <div className="doc-body">
             <div className="doc-head">
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="doc-title">
                 <h1>{doc.title}</h1>
                 <div className="doc-meta">
                   <span className="tag">{categoryShort[doc.category]}</span>
