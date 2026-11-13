@@ -217,6 +217,9 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   text-align: left;
   width: 100%;
 }
+/* 1단 메뉴 묶음 제목 — 첫 묶음은 위 여백 없이 */
+.nav-section { padding: 12px 8px 4px; }
+.nav-section:first-child { padding-top: 4px; }
 .nav-item:hover { color: var(--text); }
 .nav-item.on {
   background: var(--surface);

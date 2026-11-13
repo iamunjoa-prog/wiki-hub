@@ -206,7 +206,8 @@ function ScheduleTree() {
   const activePlatform = trail?.[1] ?? null
   const activeGroup = trail?.length === 4 ? trail[2] : null
 
-  const [openPlatform, setOpenPlatform] = useState<string | null>(activePlatform ?? 'B tv')
+  // 다른 화면에서는 접어 둔다 — 늘 펼쳐 두면 아래 1단 메뉴가 첫 화면 밖으로 밀린다
+  const [openPlatform, setOpenPlatform] = useState<string | null>(activePlatform ?? (inSchedule ? 'B tv' : null))
   const [openGroup, setOpenGroup] = useState<string | null>(activeGroup)
 
   useEffect(() => {
@@ -375,22 +376,27 @@ function Sidebar() {
         플랫폼 담당 지식 허브
       </div>
       <nav className="nav">
+        {/* 1단 메뉴가 한 줄로 이어지면 문서·업무 화면·요청이 섞여 보여 묶음 제목으로 나눈다 */}
+        <div className="label nav-section">찾기</div>
         <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           메인
         </NavLink>
 
         <WikiTree />
 
+        <div className="label nav-section">업무 화면</div>
         <ScheduleTree />
-
-        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          시스템
-        </NavLink>
 
         <NavLink to="/jira-schedule" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           Jira 스케줄 확인
         </NavLink>
 
+        {/* 위키의 '시스템 매뉴얼'과 헷갈리지 않게 접속 주소 화면이라는 것을 이름에 담는다 */}
+        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+          시스템 바로가기
+        </NavLink>
+
+        <div className="label nav-section">내 업무</div>
         <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
           내 요청 현황
         </NavLink>

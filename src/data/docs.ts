@@ -6,7 +6,7 @@ import { knowledgeDocs } from './knowledgeDocs'
  * 시스템 매뉴얼(ACS·CBS·Swing)은 프로모션 > 시스템 매뉴얼로 옮겨서, 여기(1단 메뉴)에는
  * 더 이상 '시스템'을 따로 두지 않는다 — `categoryShort`·`subcategories`에는 남겨 두어
  * CategoryId 타입과 과거 문서가 깨지지 않게 한다. 시스템 접속 주소·즐겨찾기는 별도로
- * /systems 화면(사이드바 '시스템' 링크)에서 다룬다 — 이 위키 카테고리와는 다른 기능이다.
+ * /systems 화면(사이드바 '시스템 바로가기' 링크)에서 다룬다 — 이 위키 카테고리와는 다른 기능이다.
  */
 export const categories: Category[] = [
   { id: 'programming', label: '편성' },
