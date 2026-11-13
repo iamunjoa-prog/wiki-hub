@@ -100,6 +100,23 @@ function LoginForm({ onDone }: { onDone: (account: HubAccount) => void }) {
       </form>
       {error && <p className="login-error">{error}</p>}
       <p className="login-help muted">계정이 없거나 비밀번호를 잊었으면 허브 관리자에게 요청해 주세요.</p>
+      {/* 로그인 전이라 ZIP 은 못 받는다 — 받는 곳만 알리고, 로그인 폼보다 눈에 띄지 않게 접어 둔다 */}
+      <details className="cli-fold login-engine">
+        <summary>챗봇은 어떤 AI로 답하나요?</summary>
+        <p>허브 챗봇은 위키 문서를 근거로 답해요. 답하는 AI는 두 가지 중 하나예요.</p>
+        <ul>
+          <li>
+            <b>내 AI 계정</b> — Claude나 ChatGPT를 유료로 쓰고 있다면 내 PC용 허브를 설치해서 쓰세요. 문서를 더 꼼꼼히 읽고
+            답하고, Jira 스케줄 확인도 돼요.
+          </li>
+          <li>
+            <b>공용 AI 엔진</b> — 계정이 없으면 여기서 로그인해 바로 쓰면 돼요. 설치할 건 없어요.
+          </li>
+        </ul>
+        <p>
+          내 PC용 허브는 로그인한 뒤 대시보드의 <b>⚙ 연결 설정</b>에서 받을 수 있어요.
+        </p>
+      </details>
     </LoginFrame>
   )
 }
