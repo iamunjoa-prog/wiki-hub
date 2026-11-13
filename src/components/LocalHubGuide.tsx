@@ -60,79 +60,22 @@ export function LocalHubGuide({ account, onDownloaded }: { account: HubAccount; 
   const { downloading, error, download } = useHubDownload(showToast, account, onDownloaded)
   const names = accountNames(account)
 
-  const first = (
-    <li>
-      아래 <b>내 PC용 허브 내려받기</b>를 누르면 <code>wiki-hub.zip</code> 이 다운로드 폴더에 받아져요.
-    </li>
-  )
   // 브라우저 로그인 말고는 손댈 일이 없다 — 설치·로그인 대상은 ZIP 설정 파일로 정해진다
   const wait = (shell: string) => (
     <li>
-      {shell}이 혼자 준비해요(처음 5~10분). 키보드는 누르지 않아도 돼요. 브라우저에 로그인 화면이 뜨면{' '}
-      <b>{names} 계정</b>으로 로그인하세요.
+      {shell}이 혼자 준비해요(5~10분). 로그인 화면이 뜨면 <b>{names} 계정</b>으로 로그인
     </li>
   )
 
   return (
     <>
-      <p className="cli-guide">아래 순서대로 하면 끝나요. 중간에 고를 일은 없어요.</p>
+      <p className="cli-guide">받아서 아래 순서대로 하면 끝나요. 중간에 고를 일은 없어요.</p>
       <div className="cli-os">
         <b>{os === 'mac' ? 'Mac' : 'Windows'}</b>
         <button type="button" className="cli-os-switch" onClick={() => setOs(os === 'mac' ? 'win' : 'mac')}>
           {os === 'mac' ? 'Windows 안내 보기' : 'Mac 안내 보기'}
         </button>
       </div>
-      {os === 'mac' ? (
-        <ol className="cli-steps">
-          {first}
-          <li>
-            받은 파일을 <b>더블클릭</b>해 압축을 푸세요. Safari로 받았다면 이미 풀려 있어요.
-          </li>
-          <li>
-            풀린 <b>wiki-hub</b> 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-mac.command</b>를 <b>우클릭(또는 control+클릭) → 열기</b>를
-            누르고, 뜨는 창에서 다시 <b>열기</b>를 누르세요.
-          </li>
-          <li>
-            {/* macOS 15부터는 우클릭 → 열기로 넘어가지지 않아 시스템 설정 경로를 함께 둔다 */}
-            [열기] 없이 <b>완료</b>만 보이면: <b>완료</b> → 화면 왼쪽 위{' '}
-            <b>Apple 메뉴 → 시스템 설정 → 개인정보 보호 및 보안</b>에서 아래로 내려 "start-hub-mac.command" 옆{' '}
-            <b>그래도 열기</b> → 다시 뜨는 창에서 <b>그래도 열기</b> → Mac 암호를 넣으세요. <b>휴지통으로 이동</b>은 누르지
-            마세요.
-          </li>
-          <li>
-            "터미널이 … 폴더에 접근하려고 합니다" 창이 뜨면 <b>허용</b>을 누르세요.
-          </li>
-          {wait('터미널 창')}
-          <li>
-            준비가 끝나면 허브가 브라우저에 열려요. 터미널 창은 <b>닫지 말고</b> 노란 단추로 내려 두세요. 다음부터는 바탕화면의{' '}
-            <b>플랫폼 담당 지식 허브</b>를 더블클릭하면 돼요.
-          </li>
-        </ol>
-      ) : (
-        <ol className="cli-steps">
-          {first}
-          <li>
-            받은 파일을 <b>우클릭 → 모두 압축 풀기 → 압축 풀기</b>를 누르세요. 더블클릭으로 열기만 하면 안 돼요.
-          </li>
-          <li>
-            풀린 <b>wiki-hub</b> 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-windows</b>를 더블클릭하세요.
-          </li>
-          <li>
-            파란 <b>"Windows의 PC 보호"</b> 창이 뜨면 <b>추가 정보</b>를 누른 뒤 <b>실행</b>을 누르세요. "보안 경고" 창이 뜨면{' '}
-            <b>실행</b>을 누르세요.
-          </li>
-          {wait('검은 창')}
-          <li>
-            준비가 끝나면 허브가 브라우저에 열려요. 검은 창은 <b>닫지 말고 최소화</b>해 두세요. 다음부터는 바탕화면의{' '}
-            <b>플랫폼 담당 지식 허브</b>를 더블클릭하면 돼요.
-          </li>
-        </ol>
-      )}
-      <span className="muted cli-note">
-        {os === 'mac'
-          ? 'hub 폴더는 열지 않아도 돼요.'
-          : '풀린 폴더에는 start-hub-windows, start-hub-mac, 읽어주세요, hub 폴더가 있어요. hub 폴더는 열지 않아도 돼요.'}
-      </span>
       <button
         type="button"
         className="btn sm primary"
@@ -152,8 +95,50 @@ export function LocalHubGuide({ account, onDownloaded }: { account: HubAccount; 
           </details>
         </div>
       )}
+      {os === 'mac' ? (
+        <ol className="cli-steps">
+          <li>
+            받은 <code>wiki-hub.zip</code> 을 <b>더블클릭</b>해 압축 풀기 (Safari로 받았다면 이미 풀려 있어요)
+          </li>
+          <li>
+            풀린 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-mac.command</b> <b>우클릭 → 열기 → 열기</b>
+            {/* macOS 15부터는 우클릭 → 열기로 넘어가지지 않아 시스템 설정 경로를 접어 둔다 */}
+            <details className="cli-fold">
+              <summary>[열기] 버튼이 안 보이면</summary>
+              <span className="cli-note">
+                <b>완료</b> → 화면 왼쪽 위 <b>Apple 메뉴 → 시스템 설정 → 개인정보 보호 및 보안</b>에서 아래로 내려
+                "start-hub-mac.command" 옆 <b>그래도 열기</b> → 다시 뜨는 창에서 <b>그래도 열기</b> → Mac 암호 입력.{' '}
+                <b>휴지통으로 이동</b>은 누르지 마세요.
+              </span>
+            </details>
+          </li>
+          <li>
+            "터미널이 … 폴더에 접근하려고 합니다" 창이 뜨면 <b>허용</b>
+          </li>
+          {wait('터미널 창')}
+          <li>
+            허브가 열리면 끝. 터미널 창은 <b>닫지 말고 노란 단추로 내리기</b>
+          </li>
+        </ol>
+      ) : (
+        <ol className="cli-steps">
+          <li>
+            받은 <code>wiki-hub.zip</code> 을 <b>우클릭 → 모두 압축 풀기 → 압축 풀기</b> (더블클릭으로 열기만 하면 안 돼요)
+          </li>
+          <li>
+            풀린 폴더에서 <b style={{ whiteSpace: 'nowrap' }}>start-hub-windows</b> 더블클릭 (hub 폴더는 열지 않아도 돼요)
+          </li>
+          <li>
+            파란 <b>"Windows의 PC 보호"</b> 창이 뜨면 <b>추가 정보 → 실행</b> ("보안 경고" 창이면 <b>실행</b>)
+          </li>
+          {wait('검은 창')}
+          <li>
+            허브가 열리면 끝. 검은 창은 <b>닫지 말고 최소화</b>
+          </li>
+        </ol>
+      )}
       <span className="muted cli-note">
-        이미 설치하셨다면 바탕화면의 <b>플랫폼 담당 지식 허브</b>를 더블클릭하세요. 켜져 있으면 브라우저만 열려요.{' '}
+        다음부터는(이미 설치했다면) 바탕화면 <b>플랫폼 담당 지식 허브</b> 더블클릭. 켜져 있으면 브라우저만 열려요.{' '}
         <a href={LOCAL_URL} target="_blank" rel="noreferrer">
           켜져 있는 허브 열기 ↗
         </a>
