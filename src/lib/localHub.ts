@@ -58,7 +58,7 @@ export function useHubDownload(showToast: (msg: string) => void, account: HubAcc
       a.click()
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
-      showToast('wiki-hub.zip 을 받았어요. 다운로드 폴더에서 압축을 풀고 start-hub 를 더블클릭하세요')
+      showToast(`wiki-hub.zip 을 받았어요. 다운로드 폴더에서 압축을 풀고 ${detectOs() === 'mac' ? 'start-hub-mac.command 를 우클릭 → 열기하세요' : 'start-hub-windows.bat 을 더블클릭하세요'}`)
       onDownloaded?.()
     } catch (err) {
       const message = (err as Error).message || '내려받지 못했습니다'
