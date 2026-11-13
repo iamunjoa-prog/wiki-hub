@@ -1,6 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
-import { categories, categoryShort, subcategories } from '../data/docs'
+import { categories, categoryShort, docRank, subcategories } from '../data/docs'
 import { useApp } from '../store/AppStore'
 import type { CategoryId } from '../types'
 
@@ -18,7 +18,32 @@ export function WikiIndex() {
   const subsWithOthers = unassigned.length > 0 ? [...subs, { id: '__unassigned__', label: '기타' }] : subs
   const subFilter = (d: (typeof docs)[number]) =>
     activeSub === '__unassigned__' ? !subs.some((s) => s.id === d.subcategory) : d.subcategory === activeSub
-  const list = active && activeSub ? byCategory.filter(subFilter) : byCategory
+  // 승인으로 뒤에 붙은 문서도 사이드바 순서 안에 들어가게 한 번 더 세운다
+  const list = (active && activeSub ? byCategory.filter(subFilter) : byCategory)
+    .map((d, i) => ({ d, i, rank: docRank(d) }))
+    .sort((a, b) => a.rank[0] - b.rank[0] || a.rank[1] - b.rank[1] || a.i - b.i)
+    .map((x) => x.d)
+
+  /** 행 태그·묶음 제목에 쓰는 서브메뉴 이름. 서브메뉴가 없는 카테고리(이용 안내)는 카테고리 이름 */
+  const subLabel = (d: (typeof docs)[number]) => {
+    const own = subcategories[d.category] ?? []
+    if (own.length === 0) return categoryShort[d.category]
+    return own.find((s) => s.id === d.subcategory)?.label ?? '기타'
+  }
+  const groupLabel = (d: (typeof docs)[number]) => {
+    const own = subcategories[d.category] ?? []
+    const cat = categories.find((c) => c.id === d.category)?.label ?? categoryShort[d.category]
+    if (own.length === 0) return cat
+    return active ? subLabel(d) : `${cat} › ${subLabel(d)}`
+  }
+  // 서브메뉴 칩을 고른 화면은 모두 같은 묶음이라 제목 줄을 생략한다
+  const groups: { label: string; items: typeof list }[] = []
+  for (const d of list) {
+    const label = activeSub ? '' : groupLabel(d)
+    const last = groups[groups.length - 1]
+    if (last && last.label === label) last.items.push(d)
+    else groups.push({ label, items: [d] })
+  }
 
   // 사이드바와 같은 기준 — 문서가 0건인 칩은 뒤로 보내고 누를 수 없게 한다
   const categoryCount = (id: CategoryId) => docs.filter((d) => d.category === id).length
@@ -33,7 +58,7 @@ export function WikiIndex() {
       <div className="content">
         <div className="page-head">
           <span className="page-title">위키 문서</span>
-          <span className="muted mono" style={{ fontSize: 11 }}>
+          <span className="mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>
             {list.length}건
           </span>
           <button
@@ -92,16 +117,26 @@ export function WikiIndex() {
           </div>
         )}
 
-        <div className="panel">
-          {list.map((d) => (
-            <button key={d.id} className="row" onClick={() => navigate(`/wiki/${d.id}`)}>
-              <span className="tag">{categoryShort[d.category]}</span>
-              <span className="grow">{d.title}</span>
-              <span className="muted">{d.code}</span>
-              <span className="muted">v{d.version}</span>
-              <span className="muted">{d.updatedBy}</span>
-              <span className="muted">{d.updatedAt}</span>
-            </button>
+        <div className="panel wiki-list">
+          {groups.map((g) => (
+            <div key={g.label || 'all'}>
+              {g.label && (
+                <div className="panel-head wiki-group">
+                  <span className="label strong">{g.label}</span>
+                  <span className="wiki-group-count">{g.items.length}</span>
+                </div>
+              )}
+              {g.items.map((d) => (
+                <button key={d.id} className="row wiki-row" onClick={() => navigate(`/wiki/${d.id}`)} title={d.title}>
+                  <span className="tag">{subLabel(d)}</span>
+                  <span className="grow">{d.title}</span>
+                  <span className="wiki-row-code">{d.code}</span>
+                  <span className="wiki-row-ver">v{d.version}</span>
+                  <span className="wiki-row-by">{d.updatedBy}</span>
+                  <span className="wiki-row-at">{d.updatedAt}</span>
+                </button>
+              ))}
+            </div>
           ))}
           {list.length === 0 && <div className="empty">해당 카테고리에 문서가 없습니다</div>}
         </div>

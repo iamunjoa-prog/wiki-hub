@@ -488,6 +488,19 @@ button.kpi:hover { background: var(--surface-subtle); }
 button.row:hover { background: var(--surface-subtle); }
 .row .grow { flex: 1; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* 위키 목록 — 서브메뉴 묶음 제목 줄과 행. 좁아지면 제목을 지키고 부가 정보부터 숨긴다 */
+.wiki-group { background: var(--surface-subtle); padding: 7px 12px; }
+.wiki-list > div + div .wiki-group { border-top: 1px solid var(--border); }
+.wiki-group-count { margin-left: auto; font: 12px var(--mono); color: var(--text-2); }
+.wiki-row > :not(.grow) { flex: none; white-space: nowrap; }
+@container (max-width: 720px) {
+  .wiki-row-ver, .wiki-row-by { display: none; }
+  .wiki-row .grow { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.45; }
+}
+@container (max-width: 480px) {
+  .wiki-row .tag, .wiki-row-code { display: none; }
+}
+
 .link-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
 .link-card {
   border: 1px solid var(--border);
