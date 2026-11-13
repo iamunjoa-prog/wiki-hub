@@ -106,17 +106,18 @@ export function WikiDoc() {
   ]
 
   const tocLinks = (onPick?: () => void) =>
-    headings.map((h) => {
+    headings.map((h, i) => {
       const id = headingId(h.text)
       return (
         <a
-          key={id}
+          key={`${i}-${id}`}
           href={`#${id}`}
           className={`${h.level === 3 ? 'h3' : ''}${activeHeading === id ? ' on' : ''}`}
           onClick={(e) => {
             e.preventDefault()
-            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            // 접는 목차를 먼저 닫고 줄어든 화면에서 위치를 잰다 — 반대로 하면 목차 높이만큼 지나쳐 멈춘다
             onPick?.()
+            requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
           }}
         >
           {h.text}
