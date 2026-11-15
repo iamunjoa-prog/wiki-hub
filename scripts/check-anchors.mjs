@@ -21,7 +21,8 @@ const KNOWLEDGE_DIR = '지식'
 const SKIP = ['guide/writing.md']
 
 /** src/lib/docEdit.ts 의 headingId 와 같은 규칙이어야 한다 (단일 출처 — node 스크립트라 TS 를 못 불러와 한 줄을 따로 둔다) */
-const headingId = (text) => `h-${text.trim().replace(/\s+/g, '-')}`
+const headingPlain = (text) => text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*\*/g, '').replace(/`/g, '')
+const headingId = (text) => `h-${headingPlain(text).trim().replace(/\s+/g, '-')}`
 
 function listMarkdown(dir) {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

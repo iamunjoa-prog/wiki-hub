@@ -12,6 +12,7 @@ import {
 } from '../lib/assistant'
 import { useApp, type IntentChoice } from '../store/AppStore'
 import type { ChatMessage, Engine, PromotionBrief } from '../types'
+import { EngineGuideModal } from './EngineGuide'
 
 function RichText({ text }: { text: string }) {
   return (
@@ -106,6 +107,9 @@ function Message({ msg }: { msg: ChatMessage }) {
   const notice = msg.fallback?.length && msg.answeredBy === RULE_BASED_LABEL ? fallbackNotice(msg.fallback) : null
   // 관리자에게만 엔진·분류 코드를 붙인다 — 원문 사유는 관리자 화면에도 두지 않는다
   const codes = session.role === 'admin' && msg.fallback?.length ? fallbackCodes(msg.fallback) : null
+  // answeredBy 는 엔진 이름으로 시작한다(앞선 실패가 있으면 뒤에 괄호가 붙는다) — 공용 엔진 답에만 차이 안내를 붙인다
+  const byShared = msg.answeredBy?.startsWith(ENGINE_LABEL.gemini) ?? false
+  const [guideOpen, setGuideOpen] = useState(false)
 
   if (msg.role === 'user') return <div className="msg user">{msg.text}</div>
 
@@ -131,6 +135,15 @@ function Message({ msg }: { msg: ChatMessage }) {
           {codes && ` · ${codes}`}
         </div>
       )}
+      {byShared && (
+        <div className="by engine-by">
+          공용 AI로 답했어요 ·{' '}
+          <button type="button" className="cli-os-switch" onClick={() => setGuideOpen(true)}>
+            차이 보기
+          </button>
+        </div>
+      )}
+      {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
     </div>
   )
 }

@@ -13,7 +13,14 @@ import type { WikiDoc } from '../types'
  * scripts/check-anchors.mjs 는 node 스크립트라 TS 를 못 불러와 같은 한 줄을 따로 들고 있다 —
  * 규칙을 바꾸면 그쪽도 함께 바꾼다.
  */
-export const headingId = (text: string) => `h-${text.trim().replace(/\s+/g, '-')}`
+export const headingId = (text: string) => `h-${headingPlain(text).trim().replace(/\s+/g, '-')}`
+
+/**
+ * 소제목 원문에서 굵게(`**`)·코드(`` ` ``)·링크 표기를 걷어 화면에 보이는 글자만 남긴다.
+ * 목차(원문)와 본문 제목(렌더된 글자)이 같은 id 를 갖게 하려는 것 — 기호가 남으면 목차를 눌러도 이동하지 않는다.
+ */
+export const headingPlain = (text: string) =>
+  text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*\*/g, '').replace(/`/g, '')
 
 /** 소제목 줄(H2~H4)의 텍스트 */
 function headingTexts(body: string): string[] {

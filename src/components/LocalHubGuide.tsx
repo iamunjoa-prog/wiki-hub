@@ -128,6 +128,9 @@ export function LocalHubGuide({ account, onDownloaded }: { account: HubAccount |
           <ul>
             <li>Safari로 받았다면 이미 풀려 있어요.</li>
             <li>
+              확장자가 안 보이면 <b>start-hub-mac</b>으로 보여요.
+            </li>
+            <li>
               우클릭(또는 control+클릭) → <b>열기</b> 뒤 뜨는 창에서 다시 <b>열기</b>를 누르세요.
             </li>
             <li>

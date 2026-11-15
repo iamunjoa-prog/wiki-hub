@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
 import { categories, categoryShort, subcategories } from '../data/docs'
@@ -164,7 +165,7 @@ export function NewDoc() {
               ) : (
                 <div className="md" style={{ minHeight: 320 }}>
                   {body.trim() ? (
-                    <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }]]}>{body}</ReactMarkdown>
+                    <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}>{body}</ReactMarkdown>
                   ) : (
                     <span className="muted">본문을 입력하면 여기 미리보기가 뜹니다</span>
                   )}

@@ -6,7 +6,7 @@ import { knowledgeDocs } from './knowledgeDocs'
  * 시스템 매뉴얼(ACS·CBS·Swing)은 프로모션 > 시스템 매뉴얼로 옮겨서, 여기(1단 메뉴)에는
  * 더 이상 '시스템'을 따로 두지 않는다 — `categoryShort`·`subcategories`에는 남겨 두어
  * CategoryId 타입과 과거 문서가 깨지지 않게 한다. 시스템 접속 주소·즐겨찾기는 별도로
- * /systems 화면(사이드바 '시스템' 링크)에서 다룬다 — 이 위키 카테고리와는 다른 기능이다.
+ * /systems 화면(사이드바 '시스템 바로가기' 링크)에서 다룬다 — 이 위키 카테고리와는 다른 기능이다.
  */
 export const categories: Category[] = [
   { id: 'programming', label: '편성' },
@@ -52,8 +52,23 @@ export const subcategories: Record<Category['id'], Subcategory[]> = {
   guide: [],
 }
 
-/** 지식/ 폴더의 마크다운이 곧 위키 문서다. 더미 데이터는 두지 않는다. */
-export const docs: WikiDoc[] = knowledgeDocs
+/** 사이드바 순서 — 카테고리 → 서브메뉴(소속 없는 '기타'는 맨 뒤). 서브메뉴 안은 프론트매터 order 순서를 그대로 둔다 */
+export function docRank(d: Pick<WikiDoc, 'category' | 'subcategory'>): [number, number] {
+  const cat = categories.findIndex((c) => c.id === d.category)
+  const subs = subcategories[d.category] ?? []
+  const sub = subs.findIndex((s) => s.id === d.subcategory)
+  return [cat < 0 ? categories.length : cat, sub < 0 ? subs.length : sub]
+}
+
+/**
+ * 지식/ 폴더의 마크다운이 곧 위키 문서다. 더미 데이터는 두지 않는다.
+ * order 만으로 줄 세우면 이용 안내가 프로모션 사이에 끼어 목록과 사이드바 순서가 갈라진다 — 사이드바 순서로 다시 세운다(안정 정렬이라 같은 서브메뉴 안 순서는 유지).
+ */
+export const docs: WikiDoc[] = [...knowledgeDocs].sort((a, b) => {
+  const [aCat, aSub] = docRank(a)
+  const [bCat, bSub] = docRank(b)
+  return aCat - bCat || aSub - bSub
+})
 
 /** 문서별 수정 이력. 비어 있으면 WikiDoc 화면이 '문서 등록' 한 줄로 대체한다. */
 export const docCommits: Record<string, DocCommit[]> = {}

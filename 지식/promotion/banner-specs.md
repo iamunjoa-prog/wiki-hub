@@ -1,5 +1,5 @@
 ---
-title: 배너 규격
+title: 배너 규격 공통 기준
 code: MKI-B-01
 category: promotion
 subcategory: banner-spec
@@ -93,7 +93,7 @@ source: "AX 마케팅 자동화 지식베이스 · placements/banner-specs.md ·
 - 각 텍스트 필드가 글자수 제한 이내인가? (공백 포함 여부 확인)
 - 줄 수 제한을 지켰는가?
 - TARGET 캠페인인데 타겟팅 불가 구좌를 넣지 않았는가?
-- 캠페인 대상 셋탑의 UI 버전이 최소 sw_version 이상인가?
+- 프로모션 대상 셋탑의 UI 버전이 최소 sw_version 이상인가?
 - 사용하려는 랜딩 기능이 해당 배너에서 지원되는가?
 - TV 팝업 개발이 필요하다면 **2주 리드타임**을 일정에 반영했는가?
 - Today B tv 사용 시 UI 버전별 별도 이미지 제작 일정을 확보했는가?
