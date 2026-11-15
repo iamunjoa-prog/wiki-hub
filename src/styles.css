@@ -758,9 +758,17 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .status-dot.warn { background: #e0a100; box-shadow: 0 0 0 3px rgba(224, 161, 0, 0.18); }
 .status-dot.loading { animation: pulse 1.2s ease-in-out infinite; }
 
-.cli-modal { width: 500px; max-width: calc(100vw - 32px); }
+.modal.cli-modal { width: 500px; max-width: calc(100vw - 32px); }
+/* 설정 창·첫 안내 창 — 노트북 화면(높이 720)에서도 창이 화면 안에 들고 본문만 스크롤된다 */
+.modal-back.hub-back { align-items: center; padding: 24px 0; }
+.hub-back > .modal { max-height: calc(100vh - 48px); display: flex; flex-direction: column; }
+.hub-back .modal-body { overflow-y: auto; min-height: 0; word-break: keep-all; }
+.cli-dl { display: flex; flex-direction: column; gap: 4px; }
+.cli-dl .btn { justify-content: center; padding: 10px 14px; font-size: 14px; }
+.cli-more ul { margin: 0 0 6px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
+.cli-more li { display: list-item; }
 .cli-guide { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text-2); }
-.cli-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+.cli-steps { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; line-height: 1.6; word-break: keep-all; }
 .cli-steps li { display: list-item; }
 .cli-os { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .cli-os-switch { background: none; border: 0; padding: 0; font: inherit; color: var(--accent, #2563eb); text-decoration: underline; cursor: pointer; }
@@ -777,15 +785,11 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .cli-hint { font-size: 12px; color: var(--muted); text-align: right; }
 
 /* 첫 안내 창 — 내 Claude·ChatGPT 계정으로 챗봇 쓰기 (계정 4지선다는 설정 창도 같이 쓴다) */
-.modal-back.onb-back { padding-top: 8vh; }
-.modal.onb-modal { width: 560px; max-width: calc(100vw - 32px); max-height: calc(88vh - 24px); display: flex; flex-direction: column; }
-.onb-modal .modal-body { overflow-y: auto; gap: 12px; word-break: keep-all; }
+.modal.onb-modal { width: 560px; max-width: calc(100vw - 32px); }
+.onb-modal .modal-body { gap: 12px; }
 .onb-hello { margin: 0; font: 600 15px var(--sans); }
-.onb-why { margin: 0; padding-left: 18px; font-size: 14px; line-height: 1.7; color: var(--text-2); }
-.onb-why li { display: list-item; }
-.onb-ask { display: flex; flex-direction: column; gap: 4px; }
+.onb-ask { display: flex; flex-direction: column; gap: 6px; }
 .onb-q { font: 600 14px var(--sans); }
-.onb-q-sub { font-size: 12.5px; margin-bottom: 4px; }
 .onb-choice { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .onb-choice-text { display: flex; flex-direction: column; gap: 1px; }
 .onb-choice-text small { font: 400 12px var(--sans); color: var(--muted); }
@@ -793,7 +797,7 @@ body.resizing-x { cursor: col-resize; user-select: none; }
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px;
+  padding: 6px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--surface);

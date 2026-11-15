@@ -3,7 +3,7 @@ import { requestLogin } from '../lib/assistant'
 import { ACCOUNT_NAME, isLocalStatus, type AccountChoice as Choice } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import type { CliEngine, EngineStatus } from '../types'
-import { AccountChoice, LocalHubGuide } from './LocalHubGuide'
+import { AccountChoice, HUB_LEAD, LocalHubGuide } from './LocalHubGuide'
 
 const CLI_ENGINES: CliEngine[] = ['claude', 'codex']
 const LOGIN_WAIT_MS = 180_000
@@ -188,7 +188,7 @@ export function CliStatus() {
       )}
 
       {settingsOpen && (
-        <div className="modal-back" onClick={() => setSettingsOpen(false)}>
+        <div className="modal-back hub-back" onClick={() => setSettingsOpen(false)}>
           <div className="modal cli-modal" role="dialog" aria-label="챗봇 답변 엔진 설정" onClick={(ev) => ev.stopPropagation()}>
             <div className="panel-head">
               <span className="label strong">챗봇 답변 엔진 설정</span>
@@ -200,15 +200,13 @@ export function CliStatus() {
             <div className="modal-body">
               {!isLocal ? (
                 <>
-                  <p className="cli-guide">
-                    지금 챗봇은 {gemini?.loggedIn ? <b>공용 AI 엔진</b> : <b>간단한 답변</b>}으로 답해요. 내 계정으로 답받으려면{' '}
-                    <b>내 PC에서 허브를 켜세요</b>.
-                  </p>
+                  <p className="cli-guide">{HUB_LEAD}</p>
                   {/* 첫 안내 창과 같은 질문 — 고른 계정만 설치·로그인하게 ZIP에 싣는다. 둘 다를 기본으로 두면 없는 계정 로그인을 기다리게 된다 */}
                   <AccountChoice value={account} onChange={setAccount} />
-                  {account && account !== 'unknown' && <LocalHubGuide account={account} />}
-                  {account === 'unknown' && (
+                  {account === 'unknown' ? (
                     <p className="cli-guide">지금처럼 이 허브에서 바로 쓰시면 돼요. 챗봇은 공용 AI 엔진으로 답해요.</p>
+                  ) : (
+                    <LocalHubGuide account={account} />
                   )}
                 </>
               ) : (
