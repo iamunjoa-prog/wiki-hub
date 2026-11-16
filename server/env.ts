@@ -22,6 +22,21 @@ export function readGeminiFallbackModel(env: Record<string, string | undefined> 
   return env.GEMINI_FALLBACK_MODEL?.trim() || undefined
 }
 
+/** 로컬 claude CLI 모델 — 버전이 바뀌어도 그대로 쓰이게 별칭(opus·sonnet·haiku)을 권한다. 비워 두면 그 PC의 CLI 기본 모델 */
+export function readClaudeModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.CLAUDE_MODEL?.trim() || undefined
+}
+
+/** claude CLI 기본 모델이 혼잡할 때 넘어갈 예비 모델(--fallback-model) — 비워 두면 쓰지 않는다 */
+export function readClaudeFallbackModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.CLAUDE_FALLBACK_MODEL?.trim() || undefined
+}
+
+/** 로컬 codex CLI 모델(-m) — 비워 두면 그 PC의 CLI 기본 모델 */
+export function readCodexModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.CODEX_MODEL?.trim() || undefined
+}
+
 /** "새 문서" 기능이 브랜치·PR을 만들 때 쓰는 GitHub 토큰 — repo contents·pull-requests 쓰기 권한 필요 */
 const GITHUB_TOKEN_NAMES = ['GITHUB_TOKEN', 'GH_TOKEN']
 
