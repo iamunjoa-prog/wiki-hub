@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ENGINE_LABEL,
@@ -14,21 +14,39 @@ import { useApp, type IntentChoice } from '../store/AppStore'
 import type { ChatMessage, Engine, PromotionBrief } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 
-function RichText({ text }: { text: string }) {
+// 굵게 안의 가린 이름(류*영)도 굵게로 묶이게 단일 `*` 는 허용한다
+const BOLD = /(\*\*(?:[^*]|\*(?!\*))+?\*\*)/g
+
+function Inline({ line }: { line: string }) {
   return (
     <>
-      {text.split('\n').map((line, i) => {
-        // 굵게 안의 가린 이름(류*영)도 굵게로 묶이게 단일 `*` 는 허용한다
-        const parts = line.split(/(\*\*(?:[^*]|\*(?!\*))+?\*\*)/g)
-        return (
-          <p key={i}>
-            {parts.map((p, j) =>
-              p.startsWith('**') && p.endsWith('**') ? <b key={j}>{p.slice(2, -2)}</b> : p,
-            )}
-          </p>
-        )
-      })}
+      {line.split(BOLD).map((p, j) =>
+        p.startsWith('**') && p.endsWith('**') ? <b key={j}>{p.slice(2, -2)}</b> : p,
+      )}
     </>
+  )
+}
+
+function RichText({ text }: { text: string }) {
+  // 빈 줄로만 문단을 나눈다 — 줄마다 문단을 만들면 문단 안 줄바꿈과 문단 사이가 구분되지 않는다
+  const paras = text
+    .replace(/\r\n?/g, '\n')
+    .trim()
+    .split(/\n[ \t]*\n\s*/)
+    .filter((para) => para.trim())
+  return (
+    <div className="msg-text">
+      {paras.map((para, i) => (
+        <p key={i}>
+          {para.split('\n').map((line, j) => (
+            <Fragment key={j}>
+              {j > 0 && <br />}
+              <Inline line={line} />
+            </Fragment>
+          ))}
+        </p>
+      ))}
+    </div>
   )
 }
 
