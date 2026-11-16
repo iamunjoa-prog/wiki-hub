@@ -9,6 +9,9 @@ import { loadEnv, type Plugin } from 'vite'
 import {
   readBigBannerSheetUrl,
   readBtvSheetUrl,
+  readClaudeFallbackModel,
+  readClaudeModel,
+  readCodexModel,
   readGeminiFallbackModel,
   readGeminiKey,
   readGeminiModel,
@@ -77,6 +80,21 @@ const EDIT_PROMPT_FILE = resolve(__dirname, 'edit-prompt.md')
 const TIMEOUT_MS: Record<Engine, number> = { claude: 120_000, codex: 180_000 }
 /** 문서 편집은 본문 전체를 다시 써서 돌려주므로 답변보다 오래 걸린다 */
 const EDIT_TIMEOUT_MS: Record<Engine, number> = { claude: 240_000, codex: 300_000 }
+
+/**
+ * .env.local 의 CLI 모델 지정 — 플러그인 설정부(configureServer)에서 한 번 채운다. 비어 있으면 각 PC의 CLI 기본 모델.
+ * 버전명은 코드에 두지 않는다. claude 는 별칭(opus·sonnet·haiku)을 권한다
+ */
+const cliModels: { claude?: string; claudeFallback?: string; codex?: string } = {}
+
+/** claude 모델 인자 — 예비 모델이 기본 모델과 같으면 CLI가 에러를 내므로 그때는 예비 모델을 뺀다 */
+function claudeModelArgs(): string[] {
+  const { claude, claudeFallback } = cliModels
+  return [
+    ...(claude ? ['--model', claude] : []),
+    ...(claudeFallback && claudeFallback !== claude ? ['--fallback-model', claudeFallback] : []),
+  ]
+}
 
 /** Windows의 npm 셸 래퍼(claude.cmd, codex.cmd)는 cmd.exe를 거쳐야 실행되므로 인자 속 따옴표를 이스케이프한다. */
 const IS_WIN = process.platform === 'win32'
@@ -209,6 +227,7 @@ async function claudeJson(input: string, promptArgs: string[], schema: object, t
       '-p',
       '--output-format', 'json',
       '--no-session-persistence',
+      ...claudeModelArgs(),
       '--tools', 'Read,Grep,Glob',
       ...promptArgs,
       '--json-schema', JSON.stringify(schema),
@@ -240,6 +259,7 @@ async function codexJson(prompt: string, schema: object, timeoutMs?: number): Pr
         '--ephemeral',
         '--sandbox', 'read-only',
         '--color', 'never',
+        ...(cliModels.codex ? ['-m', cliModels.codex] : []),
         '--output-schema', schemaFile,
         '--output-last-message', lastMessageFile,
         '-',
@@ -409,6 +429,10 @@ export function cliBridge(): Plugin {
       const geminiKey = readGeminiKey(env) || readGeminiKey()
       const geminiModel = readGeminiModel(env) || readGeminiModel()
       const geminiFallbackModel = readGeminiFallbackModel(env) || readGeminiFallbackModel()
+      // 로컬 CLI 모델 — 비워 두면 인자를 넣지 않아 각 PC의 CLI 기본 모델로 돈다
+      cliModels.claude = readClaudeModel(env) || readClaudeModel()
+      cliModels.claudeFallback = readClaudeFallbackModel(env) || readClaudeFallbackModel()
+      cliModels.codex = readCodexModel(env) || readCodexModel()
       // "새 문서" 기능(브랜치·PR 생성)이 쓸 토큰 — 없으면 그 버튼만 안내 메시지로 대체된다
       const githubToken = readGithubToken(env) || readGithubToken()
       // Jira 스케줄 확인 — 회사 내부 주소·프로젝트 키라 개인별 .env.local에서만 읽는다
@@ -418,8 +442,12 @@ export function cliBridge(): Plugin {
       const installed: Record<Engine, boolean> = { claude: isInstalled('claude'), codex: isInstalled('codex') }
       getEngineStatus().then((s) => {
         const mark = (e: Engine) => (!s[e].installed ? '✗ 미설치' : s[e].loggedIn ? '✓' : '⚠ 로그인 필요')
+        // 지정한 모델만 괄호로 보여 준다 — 예: claude ✓ (sonnet, 예비 haiku)
+        const claudeFallback = cliModels.claudeFallback !== cliModels.claude ? cliModels.claudeFallback : undefined
+        const claudeNote = [cliModels.claude, claudeFallback && `예비 ${claudeFallback}`].filter(Boolean).join(', ')
+        const modelNote = (note?: string) => (note ? ` (${note})` : '')
         log.info(
-          `[cli-bridge] claude ${mark('claude')} · codex ${mark('codex')} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'} · github ${githubToken ? '✓ 토큰' : '✗ 토큰 없음(새 문서 비활성)'} · jira ${jiraBaseUrl && jiraProjectKey ? '✓ 설정됨' : '✗ 설정 안 됨(스케줄 확인 비활성)'}`,
+          `[cli-bridge] claude ${mark('claude')}${modelNote(claudeNote)} · codex ${mark('codex')}${modelNote(cliModels.codex)} · gemini ${geminiKey ? '✓ API 키' : '✗ 키 없음'} · github ${githubToken ? '✓ 토큰' : '✗ 토큰 없음(새 문서 비활성)'} · jira ${jiraBaseUrl && jiraProjectKey ? '✓ 설정됨' : '✗ 설정 안 됨(스케줄 확인 비활성)'}`,
         )
       })
 
@@ -537,14 +565,15 @@ export function cliBridge(): Plugin {
         }
         if (blockedRead(req, res)) return
         res.setHeader('Content-Type', 'application/json; charset=utf-8')
-        const kind = new URL(req.url ?? '/', 'http://localhost').searchParams.get('kind')
+        const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+        const kind = params.get('kind')
         if (!isScheduleKind(kind)) {
           res.statusCode = 400
           res.end(JSON.stringify({ error: 'kind 는 btv 또는 bigbanner 여야 합니다' }))
           return
         }
         try {
-          const data = await getSchedule(kind, hubEnv)
+          const data = await getSchedule(kind, hubEnv, new Date(), { fresh: params.get('fresh') === '1' })
           res.end(JSON.stringify(data))
         } catch (err) {
           const { status, body } = scheduleErrorBody(err)
