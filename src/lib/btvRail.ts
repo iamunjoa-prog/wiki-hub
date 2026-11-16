@@ -6,8 +6,9 @@
  * 보여주려면 이 네 조각을 분리해야 한다.
  */
 import { labels, scheduleDays, type ScheduleDay, type SlotZone } from '../data/btvSchedule.js'
+import { parseSlotText, type SlotKind } from './scheduleLive.js'
 
-export type SlotKind = 'mass' | 'target' | 'content' | 'etc'
+export type { SlotKind }
 
 export interface Slot {
   /** 구간 내 노출 순번 (1부터) */
@@ -24,29 +25,9 @@ export interface Slot {
   raw: string
 }
 
-const TAG = /^\[(매스|타겟)(?:\/([^\]]+))?\]\s*/
-const PERIOD = /\s*\(([\d]{1,2}\/[\d]{1,2}\s*~[^)]*)\)\s*$/
-
+// 칸 텍스트 풀이는 실시간 조회 서버와 같은 규칙을 쓴다 (src/lib/scheduleLive.ts)
 function parse(raw: string, zone: SlotZone, order: number): Slot {
-  let name = raw.trim()
-  let kind: SlotKind = zone === 'lib' ? 'content' : 'etc'
-  let reach: string | undefined
-  let period: string | undefined
-
-  const tag = name.match(TAG)
-  if (tag) {
-    kind = tag[1] === '매스' ? 'mass' : 'target'
-    reach = tag[2]?.trim()
-    name = name.slice(tag[0].length)
-  }
-
-  const p = name.match(PERIOD)
-  if (p) {
-    period = p[1].replace(/\s+/g, '')
-    name = name.slice(0, p.index).trim()
-  }
-
-  return { order, zone, kind, name: name.trim(), reach, period, raw: raw.trim() }
+  return { order, zone, ...parseSlotText(raw, zone) }
 }
 
 export function slotsOf(day: ScheduleDay, zone: SlotZone): Slot[] {

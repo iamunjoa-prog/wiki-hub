@@ -47,6 +47,15 @@ export function readJiraProjectKey(env: Record<string, string | undefined> = pro
   return env.JIRA_PROJECT_KEY?.trim() || undefined
 }
 
+/** 편성표 구글 시트 편집 주소 — 공개 저장소라 코드에 두지 않는다. 시트의 주소창 URL(gid 포함)을 그대로 적는다 */
+export function readBtvSheetUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.HUB_BTV_SHEET_URL?.trim() || undefined
+}
+
+export function readBigBannerSheetUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.HUB_BIGBANNER_SHEET_URL?.trim() || undefined
+}
+
 /**
  * 실행 스크립트(scripts/setup.ps1 · start-hub.command)가 휴대용 허브 실행 준비물(node)과 챗봇 연결 프로그램(tools)을 까는 사용자 폴더.
  * 관리자 권한 없이 쓸 수 있는 자리라 Windows는 LOCALAPPDATA, Mac은 홈 아래 숨김 폴더다

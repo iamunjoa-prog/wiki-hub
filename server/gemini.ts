@@ -13,7 +13,7 @@ import {
   type EditInput,
   type EditReply,
 } from './knowledge.js'
-import { buildScheduleDigest } from './scheduleDigest.js'
+import { buildScheduleBlock } from './scheduleDigest.js'
 
 /** GEMINI_MODEL 환경변수로 바꿀 수 있다 */
 export const GEMINI_DEFAULT_MODEL = 'gemini-3.8-flash'
@@ -203,6 +203,8 @@ export interface GeminiOptions {
   fallbackModel?: string
   knowledgeDir: string
   promptFile: string
+  /** 편성표 시트 주소를 찾을 환경값 — 로컬 중계는 .env.local 을 합쳐 넘기고, 배포는 비워 process.env 를 쓴다 */
+  env?: Record<string, string | undefined>
 }
 
 /**
@@ -215,9 +217,9 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
     readFileSync(opts.promptFile, 'utf8'),
     '위키 문서 전체가 아래 <documents>에 들어 있다. 이 문서만 읽고 답하라.',
     `<documents>\n${buildDocsBlock(opts.knowledgeDir)}\n</documents>`,
-    '편성표(Today B tv·모바일 빅배너) 데이터는 아래 <schedule>에 들어 있다.',
+    '편성표(Today B tv·모바일 빅배너) 데이터는 원본 시트에서 실시간으로 받아 질문한 기간만 아래 <schedule>에 넣었다.',
     todayLine(),
-    `<schedule>\n${buildScheduleDigest()}\n</schedule>`,
+    await buildScheduleBlock(input, opts.env),
   ].join('\n\n')
 
   return callGemini(
