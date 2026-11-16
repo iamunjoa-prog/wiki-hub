@@ -1325,6 +1325,23 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .rail-card.targeted { background: repeating-linear-gradient(135deg, var(--surface) 0 7px, var(--surface-subtle) 7px 14px); }
 .rail-only { font: 600 10.5px var(--mono); padding: 1px 5px; border-radius: 3px; border: 1px dashed var(--line); color: var(--muted); }
 .btv-day-cap { padding: 6px 10px 0; font-size: 10px; }
+
+/* 원본 시트 실시간 조회 — 연도 묶음 월 칩 · 빈 자리 · 받은 시각 · 실패 안내 */
+.btv-month-row { flex-wrap: wrap; row-gap: 6px; }
+.btv-month-group { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.btv-month-row .chip { white-space: nowrap; }
+.btv-rail-head h1 .tag { margin-left: 8px; vertical-align: 3px; }
+.btv-year { font-size: 10.5px; margin-right: 1px; }
+.btv-today { font: 600 10px var(--mono); padding: 0 4px; border-radius: 3px; border: 1px solid var(--accent); color: var(--accent); }
+.btv-day.on .btv-today { border-color: var(--on-dark); color: var(--on-dark); }
+.rail-card.empty,
+.big-card.empty { border-style: dashed; border-color: var(--line); background: var(--surface-subtle); }
+.rail-card.empty:hover { box-shadow: none; }
+.rail-card.empty .rail-name,
+.big-card.empty .big-title { color: var(--muted); font-weight: 500; }
+.sched-at { font-size: 10.5px; white-space: nowrap; }
+.sched-notice { flex: none; padding: 7px 14px; font-size: 12.5px; background: var(--warn-bg); color: var(--warn-ink); border-bottom: 1px solid var(--border); }
+.sched-state { margin: 16px 18px; }
 .tl-bar.targeted { background-image: repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.55) 0 4px, transparent 4px 8px); }
 
 /* 머리 줄은 자리가 모자랄 때만 줄을 바꾸고, 버튼·꼬리표 글자는 세로로 쪼개지지 않게 한다 */
