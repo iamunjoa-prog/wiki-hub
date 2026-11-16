@@ -12,11 +12,13 @@ export async function GET(request: Request): Promise<Response> {
   const guard = await guardApi(request, { paid: true })
   if (!guard.ok) return guard.response
 
-  const kind = new URL(request.url, 'http://localhost').searchParams.get('kind')
+  const params = new URL(request.url, 'http://localhost').searchParams
+  const kind = params.get('kind')
   if (!isScheduleKind(kind)) return Response.json({ error: 'kind 는 btv 또는 bigbanner 여야 합니다' }, { status: 400 })
 
   try {
-    return Response.json(await getSchedule(kind))
+    // ?fresh=1 — 새로고침 버튼. 캐시를 건너뛰되 최소 간격(20초)은 scheduleSource 가 지킨다
+    return Response.json(await getSchedule(kind, process.env, new Date(), { fresh: params.get('fresh') === '1' }))
   } catch (err) {
     const { status, body } = scheduleErrorBody(err)
     console.error(`[api/schedule] ${kind} ${body.error}`)

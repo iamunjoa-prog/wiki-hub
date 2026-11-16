@@ -383,6 +383,10 @@ const inflight = new Map<ScheduleKind, Promise<Snapshot>>()
 /** 실패 직후 요청마다 다시 받으러 가지 않게(매번 제한 시간만큼 기다리게 된다) 마지막 실패 시각을 둔다 */
 const failedAt = new Map<ScheduleKind, { at: number; error: unknown }>()
 const RETRY_AFTER_FAIL_MS = 30_000
+/** 화면 새로고침(?fresh=1)이 시트를 다시 받는 최소 간격 — 연타·자동 호출로 구글에 요청이 몰리지 않게 */
+const FRESH_MIN_MS = 20_000
+/** 마지막으로 시트를 받으러 간 시각 — fresh 최소 간격 판정 */
+const attemptAt = new Map<ScheduleKind, number>()
 
 async function load(kind: ScheduleKind, sheetUrl: string, now: Date): Promise<Snapshot> {
   const { title, name } = SHEET_ENV[kind]
@@ -416,22 +420,27 @@ async function load(kind: ScheduleKind, sheetUrl: string, now: Date): Promise<Sn
  * 5분 안에 받은 게 있으면 그대로, 아니면 새로 받는다. 받기에 실패하면 마지막 성공본을 `stale: true` 로 주고,
  * 그마저 없으면 ScheduleError(한국어 문장)를 던진다
  */
-async function snapshot(kind: ScheduleKind, env: Env, now: Date): Promise<{ snap: Snapshot; stale: boolean }> {
+async function snapshot(kind: ScheduleKind, env: Env, now: Date, fresh: boolean): Promise<{ snap: Snapshot; stale: boolean }> {
   const { title, name, read } = SHEET_ENV[kind]
   const sheetUrl = read(env)
   if (!sheetUrl)
     throw new ScheduleError(503, `${title} 시트 주소가 설정되지 않았습니다. 지금 할 일: 허브 설정(.env.local, 배포 허브는 환경변수)에 ${name} 항목을 적어 주세요`)
   const cached = cache.get(kind)
   const usable = cached && cached.sheetUrl === sheetUrl ? cached : undefined
-  if (usable && now.getTime() - usable.at < CACHE_MS) return { snap: usable, stale: false }
-  const lastFail = failedAt.get(kind)
-  if (lastFail && now.getTime() - lastFail.at < RETRY_AFTER_FAIL_MS) {
-    if (usable) return { snap: usable, stale: true }
-    throw lastFail.error
+  // 새로고침(fresh)은 캐시·실패 대기를 건너뛰되, 마지막으로 받으러 간 지 20초 안이면 평소처럼 답한다
+  const force = fresh && now.getTime() - (attemptAt.get(kind) ?? 0) >= FRESH_MIN_MS
+  if (!force) {
+    if (usable && now.getTime() - usable.at < CACHE_MS) return { snap: usable, stale: false }
+    const lastFail = failedAt.get(kind)
+    if (lastFail && now.getTime() - lastFail.at < RETRY_AFTER_FAIL_MS) {
+      if (usable) return { snap: usable, stale: true }
+      throw lastFail.error
+    }
   }
 
   let pending = inflight.get(kind)
   if (!pending) {
+    attemptAt.set(kind, now.getTime())
     pending = load(kind, sheetUrl, now).finally(() => inflight.delete(kind))
     inflight.set(kind, pending)
   }
@@ -447,12 +456,22 @@ async function snapshot(kind: ScheduleKind, env: Env, now: Date): Promise<{ snap
   }
 }
 
+export interface ScheduleOptions {
+  /** 5분 캐시를 건너뛰고 지금 다시 받는다(최소 간격 20초) — 화면 새로고침 버튼용 */
+  fresh?: boolean
+}
+
 /** GET /api/schedule 응답 — 오늘(KST) 기준 지난 60일부터 시트 끝까지 */
-export async function getSchedule(kind: 'btv', env?: Env, now?: Date): Promise<BtvScheduleResponse>
-export async function getSchedule(kind: 'bigbanner', env?: Env, now?: Date): Promise<BigBannerScheduleResponse>
-export async function getSchedule(kind: ScheduleKind, env?: Env, now?: Date): Promise<ScheduleResponse>
-export async function getSchedule(kind: ScheduleKind, env: Env = process.env, now: Date = new Date()): Promise<ScheduleResponse> {
-  const { snap, stale } = await snapshot(kind, env, now)
+export async function getSchedule(kind: 'btv', env?: Env, now?: Date, opts?: ScheduleOptions): Promise<BtvScheduleResponse>
+export async function getSchedule(kind: 'bigbanner', env?: Env, now?: Date, opts?: ScheduleOptions): Promise<BigBannerScheduleResponse>
+export async function getSchedule(kind: ScheduleKind, env?: Env, now?: Date, opts?: ScheduleOptions): Promise<ScheduleResponse>
+export async function getSchedule(
+  kind: ScheduleKind,
+  env: Env = process.env,
+  now: Date = new Date(),
+  opts: ScheduleOptions = {},
+): Promise<ScheduleResponse> {
+  const { snap, stale } = await snapshot(kind, env, now, Boolean(opts.fresh))
   const from = addDays(kstToday(now), -PAST_DAYS)
   const meta = { sheetUrl: snap.sheetUrl, fetchedAt: snap.fetchedAt, stale }
   if (kind === 'btv') {

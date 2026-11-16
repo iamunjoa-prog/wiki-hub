@@ -8,10 +8,11 @@ import type { BigBannerScheduleResponse, BtvScheduleResponse, ScheduleKind } fro
 
 type ResponseOf<K extends ScheduleKind> = K extends 'btv' ? BtvScheduleResponse : BigBannerScheduleResponse
 
-export async function fetchSchedule<K extends ScheduleKind>(kind: K): Promise<ResponseOf<K>> {
+export async function fetchSchedule<K extends ScheduleKind>(kind: K, fresh = false): Promise<ResponseOf<K>> {
   let res: Response
   try {
-    res = await fetch(`/api/schedule?kind=${kind}`)
+    // 새로고침 버튼은 fresh=1 — 서버가 5분 캐시를 건너뛰고 시트를 다시 받는다(최소 간격 20초)
+    res = await fetch(`/api/schedule?kind=${kind}${fresh ? '&fresh=1' : ''}`)
   } catch {
     throw new Error('허브 서버에 연결하지 못했습니다. 지금 할 일: 인터넷 연결을 확인하고 새로고침을 눌러 주세요.')
   }
@@ -38,7 +39,7 @@ export function useSchedule<K extends ScheduleKind>(kind: K): ScheduleState<Resp
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchSchedule(kind)
+    fetchSchedule(kind, reloadKey > 0)
       .then((d) => {
         if (cancelled) return
         setData(d)
