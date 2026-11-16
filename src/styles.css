@@ -785,8 +785,10 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .msg { max-width: 92%; font-size: 14.5px; line-height: 1.7; }
 .msg.user { align-self: flex-end; max-width: 84%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 7px 9px; font-family: var(--mono); font-size: 14px; }
 .msg.bot { align-self: flex-start; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 9px 10px; display: flex; flex-direction: column; gap: 7px; }
-.msg.bot p { margin: 0 0 6px; }
-.msg.bot p:last-of-type { margin-bottom: 0; }
+/* 문단은 한 래퍼에 모아 flex gap 이 문단마다 더해지지 않게 하고, 문단 사이만 줄 간격보다 넓힌다 */
+.msg-text { word-break: keep-all; overflow-wrap: anywhere; }
+.msg-text p { margin: 0; }
+.msg-text p + p { margin-top: 11px; }
 .sources { display: flex; gap: 4px; flex-wrap: wrap; }
 .sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
 .sources button:hover { border-color: var(--text); color: var(--text); }
