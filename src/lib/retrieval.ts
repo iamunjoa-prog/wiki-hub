@@ -232,12 +232,19 @@ export interface SearchInput {
    * "바로가기"·"편성" 같은 흔한 단어 하나로 시스템 매뉴얼이 따라 올라오지 않게 한다.
    */
   preferCategory?: string[] | null
+  /**
+   * 이 1단 메뉴의 문서는 뒤로 미룬다. "배너 소재 수정 방법"처럼 업무를 고치는 질문은 '수정'·'방법'이
+   * 잔뜩 적힌 허브 이용 안내에 걸리기 쉬운데, 답은 프로모션 문서에 있다.
+   */
+  avoidCategory?: string[] | null
 }
 
 /** 선호 메뉴 가산 — 순위를 뒤집을 만큼은 올리되, 관련 없는 문서를 끌어올리지는 않는 배수 */
 const PREFERRED_CATEGORY_BOOST = 1.8
 /** 이용 안내 가산 — 안내 문서끼리의 순서는 그대로 두고, 다른 메뉴 문서와의 간격만 벌린다 */
 const PREFERRED_TOP_CATEGORY_BOOST = 1.5
+/** 비선호 메뉴 감점 — 질문 단어가 아주 많이 겹치면 남을 수 있게 빼지 않고 절반만 깎는다 */
+const AVOIDED_TOP_CATEGORY_PENALTY = 0.5
 
 /**
  * 흔한 단어는 근거로서 값이 싸다. '메뉴'는 거의 모든 매뉴얼에 있지만 '띠배너'는 몇 문서에만 있다.
@@ -318,6 +325,7 @@ export function searchDocs(input: string | SearchInput, pool: WikiDoc[] = docs):
     if (search.preferSubcategory && doc.subcategory && search.preferSubcategory.includes(doc.subcategory))
       score *= PREFERRED_CATEGORY_BOOST
     if (search.preferCategory && search.preferCategory.includes(doc.category)) score *= PREFERRED_TOP_CATEGORY_BOOST
+    if (search.avoidCategory && search.avoidCategory.includes(doc.category)) score *= AVOIDED_TOP_CATEGORY_PENALTY
     if (score > 0) scored.push({ doc, score, excerpt: bestParagraph(doc.body, terms) })
   }
   return scored.sort((a, b) => b.score - a.score)
