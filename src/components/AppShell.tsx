@@ -7,6 +7,7 @@ import { detectOs, forgetSessionSeen } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
+import { HubUpdateNotice } from './HubUpdateNotice'
 import { LocalHubOnboarding } from './LocalHubOnboarding'
 
 /** 휴대폰 폭(760px 이하)에서 사이드바를 서랍으로 연다 — 버튼은 각 화면의 TopBar 에 있어 상태를 셸에서 나눠 준다 */
@@ -533,6 +534,7 @@ export function AppShell() {
         <Sidebar drawerOpen={drawerOpen} />
         {drawerOpen && <div className="drawer-backdrop" onClick={() => setDrawerOpen(false)} aria-hidden="true" />}
         <div className="main">
+          <HubUpdateNotice />
           <Outlet />
         </div>
         {assistant.open ? (
