@@ -5,7 +5,7 @@ category: promotion
 subcategory: ops-reference
 version: 4
 updatedBy: 구*화
-updatedAt: 2026-11-18
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: [CBS, ACS, Swing]

@@ -5,7 +5,7 @@ category: promotion
 subcategory: copy-guide
 version: 3
 updatedBy: 구*화
-updatedAt: 2026-11-18
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: PPV
 systems: []
