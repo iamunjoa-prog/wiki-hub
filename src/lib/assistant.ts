@@ -71,7 +71,7 @@ function wantsAdvice(query: string): boolean {
 const HUB_SCREENS = ['위키', '편성', '스케줄', '시스템 바로가기', '바로가기', '내 요청', '승인 관리', '계정', '즐겨찾기', '허브']
 const HUB_ACTIONS = ['수정', '추가', '반영', '등록', '방법', '고치', '바꾸', '신청']
 /** 업무어가 나오면 허브 화면이 아니라 프로모션 업무를 묻는 것이다 */
-const WORK_TERMS = ['품의', '결재', '쿠폰', '배너', '소재', '프로모션', '캠페인']
+const WORK_TERMS = ['품의', '결재', '쿠폰', '배너', '소재', '팝업', '이미지', '문구', '카피', '프로모션', '캠페인']
 /** 질문에 이름이 직접 나오는 시스템과 그 매뉴얼 문서 코드 */
 const SYSTEM_DOCS: Record<string, string> = { acs: 'PPC-ACS', cbs: 'PPC-CBS', swing: 'PPC-SWG' }
 
@@ -82,6 +82,16 @@ function wantsHubHowTo(query: string): boolean {
   if (Object.keys(SYSTEM_DOCS).some((k) => q.includes(k))) return false
   if (WORK_TERMS.some((k) => q.includes(k))) return false
   return HUB_SCREENS.some((k) => q.includes(k)) && HUB_ACTIONS.some((k) => q.includes(k))
+}
+
+/**
+ * 프로모션 업무 대상(배너·소재·쿠폰 등)을 고치는 방법을 묻는 발화. 허브 화면 이름이 없으면 위키 문서 수정이 아니라
+ * 업무 질문이다 — 이용 안내 문서를 뒤로 미룬다. "쿠폰 문서 등록"처럼 문서를 직접 말하면 앞의 문서 안내 분기가 먼저 받는다.
+ */
+function wantsBusinessEdit(query: string): boolean {
+  const q = query.toLowerCase()
+  if (HUB_SCREENS.some((k) => q.includes(k))) return false
+  return WORK_TERMS.some((k) => q.includes(k)) && HUB_ACTIONS.some((k) => q.includes(k))
 }
 
 /** 사용자가 시스템 이름이나 문서 코드로 직접 가리킨 문서. 점수가 처져도 근거에서 빼지 않는다 */
@@ -708,6 +718,7 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
     preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
     preferCategory: wantsHubHowTo(query) ? ['guide'] : null,
+    avoidCategory: wantsBusinessEdit(query) ? ['guide'] : null,
   }
   let found = searchDocs(search)
   /**
