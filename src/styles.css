@@ -1135,6 +1135,19 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .banner.danger { border-color: var(--danger); background: var(--danger-bg); color: var(--danger); }
 .banner b { font-weight: 700; }
 
+/* 내 PC 허브 새 버전 알림 — 모든 화면 위에 한 줄로 붙고, 좁으면 단추가 아래로 내려간다 */
+.hub-notice { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 7px 12px; border-bottom: 1px solid var(--accent-line); background: var(--accent-soft); font-size: 13.5px; line-height: 1.55; color: var(--text); word-break: keep-all; }
+.hub-notice.legacy { border-bottom-color: var(--warn); background: var(--warn-bg); color: var(--warn-ink); }
+.hub-notice b { font-weight: 700; }
+.hub-notice-text { flex: 1 1 260px; min-width: 0; }
+.hub-notice-actions { display: flex; gap: 6px; margin-left: auto; }
+.hub-notice-actions .btn { background: var(--surface); }
+.hub-notice-how { flex-basis: 100%; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text-2); }
+.hub-notice-how ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 2px; }
+.hub-notice-how li { display: list-item; }
+.hub-notice-how p { margin: 0; font-size: 12.5px; }
+.hub-notice-how .hub-notice-meta { color: var(--muted); font-size: 12px; }
+
 /* ---------- diff ---------- */
 
 .diff-split { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--border); }

@@ -297,3 +297,15 @@ export interface SystemRequest {
   requestedBy: string
   requestedAt: string
 }
+
+/**
+ * 내 PC 허브의 새 버전 확인 결과 (GET /api/hubVersion). 배포본에는 이 경로가 없다.
+ * reason — no-version: 자동 업데이트 전에 받은 허브, git-checkout: 개발용 폴더, offline: 확인 못 함
+ */
+export interface HubVersionInfo {
+  current: string | null
+  latest: string | null
+  updateAvailable: boolean
+  checkedAt: string
+  reason?: 'no-version' | 'git-checkout' | 'offline'
+}

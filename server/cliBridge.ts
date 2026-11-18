@@ -30,6 +30,7 @@ import {
   type Rejection,
 } from './guard.js'
 import { parseHubAccount, proxyHubZip } from './hubZip.js'
+import { hubVersionStatus } from './hubVersion.js'
 import {
   createDocPR,
   createEditPR,
@@ -991,6 +992,22 @@ export function cliBridge(): Plugin {
           return
         }
         Readable.fromWeb(upstream.body as never).pipe(res)
+      })
+
+      // 내 PC용 허브의 새 버전 알림 — 로컬 전용(배포엔 api/ 함수가 없어 404, 화면이 무시). 교체는 다시 켤 때 실행기가 한다
+      server.middlewares.use('/api/hubVersion', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        if (blockedRead(req, res)) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        const reply = await hubVersionStatus(ROOT, {
+          onError: (message) => log.warn(`[cli-bridge] hubVersion 최신 버전 확인 실패 — ${message}`),
+        })
+        res.end(JSON.stringify(reply))
       })
 
       // 위키 문서 목록의 "+ 새 문서" — GitHub API로 브랜치·PR을 만든다 (로컬도 배포와 같은 경로)
