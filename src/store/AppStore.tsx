@@ -25,8 +25,11 @@ import {
   makeMessage,
   NEXT_STEP_QUESTION,
   newId,
+  PPM_DETAIL_QUESTION,
+  ppmDetailLabel,
   readBrief,
   readSlots,
+  type PpmDetail,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
 import { fetchProposals } from '../lib/proposeEdit'
@@ -171,13 +174,15 @@ interface AppState {
  * 확인 버튼이 돌려주는 값.
  * `yes`·`no`·상품 유형은 진행 의도 확인, 나머지는 방향을 정한 뒤의 다음 단계다.
  */
-export type IntentChoice = 'yes' | 'no' | ProductScope | 'copy' | 'placement' | 'handoff' | 'later'
+export type IntentChoice = 'yes' | 'no' | ProductScope | PpmDetail | 'copy' | 'placement' | 'handoff' | 'later'
 
 const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
   yes: '네, 진행할게요',
   no: '아니요, 질문만 할게요',
   PPM: '월정액(PPM)',
   PPV: '단건(PPV)',
+  btvplus: 'B tv+',
+  'ppm-other': '지상파·종편·CP 월정액',
   copy: '카피 추천 먼저',
   placement: '노출 구좌 추천 먼저',
   handoff: '프로모션 자동화로 연결',
@@ -185,7 +190,7 @@ const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
 }
 
 /** 추천 버튼이 대신 보내는 질문 — 근거 문서를 타도록 평소 질문과 같은 경로로 보낸다 */
-const COPY_REQUEST = '지금 정리한 프로모션 기준으로 카피 방향을 추천해줘'
+const COPY_REQUEST = '지금 정리한 프로모션 기준으로 카피 후보를 추천해줘'
 const PLACEMENT_REQUEST = '지금 정리한 프로모션 기준으로 노출 구좌를 추천해줘'
 
 interface AskOpts {
@@ -241,6 +246,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const nextAskedRef = useRef(false)
   /** 추천 버튼으로 보낸 질문 — 답이 오면 다음 단계 안내를 다시 붙여 연결까지 이어 준다 */
   const resumeNextRef = useRef(false)
+  /** 결과물 답 아래 상품 확인과 PPM 세부 상품 확인 — 각각 대화당 한 번만 붙인다 */
+  const productRefineAskedRef = useRef(false)
+  const detailAskedRef = useRef(false)
   const [pending, setPending] = useState(false)
   const [pendingReport, setPendingReport] = useState(false)
   const [pendingSince, setPendingSince] = useState<number | null>(null)
@@ -367,10 +375,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     abortRef.current = ctrl
     // 새 기획 의도가 들어오면 새 상담이다 — 지난 상담에서 이미 물었다는 이유로 확인 칩을 건너뛰지 않는다
     if (detectCampaignIntent(q) && !detectDecision(q)) intentAskedRef.current = false
-    askAssistant(q, usableEngines, history, intentAskedRef.current, nextAskedRef.current, {
-      modeOverride,
-      signal: ctrl.signal,
-    }).then((reply) => {
+    askAssistant(
+      q,
+      usableEngines,
+      history,
+      intentAskedRef.current,
+      nextAskedRef.current,
+      { product: productRefineAskedRef.current, detail: detailAskedRef.current },
+      { modeOverride, signal: ctrl.signal },
+    ).then((reply) => {
       if (abortRef.current === ctrl) abortRef.current = null
       setPending(false)
       setPendingReport(false)
@@ -393,7 +406,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (reply.intent?.kind === 'next') {
         nextAskedRef.current = true
         intentAskedRef.current = true
-      } else if (reply.intent) intentAskedRef.current = true
+      } else if (reply.intent?.kind === 'product-qa' && reply.intent.retry) productRefineAskedRef.current = true
+      // 세부 상품 확인은 진행 확인과 별개다 — 붙였다고 진행 확인을 건너뛰게 하지 않는다
+      else if (reply.intent?.kind === 'ppm-detail') detailAskedRef.current = true
+      else if (reply.intent) intentAskedRef.current = true
       setMessages((prev) => [
         ...prev,
         makeMessage('assistant', reply.text, {
@@ -513,7 +529,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (messageId: string, choice: IntentChoice) => {
       const answered = INTENT_ANSWER_LABEL[choice]
       // 칩을 접기 전에 어떤 확인이었는지 읽어 둔다 — 상품 유형 선택의 다음 동작이 갈린다
-      const answeredKind = messagesRef.current.find((m) => m.id === messageId)?.intent?.kind
+      const answeredIntent = messagesRef.current.find((m) => m.id === messageId)?.intent
+      const answeredKind = answeredIntent?.kind
+      // 답을 받은 뒤 붙은 확인이면 원래 질문을 고른 기준으로 다시 보낸다
+      const retry = answeredIntent?.retry
       // 버튼을 누른 메시지의 확인은 접고, 고른 값만 남긴다
       setMessages((prev) =>
         prev.map((m) => (m.id === messageId ? { ...m, intent: undefined, intentAnswer: answered } : m)),
@@ -522,14 +541,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
       if (choice === 'no') {
         // 질문만 받더라도 근거 문서가 PPM·PPV로 갈린다 — 아직 모르면 한 번은 확인하고 넘어간다
-        const known = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).product
+        const slots = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text })))
+        const known = slots.product
+        // PPM이면 근거 줄이 B tv+ 와 그 외 월정액으로 또 갈린다 — 세부를 모르면 한 번 더 묻는다
+        const askDetail = known?.scope === 'PPM' && !slots.ppmDetail && !detailAskedRef.current
+        if (askDetail) detailAskedRef.current = true
         setMessages((prev) => [
           ...prev,
-          known
-            ? makeMessage('assistant', `알겠습니다. ${known.label} 기준으로 답하겠습니다. 정책이나 시스템 관련해 궁금한 것을 물어봐 주세요.`)
-            : makeMessage('assistant', '알겠습니다. 다만 답변 근거가 상품 유형에 따라 갈립니다.', {
-                intent: { kind: 'product-qa', question: INTENT_PRODUCT_QA_QUESTION },
-              }),
+          askDetail
+            ? makeMessage('assistant', `알겠습니다. ${known.label} 기준으로 답하겠습니다.`, {
+                intent: { kind: 'ppm-detail', question: PPM_DETAIL_QUESTION },
+              })
+            : known
+              ? makeMessage(
+                  'assistant',
+                  `알겠습니다. ${known.label}${slots.ppmDetail ? ` 중 ${ppmDetailLabel(slots.ppmDetail)}` : ''} 기준으로 답하겠습니다. 정책이나 시스템 관련해 궁금한 것을 물어봐 주세요.`,
+                )
+              : makeMessage('assistant', '알겠습니다. 다만 답변 근거가 상품 유형에 따라 갈립니다.', {
+                  intent: { kind: 'product-qa', question: INTENT_PRODUCT_QA_QUESTION },
+                }),
         ])
         return
       }
@@ -574,13 +604,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
         ])
         return
       }
+      // PPM 세부 상품 확인 — 다시 보내는 문장 앞의 라벨이 그대로 세부 상품 키워드로 읽힌다
+      if (choice === 'btvplus' || choice === 'ppm-other') {
+        if (retry) {
+          askRef.current?.(`${answered} 기준으로 ${retry}`, { via: `${answered} 기준으로 다시` })
+          return
+        }
+        setMessages((prev) => [
+          ...prev,
+          makeMessage('user', `${answered} 기준으로 물어볼게요`),
+          makeMessage('assistant', `PPM(월정액) 중 ${answered} 기준으로 답하겠습니다. 궁금한 것을 물어봐 주세요.`),
+        ])
+        return
+      }
       // 질문만 받기로 한 뒤의 상품 유형 확인 — 기준만 잡고 어드민은 열지 않는다
       if (answeredKind === 'product-qa') {
+        const detail = readSlots(messagesRef.current.map((m) => ({ role: m.role, text: m.text }))).ppmDetail
+        const askDetail = choice === 'PPM' && !detail && !detailAskedRef.current
+        if (askDetail) detailAskedRef.current = true
+        if (retry) {
+          // PPM인데 세부를 모르면 다시 보내기 전에 세부 상품부터 고르게 한다 — 같은 원래 질문을 들고 간다
+          if (askDetail) {
+            setMessages((prev) => [
+              ...prev,
+              makeMessage('assistant', '', { intent: { kind: 'ppm-detail', question: PPM_DETAIL_QUESTION, retry } }),
+            ])
+            return
+          }
+          askRef.current?.(`${answered} 기준으로 ${retry}`, { via: `${answered} 기준으로 다시` })
+          return
+        }
         setMessages((prev) => [
           ...prev,
           // 고른 값을 사용자 발화로 남긴다 — 이후 질문의 근거 문서가 이 기준으로 걸러진다
           makeMessage('user', `${answered} 기준으로 물어볼게요`),
-          makeMessage('assistant', `${answered} 기준으로 답하겠습니다. 궁금한 것을 물어봐 주세요.`),
+          askDetail
+            ? makeMessage('assistant', `${answered} 기준으로 답하겠습니다.`, {
+                intent: { kind: 'ppm-detail', question: PPM_DETAIL_QUESTION },
+              })
+            : makeMessage('assistant', `${answered} 기준으로 답하겠습니다. 궁금한 것을 물어봐 주세요.`),
         ])
         return
       }
