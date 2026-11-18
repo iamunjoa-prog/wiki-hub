@@ -3,9 +3,9 @@ title: 실적 벤치마크
 code: MKI-04
 category: promotion
 subcategory: insight
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-18
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -64,6 +64,8 @@ source: "AX 마케팅 자동화 지식베이스 · domain/performance-benchmarks
 **기획 시사점**: 11월은 구조적 저점이므로 목표치를 보수적으로 잡거나 별도 부양책을 설계한다. 연초(1월)와 5월은 공격 구간이다.
 
 ## 구좌별 효율 관찰치
+
+B tv 구좌 중 마케팅 효율(UV당 매출·탐색 대비 매출)이 어떻게 관찰됐는지 경향으로 정리합니다. 진입 구좌 하나의 효율만 보고 고르지 말고, 아래 주의 칸과 [노출 구좌 개요](MKI-B-00)의 구좌 선택 기준을 함께 봅니다.
 
 | 구좌 | 관찰 지표 | 관찰 결과 | 주의 |
 | --- | --- | --- | --- |
