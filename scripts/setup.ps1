@@ -1,9 +1,10 @@
-﻿﻿param([switch]$Check)
+﻿﻿param([switch]$Check, [switch]$NoUpdate)
 # 플랫폼 담당 지식 허브 준비·실행 — start-hub.bat 이 매번 부른다. 이미 갖춘 단계는 줄을 내지 않고 건너뛴다.
-# 순서: 실행 준비물(휴대용 node) → 프로그램 파일 → 연결 프로그램 → 로그인 → 아이콘 → 허브 켜기(5173 고정) → 브라우저.
+# 순서: 새 버전 받기(scripts/update-hub.ps1) → 실행 준비물(휴대용 node) → 프로그램 파일 → 연결 프로그램 → 로그인 → 아이콘 → 허브 켜기(5173 고정) → 브라우저.
 # 창에는 docs/ux/2026-11-12-local-hub-beginner-copy.md 의 한국어 줄만 낸다. 외부 도구 출력은 기록 파일로만 보낸다.
 # Windows PowerShell 5.1 에서 돌아야 한다 — 삼항 연산자·?? 를 쓰지 않는다. 파일은 UTF-8 BOM 을 유지한다.
 # -Check: 아무것도 설치·생성하지 않고 상태만 출력한다(담당자용).
+# -NoUpdate: 새 버전 받기를 건너뛴다. 이전 버전 setup.ps1 이 바꾼 뒤 새 setup.ps1 을 이 이름으로 다시 부르므로 이름을 바꾸지 않는다.
 
 $ErrorActionPreference = 'Continue'
 # 5.1 진행 표시줄은 창에 영어를 내고 내려받기도 크게 늦춘다
@@ -25,6 +26,8 @@ $toolsBin = Join-Path $toolsDir 'node_modules\.bin'
 $logDir = Join-Path $env:USERPROFILE 'wiki-hub-기록'
 $logFile = Join-Path $logDir '설치기록.txt'
 $setupFile = Join-Path $root 'hub-setup.json'
+# 켤 때 업데이트가 패키지 목록이 바뀐 버전으로 바꿨다는 표시 — 2단계가 npm install 을 다시 돌리고 지운다
+$reinstallMark = Join-Path $root 'node_modules\.hub-reinstall'
 $shortcut = Join-Path ([Environment]::GetFolderPath('Desktop')) '플랫폼 담당 지식 허브.lnk'
 $labels = @{ claude = 'Claude'; codex = 'ChatGPT' }
 $packages = @{ claude = '@anthropic-ai/claude-code'; codex = '@openai/codex' }
@@ -324,10 +327,15 @@ if ((Get-HubState) -eq 'hub') {
 # ---------- 기록 파일 ----------
 New-Item -ItemType Directory -Force -Path $logDir -ErrorAction SilentlyContinue | Out-Null
 $version = '알 수 없음'
+$readmeVersion = ''
 try {
   $readme = [IO.File]::ReadAllText((Join-Path (Split-Path -Parent $root) '읽어주세요.txt'))
-  if ($readme -match '버전\(담당자용\):\s*(\S+)') { $version = $Matches[1] }
+  if ($readme -match '버전\(담당자용\):\s*(\S+)') { $readmeVersion = $Matches[1]; $version = $readmeVersion }
 } catch { }
+# 켤 때 업데이트가 hub/.hub-version 을 고쳐 쓰므로 안내문보다 이 파일을 먼저 믿는다
+$hubVersion = ''
+try { $hubVersion = [string]([IO.File]::ReadAllText((Join-Path $root '.hub-version')) | ConvertFrom-Json).version } catch { }
+if ($hubVersion) { $version = $hubVersion }
 
 # ---------- 무엇이 남았는지 ----------
 $firstRun = -not (Test-FilesReady)
@@ -335,6 +343,26 @@ Read-Accounts
 $choiceLog = $script:setupState
 if ($script:setupState -eq 'file') { $choiceLog = 'unknown'; if ($script:accounts.Count) { $choiceLog = $script:accounts -join ' ' } }
 Write-Log ("===== 플랫폼 담당 지식 허브 실행 {0} KST · {1} · 버전 {2} · 계정 선택 {3} =====" -f [DateTime]::UtcNow.AddHours(9).ToString('yyyy-MM-dd HH:mm:ss'), [Environment]::OSVersion.VersionString, $version, $choiceLog)
+
+# ---------- 새 버전 받기 — 묻지 않고 바꾸고, 안 되면 지금 버전으로 켠다 ----------
+$updater = Join-Path $PSScriptRoot 'update-hub.ps1'
+if (-not $NoUpdate -and (Test-Path $updater)) {
+  $result = 'failed'
+  try {
+    . $updater
+    $result = Update-Hub $root
+  } catch { Write-Log "[업데이트] 오류: $($_.Exception.Message)" }
+  if ($result -eq 'updated') {
+    Say "최신 버전으로 바꿨어요 ($script:hubUpdateTo)" Green
+    # 바뀐 단계가 있을 수 있어 새 setup.ps1 로 처음부터 다시 간다 (같은 창·같은 HUB_LAUNCHER)
+    $next = Join-Path $root 'scripts\setup.ps1'
+    Write-Log "[업데이트] 새 setup.ps1 로 다시 시작"
+    & $next -NoUpdate
+    exit $LASTEXITCODE
+  }
+  if ($result -eq 'offline') { Say '업데이트를 확인하지 못해 지금 버전으로 켭니다.' Yellow }
+  if ($result -eq 'failed') { Say '새 버전으로 바꾸지 못해 지금 버전으로 켭니다.' Yellow }
+}
 
 $needNode = $false
 if (-not (Test-NodeOk)) {
@@ -385,8 +413,8 @@ if ($needNode) {
   Say "[1/$total] 허브 실행 준비물 설치를 마쳤어요." Green
 }
 
-# 2. 허브 프로그램 파일 (npm install — 조용히 1회 재시도)
-if (-not (Test-FilesReady)) {
+# 2. 허브 프로그램 파일 (npm install — 조용히 1회 재시도). 업데이트로 패키지 목록이 바뀌었으면 다시 설치한다
+if (-not (Test-FilesReady) -or (Test-Path $reinstallMark)) {
   $didWork = $true
   Step-Begin 2 '허브 프로그램 파일(npm install)'
   Say "[2/$total] 허브 프로그램 파일을 준비하는 중… (1~3분)"
@@ -399,7 +427,15 @@ if (-not (Test-FilesReady)) {
   if ($code -ne 0 -or -not (Test-FilesReady)) {
     Stop-Step '허브 프로그램 파일을 준비하지 못했어요.' 'start-hub 를 다시 더블클릭해 보고, 같은 화면이 나오면 기록 파일을 허브 담당자에게 보내 주세요.'
   }
+  Remove-Item $reinstallMark -ErrorAction SilentlyContinue
   Say "[2/$total] 허브 프로그램 파일을 준비했어요." Green
+}
+
+# 루트 실행기·안내문 — 업데이트로 버전이 바뀌었으면 server/hubZipRoot.ts 내용으로 다시 쓴다 (창에는 내지 않고, 실패해도 계속)
+if ($hubVersion -and $readmeVersion -and $hubVersion -ne $readmeVersion) {
+  Step-Begin 2 '루트 실행기·안내문 다시 쓰기'
+  $code = Invoke-Tool 'node scripts\hub-root.mjs'
+  Step-End 2 $code
 }
 
 # 3. 챗봇 연결 프로그램 — 전역 설치 대신 사용자 폴더(tools)에 깐다. 실패해도 허브는 연다

@@ -1,6 +1,7 @@
 /**
  * "로컬 허브 내려받기" ZIP 루트에 두는 얇은 실행기 2개와 안내 txt.
  * 저장소 파일로 두면 Vercel includeFiles 가 필요하고 줄바꿈이 .gitattributes 에 묶여서, 줄바꿈까지 문자열로 고정한다.
+ * 켤 때 업데이트 뒤 scripts/hub-root.mjs 가 이 파일만 따로 옮겨 불러 루트를 다시 쓴다 — import 를 두지 않는다.
  */
 
 /** 앱 전체가 들어가는 하위 폴더 — 얇은 bat 경로에 한글이 없어야 chcp 전에도 안전하다 */
@@ -35,6 +36,14 @@ export const ROOT_COMMAND = [
 ].join('\n')
 
 export const README_NAME = '읽어주세요.txt'
+
+/** hub/ 안의 버전 파일 — 실행기가 켤 때 공개 저장소의 최신 커밋과 비교해 스스로 바꾼다 (scripts/update-hub.ps1 · start-hub.command) */
+export const HUB_VERSION_NAME = '.hub-version'
+
+/** 버전 파일 내용 — 커밋 7자리와 받을 저장소(owner/repo). 실행기가 배포 주소·토큰 없이 공개 저장소에서 최신을 받는다 */
+export function hubVersionText(version: string, repo: string): string {
+  return JSON.stringify({ version, repo }) + '\n'
+}
 
 /**
  * 받은 날짜(KST)와 커밋 7자리를 채운 안내문. 메모장이 깨지지 않게 UTF-8 BOM + CRLF.
@@ -89,6 +98,7 @@ export function readmeText(now: Date, version: string): string {
     '',
     '  바탕화면의 "플랫폼 담당 지식 허브" 를 더블클릭하세요.',
     '  이미 켜져 있으면 브라우저만 열려요.',
+    '  켤 때마다 새 버전이 있으면 저절로 바뀌어요. 다시 받지 않아도 돼요.',
     '',
     '',
     '■ 안 될 때',
