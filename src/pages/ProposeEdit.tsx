@@ -9,8 +9,40 @@ import { DiffView, diffStats } from '../components/DiffView'
 import { ENGINE_LABEL, requestAiEdit, type AiEditResult } from '../lib/assistant'
 import { brokenAnchorMessage, brokenAnchors, editWarnings, maskLeaks } from '../lib/docEdit'
 import { requestDocEdit, type EditProposalResult } from '../lib/proposeEdit'
+import { hitLines, requestPublicCheck } from '../lib/publicCheck'
 import { useApp } from '../store/AppStore'
-import type { WikiDoc } from '../types'
+import type { PublicHit, WikiDoc } from '../types'
+
+/**
+ * 수정 제안의 공개 규칙 검사 — 경고만 보이고 제출은 막지 않는다(requests-report.md 13절 R-A).
+ * 이미 문서에 있던 줄까지 짚으면 고칠 수 없는 경고가 쌓이므로, 이번에 새로 생기거나 바뀐 줄만 남긴다
+ */
+function usePublicWarnings(doc: WikiDoc | undefined, body: string, reason: string, active: boolean): PublicHit[] {
+  const [hits, setHits] = useState<PublicHit[]>([])
+  useEffect(() => {
+    if (!doc || !active) return
+    let alive = true
+    const t = setTimeout(() => {
+      requestPublicCheck({ title: doc.title, body, reason: reason.trim() || undefined, target: 'edit' })
+        .then((res) => {
+          if (!alive) return
+          const norm = (t: string) => t.replace(/\r\n?/g, '\n').split('\n')
+          const before = new Set(norm(doc.body).map((l) => l.trim()))
+          const lines = norm(body)
+          const fresh = (h: PublicHit) =>
+            h.where === 'reason' || (h.where === 'body' && h.line !== null && !before.has((lines[h.line - 1] ?? '').trim()))
+          setHits([...res.blocks, ...res.warnings].filter(fresh))
+        })
+        // 검사를 못 해도 제출은 막지 않는다 — 서버 수정 제안 경로는 이 검사와 별개다
+        .catch((err) => console.info('[propose] 공개 검사 실패:', (err as Error).message))
+    }, 600)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [doc, body, reason, active])
+  return active ? hits : []
+}
 
 const AI_WAIT_HINT = { claude: '1~2분', codex: '2~3분', gemini: '20~40초' } as const
 
@@ -148,6 +180,7 @@ export function ProposeEdit() {
   const [result, setResult] = useState<EditProposalResult | null>(null)
 
   useEffect(() => ensureProposals(), [ensureProposals])
+  const publicHits = usePublicWarnings(doc, body, reason, step === 2)
 
   // 제출 전 안전장치 — LLM 이 아니라 규칙이 거른다 (src/lib/docEdit.ts)
   const checks = useMemo(() => {
@@ -340,6 +373,14 @@ export function ProposeEdit() {
                     <span key={m}>· {m}</span>
                   ))}
                   <span>편집으로 돌아가 해당 부분을 원래 표기로 되돌려 주세요.</span>
+                </div>
+              )}
+              {publicHits.length > 0 && (
+                <div className="banner warn" role="status">
+                  <b>제출은 할 수 있지만 확인해 주세요 — 위키는 공개 저장소에 올라갑니다</b>
+                  {hitLines(publicHits, false).map((m) => (
+                    <span key={m}>· {m}</span>
+                  ))}
                 </div>
               )}
               {checks && (checks.warnings.length > 0 || checks.broken.length > 0) && (

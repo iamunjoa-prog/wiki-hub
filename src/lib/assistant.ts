@@ -2,6 +2,7 @@ import { categories, docs } from '../data/docs'
 import type {
   CampaignDraft,
   ChatMessage,
+  ChatReport,
   Engine,
   EngineFailure,
   EngineFailureCode,
@@ -19,6 +20,7 @@ import {
   type DocSection,
   type SearchInput,
 } from './retrieval'
+import { mayBeReport, REPORT_TIMEOUT_MS } from './report'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
 const PRODUCTS: { keywords: string[]; label: string; scope: 'PPM' | 'PPV'; policyCode: string }[] = [
@@ -475,6 +477,14 @@ export interface AssistantReply {
   answeredBy?: string
   /** 이 답 전에 실패한 엔진과 분류 코드 — 안내 문구·관리자 표시를 여기서 고른다 */
   fallback?: EngineFailure[]
+  /** 리포트 답 — text 는 3줄 요약 */
+  report?: ChatReport
+  reportHint?: 'offer' | 'local-only'
+  notice?: string
+  /** 리포트를 만들지 못했다(시간 초과·엔진 오류) — 다음 엔진으로 넘기지 않고 「짧게 답 받기」 칩을 붙인다 */
+  reportFailed?: boolean
+  /** 사용자가 「그만하고 짧게 답 받기」로 끊었다 — 화면은 이 답을 그리지 않고 짧은 답을 다시 요청한다 */
+  cancelled?: boolean
 }
 
 /** 이번 답변에 진행 확인을 붙일지. 이미 묻거나 답을 들은 대화에는 다시 붙이지 않는다. */
@@ -821,29 +831,64 @@ export const ENGINE_TIMEOUT_MS: Record<Engine, number> = { claude: 150_000, code
 /** 대화창 대기 안내에 쓰는 평소 소요 시간 — 수정 제안 화면의 AI_WAIT_HINT 와 같은 실측 기준이다 */
 export const ENGINE_WAIT_HINT: Record<Engine, string> = { claude: '30초~1분', codex: '1~2분', gemini: '20~40초' }
 
+/** 리포트로 갈 수 있는 요청이면 CLI 는 리포트 한도로 기다린다 — 짧은 Q&A 한도(150초)에 리포트가 끊기지 않게 */
+export function engineTimeoutMs(engine: Engine, query: string, modeOverride?: 'qa' | 'report'): number {
+  return engine !== 'gemini' && mayBeReport(query, modeOverride) ? REPORT_TIMEOUT_MS[engine] : ENGINE_TIMEOUT_MS[engine]
+}
+
+/** 리포트 요청이 실패했다 — 다른 엔진으로 넘기면 Gemini 안내나 규칙 기반 짧은 답이 리포트 자리에 와서, 칩으로 고르게 멈춘다 */
+class ReportFailureError extends Error {
+  constructor(
+    readonly code: EngineFailureCode,
+    readonly timeoutMs: number | null,
+    message: string,
+  ) {
+    super(message)
+  }
+}
+
+/** 사용자가 「그만하고 짧게 답 받기」로 끊었다 */
+class CancelledError extends Error {}
+
+export interface AskOptions {
+  /** 칩으로 고른 모드 — 그 질문 한 번에만 서버 판정보다 우선한다 */
+  modeOverride?: 'qa' | 'report'
+  /** 화면이 요청을 끊는 신호 — 끊으면 서버가 CLI 를 정리한다 */
+  signal?: AbortSignal
+}
+
 async function askEngine(
   query: string,
   engine: Engine,
   history: ChatTurn[],
   intentAsked: boolean,
+  opts: AskOptions,
 ): Promise<AssistantReply> {
   const ctrl = new AbortController()
-  const limit = ENGINE_TIMEOUT_MS[engine]
+  const limit = engineTimeoutMs(engine, query, opts.modeOverride)
   const timer = setTimeout(() => ctrl.abort(), limit)
+  const cancel = () => ctrl.abort()
+  opts.signal?.addEventListener('abort', cancel)
   try {
-    return await requestEngine(query, engine, history, intentAsked, ctrl.signal)
+    return await requestEngine(query, engine, history, intentAsked, ctrl.signal, opts.modeOverride)
   } catch (err) {
-    // 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다 — 시간 초과로 분류해 넘긴다
-    if (ctrl.signal.aborted) throw new EngineFailureError('timeout', `${limit / 1000}초 안에 응답이 없어 중단했습니다`)
+    if (opts.signal?.aborted) throw new CancelledError('사용자가 요청을 끊었습니다')
+    if (ctrl.signal.aborted) {
+      // 리포트 한도로 기다린 요청이면 리포트가 늦은 것이다 — 짧은 답 받기 칩으로 고르게 한다
+      if (limit !== ENGINE_TIMEOUT_MS[engine]) throw new ReportFailureError('timeout', limit - 30_000, `${limit / 1000}초 안에 리포트가 오지 않아 중단했습니다`)
+      // 그냥 "aborted"로는 왜 규칙 기반으로 떨어졌는지 알 수 없다 — 시간 초과로 분류해 넘긴다
+      throw new EngineFailureError('timeout', `${limit / 1000}초 안에 응답이 없어 중단했습니다`)
+    }
     throw err
   } finally {
     clearTimeout(timer)
+    opts.signal?.removeEventListener('abort', cancel)
   }
 }
 
 /**
  * 서버가 쓰는 만큼만 보낸다 — 최근 12턴, 뒤에서부터 합쳐 8,000자(server/knowledge.ts parseAskInput 과 같은 규칙).
- * 긴 대화의 전체 이력을 보내면 요청 크기 상한(64KB)에 걸린다
+ * 긴 대화의 전체 이력을 보내면 요청 크기 상한(64KB)에 걸린다. 리포트 턴은 text 가 3줄 요약이라 요약만 넘어간다
  */
 function recentHistory(history: ChatTurn[]): ChatTurn[] {
   const kept: ChatTurn[] = []
@@ -858,38 +903,72 @@ function recentHistory(history: ChatTurn[]): ChatTurn[] {
   return kept
 }
 
+interface AskResponseBody {
+  mode?: 'qa' | 'report' | 'report-unavailable'
+  text: string
+  sourcePaths: string[]
+  reportHint?: 'offer' | 'local-only'
+  notice?: string
+  report?: ChatReport
+}
+
 async function requestEngine(
   query: string,
   engine: Engine,
   history: ChatTurn[],
   intentAsked: boolean,
   signal: AbortSignal,
+  modeOverride?: 'qa' | 'report',
 ): Promise<AssistantReply> {
   const res = await fetch('/api/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, engine, history: recentHistory(history) }),
+    body: JSON.stringify({ query, engine, history: recentHistory(history), ...(modeOverride ? { modeOverride } : {}) }),
     signal,
   })
   if (!res.ok) {
     // 서버는 실패를 { error, code } 로 돌려준다. 화면은 code 로 안내를 고르고 error 는 console 에만 둔다
-    const body = (await res.json().catch(() => null)) as { error?: string; code?: string } | null
-    throw failureFromResponse(res.status, body)
+    const body = (await res.json().catch(() => null)) as { error?: string; code?: string; mode?: string; timeoutMs?: number } | null
+    const failure = failureFromResponse(res.status, body)
+    if (body?.mode === 'report') throw new ReportFailureError(failure.code, body.timeoutMs ?? null, failure.message)
+    throw failure
   }
-  const data = (await res.json()) as { text: string; sourcePaths: string[] }
+  const data = (await res.json()) as AskResponseBody
 
   const sources: SourceRef[] = data.sourcePaths
     .map((p) => docs.find((d) => d.path === p.replace(/\\/g, '/').replace(/^\.?\//, '')))
     .filter((d): d is (typeof docs)[number] => Boolean(d))
     .map((d) => ({ docId: d.id, label: `출처 · ${d.title}` }))
 
-  // 조건 카드 대신 진행 의사부터 확인한다 — 엔진이 무슨 답을 했든 확인 여부는 대화 상태로 정한다.
-  return { text: data.text, sources, intent: intentPromptFor(query, intentAsked), answeredBy: ENGINE_LABEL[engine] }
+  if (data.mode === 'report' && data.report) {
+    // 리포트는 근거 문서를 카드 안에 따로 보여 준다 — 진행 확인 칩은 붙이지 않는다
+    return { text: data.text, sources: [], report: data.report, answeredBy: ENGINE_LABEL[engine] }
+  }
+  return {
+    text: data.text,
+    sources,
+    // 조건 카드 대신 진행 의사부터 확인한다 — 엔진이 무슨 답을 했든 확인 여부는 대화 상태로 정한다.
+    intent: data.mode === 'report-unavailable' ? undefined : intentPromptFor(query, intentAsked),
+    answeredBy: ENGINE_LABEL[engine],
+    reportHint: data.reportHint,
+    notice: data.notice,
+  }
+}
+
+/** 리포트를 못 만들었을 때의 한 줄 — 짧은 답은 칩으로 고른다 */
+function reportFailureText(err: ReportFailureError): string {
+  if (err.code === 'timeout') {
+    const minutes = err.timeoutMs ? Math.round(err.timeoutMs / 60_000) : null
+    return `리포트가 ${minutes ? `${minutes}분 안에` : '제한 시간 안에'} 끝나지 않았습니다. 짧은 답이 필요하면 [짧게 답 받기]를 눌러 주세요.`
+  }
+  const [cause, action] = FAILURE_CAUSE[err.code]
+  return `${cause} 리포트를 만들지 못했습니다. ${action === 'retry' ? '잠시 후 다시 물어보시거나, ' : `${ADMIN_ACTION[action]} `}짧은 답이 필요하면 [짧게 답 받기]를 눌러 주세요.`
 }
 
 /**
  * 쓸 수 있는 엔진을 순서대로 시도한다 — 선택한 CLI가 실패하면 다음 엔진(예: Gemini)으로 넘어간다.
  * 모두 없거나 실패하면 규칙 기반 answer()로 대체해 누구나 쓸 수 있게 한다.
+ * 리포트 요청이 실패하면 넘기지 않고 멈춘다 — 사용자가 짧은 답을 받을지 고른다
  */
 export async function askAssistant(
   query: string,
@@ -897,6 +976,7 @@ export async function askAssistant(
   history: ChatTurn[] = [],
   intentAsked = false,
   nextAsked = false,
+  opts: AskOptions = {},
 ): Promise<AssistantReply> {
   const turns: ChatTurn[] = [...history, { role: 'user', text: query }]
   /**
@@ -904,7 +984,7 @@ export async function askAssistant(
    * 카피·구좌 추천을 먼저 받을지, 바로 프로모션 자동화로 넘길지는 사용자가 고른다.
    */
   const withNextStep = (reply: AssistantReply): AssistantReply => {
-    if (reply.intent) return reply
+    if (reply.intent || reply.report || reply.reportFailed || reply.cancelled) return reply
     const next = nextStepPromptFor(query, nextAsked)
     if (!next) return reply
     return { ...reply, intent: next, brief: reply.brief ?? readBrief(turns) }
@@ -913,12 +993,17 @@ export async function askAssistant(
   const failed: EngineFailure[] = []
   for (const engine of engines) {
     try {
-      const reply = await askEngine(query, engine, history, intentAsked)
+      const reply = await askEngine(query, engine, history, intentAsked, opts)
       if (!failed.length) return withNextStep(reply)
       // 답은 정상이다 — 앞선 실패는 엔진 이름만 남기고 사유는 console 에 둔다
       const names = failed.map((f) => ENGINE_LABEL[f.engine]).join('·')
       return withNextStep({ ...reply, answeredBy: `${reply.answeredBy} (${names} 응답 실패)`, fallback: failed })
     } catch (err) {
+      if (err instanceof CancelledError) return { text: '', sources: [], cancelled: true }
+      if (err instanceof ReportFailureError) {
+        console.info(`[assistant] ${ENGINE_LABEL[engine]} 리포트 실패 (${err.code}):`, err.message)
+        return { text: reportFailureText(err), sources: [], reportFailed: true, answeredBy: ENGINE_LABEL[engine] }
+      }
       const code = failureCode(err)
       console.info(`[assistant] ${ENGINE_LABEL[engine]} 응답 실패 (${code}):`, (err as Error).message)
       failed.push({ engine, code })
@@ -930,6 +1015,7 @@ export async function askAssistant(
     fallback: failed.length ? failed : undefined,
   })
 }
+
 
 export interface AiEditResult {
   body: string

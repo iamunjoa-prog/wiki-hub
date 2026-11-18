@@ -72,6 +72,14 @@ export function readBigBannerSheetUrl(env: Record<string, string | undefined> = 
 }
 
 /**
+ * 공개하면 안 되는 이름 목록(제휴사 실명 등) 파일 — 공개 저장소라 목록은 코드에 두지 않고 공유 드라이브 파일을 가리킨다.
+ * 비어 있으면 새 문서 이름 검사를 건너뛰고, 리포트 모드는 웹 검색을 끈다(server/publicCheck.ts)
+ */
+export function readPrivateTermsFile(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.HUB_PRIVATE_TERMS_FILE?.trim() || undefined
+}
+
+/**
  * 실행 스크립트(scripts/setup.ps1 · start-hub.command)가 휴대용 허브 실행 준비물(node)과 챗봇 연결 프로그램(tools)을 까는 사용자 폴더.
  * 관리자 권한 없이 쓸 수 있는 자리라 Windows는 LOCALAPPDATA, Mac은 홈 아래 숨김 폴더다
  */

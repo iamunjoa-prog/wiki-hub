@@ -10,9 +10,11 @@ import {
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
+import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
 import type { ChatMessage, Engine, PromotionBrief } from '../types'
 import { EngineGuideModal } from './EngineGuide'
+import { ReportCard } from './ReportCard'
 
 // 굵게 안의 가린 이름(류*영)도 굵게로 묶이게 단일 `*` 는 허용한다
 const BOLD = /(\*\*(?:[^*]|\*(?!\*))+?\*\*)/g
@@ -120,7 +122,7 @@ function BriefCard({ brief }: { brief: PromotionBrief }) {
 
 function Message({ msg }: { msg: ChatMessage }) {
   const navigate = useNavigate()
-  const { session } = useApp()
+  const { session, assistant, askAgain } = useApp()
   // 안내는 규칙 기반으로 떨어진 답에만 — 다음 엔진이 답했으면 답은 정상이라 출처 줄만 남긴다
   const notice = msg.fallback?.length && msg.answeredBy === RULE_BASED_LABEL ? fallbackNotice(msg.fallback) : null
   // 관리자에게만 엔진·분류 코드를 붙인다 — 원문 사유는 관리자 화면에도 두지 않는다
@@ -129,11 +131,27 @@ function Message({ msg }: { msg: ChatMessage }) {
   const byShared = msg.answeredBy?.startsWith(ENGINE_LABEL.gemini) ?? false
   const [guideOpen, setGuideOpen] = useState(false)
 
-  if (msg.role === 'user') return <div className="msg user">{msg.text}</div>
+  if (msg.role === 'user')
+    return (
+      <div className="msg user">
+        {msg.via && <span className="msg-via">{msg.via}</span>}
+        {msg.text}
+      </div>
+    )
 
   return (
-    <div className="msg bot">
+    <div className={`msg bot${msg.report ? ' has-report' : ''}`}>
       {msg.text && <RichText text={msg.text} />}
+      {msg.report && <ReportCard msg={msg} />}
+      {msg.notice && <div className="fallback-notice">{msg.notice}</div>}
+      {(msg.reportHint === 'offer' || msg.reportFailed) && (
+        <div className="suggest report-chip">
+          <button type="button" disabled={assistant.pending} onClick={() => askAgain(msg.id, msg.reportFailed ? 'qa' : 'report')}>
+            {msg.reportFailed ? '짧게 답 받기' : '리포트로 자세히 받기'}
+          </button>
+          {!msg.reportFailed && <span className="muted">근거·비교를 갖춘 보고 문서로 받습니다 · {REPORT_WAIT_HINT}</span>}
+        </div>
+      )}
       {msg.sources && msg.sources.length > 0 && (
         <div className="sources">
           {msg.sources.map((s) => (
@@ -162,6 +180,32 @@ function Message({ msg }: { msg: ChatMessage }) {
         </div>
       )}
       {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
+    </div>
+  )
+}
+
+/** 리포트 대기 — 단계 표시는 2차(stream-json)라 지금은 경과 시간만 보여 준다 */
+function ReportWaiting({ engine, since }: { engine: Exclude<Engine, 'gemini'>; since: number }) {
+  const { cancelReport } = useApp()
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const secs = Math.max(0, Math.floor((now - since) / 1000))
+  const maxMin = Math.round((REPORT_TIMEOUT_MS[engine] - 30_000) / 60_000)
+  return (
+    <div className="typing report-wait">
+      <span>
+        {ENGINE_LABEL[engine]}가 리포트를 정리하는 중입니다 · {REPORT_WAIT_HINT} · 최대 {maxMin}분 ·{' '}
+        <b>
+          {Math.floor(secs / 60)}분 {String(secs % 60).padStart(2, '0')}초
+        </b>{' '}
+        지남
+      </span>
+      <button type="button" className="btn sm" onClick={cancelReport}>
+        그만하고 짧게 답 받기
+      </button>
     </div>
   )
 }
@@ -391,7 +435,9 @@ export function AssistantDock() {
         {assistant.messages.map((m) => (
           <Message key={m.id} msg={m} />
         ))}
-        {assistant.pending && (
+        {assistant.pending && assistant.pendingReport && assistant.engine && assistant.engine !== 'gemini' && assistant.pendingSince ? (
+          <ReportWaiting engine={assistant.engine} since={assistant.pendingSince} />
+        ) : assistant.pending && (
           <div className="typing">
             {assistant.engine
               ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${ENGINE_WAIT_HINT[assistant.engine]} 내외 · 최대 ${ENGINE_TIMEOUT_MS[assistant.engine] / 1000}초)`

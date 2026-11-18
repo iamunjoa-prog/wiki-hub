@@ -118,6 +118,11 @@ export function MyRequests() {
                   <div className="mono muted" style={{ fontSize: 10.5, marginTop: 4 }}>
                     {p.reason || 'PR에서 확인'}
                   </div>
+                  {p.via && (
+                    <div className="mono muted" style={{ fontSize: 10.5, marginTop: 2 }}>
+                      진입 · {p.via}
+                    </div>
+                  )}
                   <div style={{ marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <a className="btn sm" href={p.prUrl} target="_blank" rel="noreferrer">
                       PR #{p.prNumber} 열기 ↗

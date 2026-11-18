@@ -1,5 +1,6 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { maskPublicLeaks, publicLeaks, type Hit } from './publicCheck.js'
 
 /** 로컬 CLI 중계(vite 플러그인)와 배포 함수(api/)가 함께 쓰는 답변 형식·문서 묶음 */
 
@@ -28,6 +29,8 @@ export interface ChatTurn {
 export interface AskInput {
   query: string
   history: ChatTurn[]
+  /** 사용자가 칩으로 고른 모드 — 자동 판정(detectReportIntent)보다 우선한다. 그 질문 한 번에만 적용된다 */
+  modeOverride?: 'qa' | 'report'
 }
 
 /**
@@ -66,7 +69,8 @@ export function parseAskInput(raw: unknown): AskInput {
     if (chars > MAX_HISTORY_CHARS) break
     history.unshift({ role, text })
   }
-  return { query, history }
+  const modeOverride = r.modeOverride === 'qa' || r.modeOverride === 'report' ? r.modeOverride : undefined
+  return { query, history, ...(modeOverride ? { modeOverride } : {}) }
 }
 
 /** 이력을 프롬프트 한 덩어리로 편다 — 멀티턴 입력을 받지 않는 CLI 엔진용 */
@@ -252,3 +256,325 @@ export function checkAskReply(out: unknown): CliReply {
     sourcePaths: Array.isArray(r.sourcePaths) ? r.sourcePaths.filter((p): p is string => typeof p === 'string') : [],
   }
 }
+
+/* ── 리포트 모드 (docs/plan/2026-11-18-cli-report-mode.md) ──────────────────────────
+ * 비교·점검·인사이트 정리 질문은 짧은 Q&A 규약 대신 server/report-prompt.md 로 보고 문서를 만든다.
+ * 판정은 로컬 중계와 배포 함수가 같은 규칙을 써야 배포본 안내도 같은 질문에서 나온다.
+ * REPLY_SCHEMA·checkAskReply 는 Gemini 도 쓰므로 건드리지 않고 리포트 전용 형식을 따로 둔다
+ */
+
+export type ReportType = 'compare' | 'audit' | 'insight' | 'brief'
+export const REPORT_TYPES: ReportType[] = ['compare', 'audit', 'insight', 'brief']
+
+/** 프롬프트에 넘기는 유형 이름 — server/report-prompt.md "리포트 유형" 표와 같은 이름 */
+export const REPORT_TYPE_LABEL: Record<ReportType, string> = {
+  compare: 'A. 타사 비교·개선점 도출',
+  audit: 'B. 위키 전반 이슈 점검',
+  insight: 'C. 상품별 인사이트·판단 근거',
+  brief: 'D. 업무 정리·보고서 초안',
+}
+
+export interface ReportIntent {
+  /** report: 리포트로 답한다 · offer: 짧은 답 + 「리포트로 자세히 받기」 칩 · qa: 지금처럼 */
+  mode: 'report' | 'offer' | 'qa'
+  /** 리포트로 갈 때 쓸 유형 — 모델이 고르게 두면 흔들려서(조사 S3) 서버가 정한다 */
+  type: ReportType
+}
+
+interface ReportSignal {
+  re: RegExp
+  /** 2 는 하나로 충분한 강한 신호, 1 은 둘 이상 모여야 리포트 */
+  weight: 1 | 2
+  type?: ReportType
+  /** 다른 신호와 함께일 때만 센다 — 혼자서는 칩도 붙이지 않는다 */
+  weak?: true
+}
+
+const REPORT_SIGNALS: ReportSignal[] = [
+  { re: /리포트|레포트|보고서|보고\s*자료|보고용|장표|문서로\s*정리|정리해서\s*문서/, weight: 2 },
+  { re: /타사|경쟁사|업계|벤치마킹|비교해|비교\s*분석/, weight: 2, type: 'compare' },
+  // "대비"는 "장애 대비"처럼 준비라는 뜻도 있어 혼자서는 리포트로 보지 않는다
+  { re: /대비/, weight: 1, type: 'compare', weak: true },
+  { re: /이슈\s*(?:체크|점검)/, weight: 2, type: 'audit' },
+  { re: /개선점|점검|진단|문제점|체크해|전반|전체적으로|도출/, weight: 1, type: 'audit' },
+  { re: /인사이트\s*(?:정리|종합)/, weight: 2, type: 'insight' },
+  { re: /인사이트/, weight: 1, type: 'insight' },
+  { re: /종합|한눈에|총정리/, weight: 1 },
+  { re: /(?:추천|제안)[^.?!]*(?:근거|이유|데이터|자료)|(?:근거|이유|데이터|자료)[^.?!]*(?:추천|제안)/, weight: 1, type: 'insight' },
+  { re: /위키\s*전체|모든\s*문서|전체\s*문서/, weight: 1, type: 'audit' },
+]
+
+/** 있으면 일반 Q&A — 짧은 답을 원하거나, 지식 입력·수정 요청이다 */
+const SHORT_ANSWER = /짧게|한\s*줄로|간단히|간단하게|요약만/
+const EDIT_REQUEST = /고쳐|수정해|바꿔\s*줘|반영해|올려\s*줘|추가해\s*줘|삭제해|지워\s*줘/
+/** 판단 요청 — 짧은 답으로 먼저 답하고 리포트 칩을 붙인다(열린 질문 Q2 가안) */
+const JUDGMENT = /추천|어떻게\s*정하|얼마로|몇\s*%|할인율|적정|정해\s*줘|골라\s*줘|뭐가\s*나아|어느\s*쪽이\s*나아/
+
+const TYPE_ORDER: ReportType[] = ['compare', 'audit', 'insight']
+
+function scoreReport(text: string): { score: number; types: Set<ReportType> } {
+  let score = 0
+  let firm = 0
+  const types = new Set<ReportType>()
+  for (const s of REPORT_SIGNALS) {
+    if (!s.re.test(text)) continue
+    score += s.weight
+    if (!s.weak) firm += s.weight
+    if (s.type) types.add(s.type)
+  }
+  if (JUDGMENT.test(text)) types.add('insight')
+  return { score: firm ? score : 0, types }
+}
+
+const pickType = (types: Set<ReportType>): ReportType | null => TYPE_ORDER.find((t) => types.has(t)) ?? null
+
+/**
+ * 질문을 보고 리포트로 답할지 정한다. 화면은 따로 판정하지 않고 서버가 돌려준 mode 를 따른다.
+ * "리포트로 정리해줘"처럼 주제 없이 모드만 바꾸는 말이면 앞 질문(이력의 마지막 사용자 턴)에서 유형을 읽는다
+ */
+export function detectReportIntent(query: string, history: ChatTurn[] = [], modeOverride?: 'qa' | 'report'): ReportIntent {
+  const { score, types } = scoreReport(query)
+  const prevUser = [...history].reverse().find((t) => t.role === 'user')
+  const type = pickType(types) ?? (prevUser ? pickType(scoreReport(prevUser.text).types) : null) ?? 'brief'
+
+  if (modeOverride) return { mode: modeOverride, type }
+  if (SHORT_ANSWER.test(query) || EDIT_REQUEST.test(query)) return { mode: 'qa', type }
+  if (score >= 2) return { mode: 'report', type }
+  if (score === 1 || JUDGMENT.test(query)) return { mode: 'offer', type }
+  return { mode: 'qa', type }
+}
+
+/** 배포본·로컬 Gemini·규칙 기반에서 리포트성 질문을 받았을 때 — 최종 문구는 chatbot-planner 소관 */
+export const REPORT_LOCAL_ONLY_TEXT =
+  '비교·점검·인사이트 정리 같은 리포트는 로컬 허브의 Claude·Codex에서 만들 수 있습니다. 여기서는 위키 문서 기준의 짧은 답만 드립니다.'
+
+/** 리포트 근거로 위키 문서 대신 쓸 수 있는 편성표 표기 — sourcePaths 밖이어도 [추정]으로 내리지 않는다 */
+export const SCHEDULE_REFS = ['schedule:today-btv', 'schedule:big-banner']
+
+export interface ReportClaim {
+  text: string
+  basis: 'wiki' | 'external' | 'inference'
+  refs: string[]
+}
+
+export interface ExternalSource {
+  title: string
+  url: string
+  accessedAt: string
+}
+
+// claude --json-schema · codex --output-schema 둘 다 받아들이는 형태: 중첩 객체까지 additionalProperties:false 와 전체 required
+export const REPORT_SCHEMA = {
+  type: 'object',
+  properties: {
+    title: { type: 'string' },
+    summary: { type: 'string' },
+    markdown: { type: 'string' },
+    reportType: { type: 'string', enum: REPORT_TYPES },
+    claims: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          text: { type: 'string' },
+          basis: { type: 'string', enum: ['wiki', 'external', 'inference'] },
+          refs: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['text', 'basis', 'refs'],
+        additionalProperties: false,
+      },
+    },
+    sourcePaths: { type: 'array', items: { type: 'string' } },
+    externalSources: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: { title: { type: 'string' }, url: { type: 'string' }, accessedAt: { type: 'string' } },
+        required: ['title', 'url', 'accessedAt'],
+        additionalProperties: false,
+      },
+    },
+    searchQueries: { type: 'array', items: { type: 'string' } },
+    gaps: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['title', 'summary', 'markdown', 'reportType', 'claims', 'sourcePaths', 'externalSources', 'searchQueries', 'gaps'],
+  additionalProperties: false,
+}
+
+/** 웹 검색을 끈 이유 — engine: 사전 차단이 안 되는 엔진(codex) · terms: 비공개 이름 목록 없음 · type: 점검 유형은 검색하지 않음 */
+export type WebSearchOff = 'engine' | 'terms' | 'type'
+
+export interface ReportReply {
+  title: string
+  /** 대화창 말풍선의 3줄 요약 — 굵게만 쓴다. 앞 대화 이력으로는 이 칸만 넘어간다 */
+  summary: string
+  markdown: string
+  reportType: ReportType
+  claims: ReportClaim[]
+  sourcePaths: string[]
+  externalSources: ExternalSource[]
+  /** 실제로 내보낸 검색어 — claude 는 훅 기록으로 덮어쓴다 */
+  searchQueries: string[]
+  gaps: string[]
+  /** 이번 리포트에서 웹 검색을 켰는지. 꺼졌으면 webSearchOff 에 이유 */
+  webSearch: boolean
+  webSearchOff: WebSearchOff | null
+  /** 서버가 본문에서 가린 건수 — 금액은 "(금액 생략)", 목록 이름은 "(이름 생략)" */
+  masked: { amount: number; name: number }
+  /** 가린 뒤에도 남은 공개 규칙 경고(별표 2개·회사 표기·이메일·전화) — 개인 문서라 막지는 않는다 */
+  warnings: Hit[]
+}
+
+const WEB_OFF_REASON: Record<WebSearchOff, string> = {
+  engine: '이 엔진은 웹 검색을 하지 않는다',
+  terms: '공개하면 안 되는 이름 목록이 연결되지 않아 이번에는 웹 검색을 끈다',
+  type: '점검 유형은 웹 검색을 하지 않는다',
+}
+
+/** 리포트 요청 머리 — 오늘 날짜·엔진·웹 검색 여부·서버가 정한 유형을 넘기고, 질문·이력은 Q&A 와 같은 형식으로 붙인다 */
+export function buildReportRequest(
+  input: AskInput,
+  ctx: { type: ReportType; engineLabel: string; webSearchOff: WebSearchOff | null },
+): string {
+  return [
+    [
+      '## 리포트 조건',
+      `- ${todayLine()}`,
+      `- 사용 엔진: ${ctx.engineLabel}`,
+      `- 웹 검색: ${ctx.webSearchOff ? `꺼짐 — ${WEB_OFF_REASON[ctx.webSearchOff]}` : '켜짐'}`,
+      `- 리포트 유형: ${REPORT_TYPE_LABEL[ctx.type]} (\`${ctx.type}\`) — 앱이 정한 유형이다. 이 유형의 골격으로 쓰고 reportType 에 그대로 넣는다.`,
+    ].join('\n'),
+    buildAskRequest(input),
+  ].join('\n\n')
+}
+
+const normalizeDocPath = (p: string) => p.trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^지식\//, '')
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
+
+function httpsUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw.trim())
+    return url.protocol === 'https:' ? url.toString() : null
+  } catch {
+    return null
+  }
+}
+
+const todayIso = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+/**
+ * 리포트 검증 — claude·codex 응답이 모두 이 함수를 지난다.
+ * 근거 태그를 목록과 맞추고(없는 근거는 [추정]으로), https 출처만 남기고, 금액·목록 이름은 가려서 돌려준다
+ */
+export function checkReportReply(
+  out: unknown,
+  ctx: {
+    reportType: ReportType
+    webSearchOff: WebSearchOff | null
+    terms: string[] | null
+    /** 훅이 기록한 실제 검색어 — 있으면 모델이 채운 searchQueries 대신 쓴다 */
+    observedQueries?: string[]
+  },
+): ReportReply {
+  const r = (out ?? {}) as Record<string, unknown>
+  if (typeof r.markdown !== 'string' || !r.markdown.trim()) throw new Error('리포트 본문을 돌려주지 않았습니다')
+  const webSearch = ctx.webSearchOff === null
+
+  const masked = { amount: 0, name: 0 }
+  const mask = (text: string, count = false) => {
+    const m = maskPublicLeaks(text, ctx.terms)
+    if (count) {
+      masked.amount += m.amount
+      masked.name += m.name
+    }
+    return m.text
+  }
+
+  const markdown = mask(unescapeNewlines(r.markdown).replace(/\r\n?/g, '\n').trim(), true)
+  const firstHeading = markdown.match(/^#\s+(.+)$/m)?.[1].trim() ?? ''
+  const title = mask((typeof r.title === 'string' && r.title.trim()) || firstHeading || '리포트', true).replace(/[\r\n]+/g, ' ')
+  const summary = balanceBold(mask(unescapeNewlines(typeof r.summary === 'string' ? r.summary : '').trim(), true))
+
+  const sourcePaths = [...new Set(strings(r.sourcePaths).map(normalizeDocPath).filter(Boolean))]
+  const externalSources: ExternalSource[] = []
+  if (webSearch && Array.isArray(r.externalSources)) {
+    const seen = new Set<string>()
+    for (const item of r.externalSources) {
+      const s = (item ?? {}) as Record<string, unknown>
+      const url = httpsUrl(typeof s.url === 'string' ? s.url : '')
+      if (!url || seen.has(url)) continue
+      seen.add(url)
+      externalSources.push({
+        title: mask(typeof s.title === 'string' && s.title.trim() ? s.title.trim() : url),
+        url,
+        accessedAt: typeof s.accessedAt === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s.accessedAt) ? s.accessedAt : todayIso(),
+      })
+    }
+  }
+
+  const wikiRefs = new Set([...sourcePaths, ...SCHEDULE_REFS])
+  const urlRefs = new Set(externalSources.map((s) => s.url))
+  const claims: ReportClaim[] = (Array.isArray(r.claims) ? r.claims : []).flatMap((item) => {
+    const c = (item ?? {}) as Record<string, unknown>
+    if (typeof c.text !== 'string' || !c.text.trim()) return []
+    let basis: ReportClaim['basis'] = c.basis === 'wiki' || c.basis === 'external' ? c.basis : 'inference'
+    const refs = strings(c.refs).map((ref) => (/^https?:/.test(ref.trim()) ? (httpsUrl(ref) ?? ref.trim()) : normalizeDocPath(ref)))
+    // 목록에 없는 근거를 단 [위키]·[외부] 문장은 화면에서 [추정]으로 보인다.
+    // [외부]는 위키+외부가 섞인 문장에도 붙으므로(가장 약한 쪽) 위키 경로가 함께 있어도 되고, 목록에 있는 URL 이 하나는 있어야 한다
+    if (basis === 'wiki' && (refs.length === 0 || !refs.every((ref) => wikiRefs.has(ref)))) basis = 'inference'
+    if (basis === 'external' && (!refs.some((ref) => urlRefs.has(ref)) || !refs.every((ref) => urlRefs.has(ref) || wikiRefs.has(ref))))
+      basis = 'inference'
+    return [{ text: mask(unescapeNewlines(c.text).trim()), basis, refs }]
+  })
+
+  const modelQueries = strings(r.searchQueries)
+  const searchQueries = webSearch ? (ctx.observedQueries ?? modelQueries).map((q) => mask(q.trim())).filter(Boolean) : []
+  const gaps = strings(r.gaps).map((g) => mask(g.trim())).filter(Boolean)
+
+  const warnKinds = new Set(['doubleStar', 'company', 'email', 'phone'])
+  const check = publicLeaks({ title, body: markdown, via: 'report' }, { terms: ctx.terms })
+  const warnings = [...check.blocks, ...check.warnings].filter((h) => warnKinds.has(h.kind))
+
+  return {
+    title,
+    summary,
+    markdown,
+    reportType: ctx.reportType,
+    claims,
+    sourcePaths,
+    externalSources,
+    searchQueries,
+    gaps,
+    webSearch,
+    webSearchOff: ctx.webSearchOff,
+    masked,
+    warnings,
+  }
+}
+
+/**
+ * /api/ask 응답 — 로컬·배포 공통. 리포트도 text(=요약)·sourcePaths 를 함께 실어,
+ * 리포트 카드를 아직 모르는 화면도 짧은 답처럼 그릴 수 있게 한다
+ */
+export type AskResponse =
+  | (CliReply & { mode: 'qa'; reportHint?: 'offer' | 'local-only'; notice?: string })
+  | (CliReply & { mode: 'report'; report: ReportReply })
+  | (CliReply & { mode: 'report-unavailable' })
+
+/** 짧은 답 응답 — 판단 요청(offer)이면 리포트를 만들 수 있는 엔진은 칩을, 아니면 로컬 허브 안내 한 줄을 붙인다 */
+export function qaResponse(reply: CliReply, intent: ReportIntent, canReport: boolean): AskResponse {
+  if (intent.mode !== 'offer') return { mode: 'qa', ...reply }
+  return canReport
+    ? { mode: 'qa', ...reply, reportHint: 'offer' }
+    : { mode: 'qa', ...reply, reportHint: 'local-only', notice: REPORT_LOCAL_ONLY_TEXT }
+}
+
+export const reportUnavailable = (): AskResponse => ({ mode: 'report-unavailable', text: REPORT_LOCAL_ONLY_TEXT, sourcePaths: [] })
+
+/** 리포트 응답 — 리포트 카드를 모르는 화면도 요약을 짧은 답처럼 그린다 */
+export const reportResponse = (report: ReportReply): AskResponse => ({
+  mode: 'report',
+  text: report.summary || report.title,
+  sourcePaths: report.sourcePaths,
+  report,
+})
