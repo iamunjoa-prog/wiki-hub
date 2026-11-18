@@ -7,6 +7,8 @@ import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { loadEnv, type Plugin } from 'vite'
 import {
+  readBigBannerSheetUrl,
+  readBtvSheetUrl,
   readClaudeFallbackModel,
   readClaudeModel,
   readCodexModel,
@@ -58,7 +60,8 @@ import {
   type EditReply,
 } from './knowledge.js'
 import { buildJiraScheduleRequest, JIRA_SCHEDULE_SCHEMA, type JiraScheduleReply } from './jiraSchedule.js'
-import { buildScheduleDigest } from './scheduleDigest.js'
+import { buildScheduleBlock } from './scheduleDigest.js'
+import { getSchedule, isScheduleKind, scheduleErrorBody } from './scheduleSource.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -271,12 +274,15 @@ async function codexJson(prompt: string, schema: object, timeoutMs?: number): Pr
   }
 }
 
-/** 편성표는 CLI가 도구로 열어볼 수 있는 위키 폴더 밖(`src/data/`)에 있어 항상 프롬프트에 직접 넣는다 */
-const scheduleNote = (): string =>
+/** .env.local 값을 합친 환경 — configureServer 에서 채운다. 편성표 시트 주소(HUB_*_SHEET_URL)를 여기서 찾는다 */
+let hubEnv: Record<string, string | undefined> = process.env
+
+/** 편성표는 원본 시트에서 실시간으로 받아 와 CLI가 도구로 열어볼 수 없으므로, 질문한 기간만 프롬프트에 직접 넣는다 */
+const scheduleNote = async (input: AskInput): Promise<string> =>
   [
-    '편성표(Today B tv·모바일 빅배너) 데이터는 도구로 열어볼 수 있는 폴더 밖에 있어 아래 <schedule>에 직접 넣었다. 이 안에 있는 내용만 근거로 답하고 지어내지 마라.',
+    '편성표(Today B tv·모바일 빅배너) 데이터는 원본 시트에서 실시간으로 받아 질문한 기간만 아래 <schedule>에 직접 넣었다. 이 안에 있는 내용만 근거로 답하고 지어내지 마라.',
     todayLine(),
-    `<schedule>\n${buildScheduleDigest()}\n</schedule>`,
+    await buildScheduleBlock(input, hubEnv),
   ].join('\n\n')
 
 /**
@@ -286,7 +292,7 @@ const scheduleNote = (): string =>
 const askClaude = async (input: AskInput) =>
   checkAskReply(
     await claudeJson(
-      [scheduleNote(), buildAskRequest(input)].join('\n\n'),
+      [await scheduleNote(input), buildAskRequest(input)].join('\n\n'),
       [
         '--system-prompt-file', PROMPT_FILE,
         '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. Grep·Glob·Read 도구로 문서를 찾아 읽어라.',
@@ -303,7 +309,7 @@ const askCodex = async (input: AskInput) =>
         readFileSync(PROMPT_FILE, 'utf8'),
         '위키 문서 전체가 아래 <documents>에 들어 있다. 명령이나 도구를 실행하지 말고 이 문서만 읽고 답하라.',
         `<documents>\n${buildDocsBlock(KNOWLEDGE_DIR)}\n</documents>`,
-        scheduleNote(),
+        await scheduleNote(input),
         buildAskRequest(input),
       ].join('\n\n'),
       REPLY_SCHEMA,
@@ -419,6 +425,7 @@ export function cliBridge(): Plugin {
       const log = server.config.logger
       // CLI가 없거나 실패할 때 쓰는 Gemini API 키 — 허브 폴더의 .env.local 에서 읽는다 (브라우저로는 보내지 않음)
       const env = loadEnv(server.config.mode, server.config.root, '')
+      hubEnv = { ...process.env, ...env }
       const geminiKey = readGeminiKey(env) || readGeminiKey()
       const geminiModel = readGeminiModel(env) || readGeminiModel()
       const geminiFallbackModel = readGeminiFallbackModel(env) || readGeminiFallbackModel()
@@ -452,6 +459,9 @@ export function cliBridge(): Plugin {
       const systemsShared = isShared(env)
       log.info(
         `[cli-bridge] 시스템 목록 ${systemsShared ? '공유' : '이 PC에만'} 저장 · ${systemsPath}`,
+      )
+      log.info(
+        `[cli-bridge] 편성표 시트 · B tv ${readBtvSheetUrl(hubEnv) ? '✓' : '✗ 주소 없음(HUB_BTV_SHEET_URL)'} · 빅배너 ${readBigBannerSheetUrl(hubEnv) ? '✓' : '✗ 주소 없음(HUB_BIGBANNER_SHEET_URL)'}`,
       )
 
       server.middlewares.use('/api/systems', async (req, res) => {
@@ -546,6 +556,33 @@ export function cliBridge(): Plugin {
         }
       })
 
+      // 편성표 실시간 조회 — 배포의 api/schedule.ts 와 같은 응답 (server/scheduleSource.ts)
+      server.middlewares.use('/api/schedule', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        if (blockedRead(req, res)) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        const params = new URL(req.url ?? '/', 'http://localhost').searchParams
+        const kind = params.get('kind')
+        if (!isScheduleKind(kind)) {
+          res.statusCode = 400
+          res.end(JSON.stringify({ error: 'kind 는 btv 또는 bigbanner 여야 합니다' }))
+          return
+        }
+        try {
+          const data = await getSchedule(kind, hubEnv, new Date(), { fresh: params.get('fresh') === '1' })
+          res.end(JSON.stringify(data))
+        } catch (err) {
+          const { status, body } = scheduleErrorBody(err)
+          log.error(`[cli-bridge] schedule ${kind} ${body.error}`)
+          res.statusCode = status
+          res.end(JSON.stringify(body))
+        }
+      })
+
       server.middlewares.use('/api/login', async (req, res) => {
         if (req.method !== 'POST') {
           res.statusCode = 405
@@ -594,6 +631,7 @@ export function cliBridge(): Plugin {
               fallbackModel: geminiFallbackModel,
               knowledgeDir: KNOWLEDGE_DIR,
               promptFile: PROMPT_FILE,
+              env: hubEnv,
             })
           } else {
             if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)

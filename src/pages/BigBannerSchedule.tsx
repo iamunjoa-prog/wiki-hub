@@ -1,28 +1,11 @@
 import { useMemo, useState } from 'react'
 import { TopBar } from '../components/AppShell'
-import {
-  SCHEDULE_YEAR,
-  SOURCE_SHEET_URL,
-  bigBannerDays,
-} from '../data/bigBannerSchedule'
-import {
-  dayCount,
-  diffWithPrev,
-  indexOfBase,
-  indexesFrom,
-  monthOf,
-  months,
-  runRows,
-  slotsOf,
-  tagList,
-  type BigSlot,
-} from '../lib/bigBannerRail'
+import { ScheduleEmptyState, ScheduleNotice, ScheduleSourceActions } from '../components/ScheduleSource'
+import { dayCount, diffWithPrev, indexesFrom, runRows, slotsOf, tagList, type BigSlot } from '../lib/bigBannerRail'
+import { defaultIndex, kstToday, md, monthGroups, monthKey, monthLabel, useSchedule } from '../lib/scheduleApi'
+import type { BigBannerLiveDay } from '../lib/scheduleLive'
 
-/** 조회기준일 — 편성표에 연도가 없으므로 m/d로 맞춘다 */
-const todayKey = () => {
-  const n = new Date()
-  return `${n.getMonth() + 1}/${n.getDate()}`
-}
+const dowClass = (dow: string) => (dow === '일' ? 'sun' : dow === '토' ? 'sat' : '')
 
 function BannerCard({ slot, isNew }: { slot: BigSlot; isNew: boolean }) {
   const { banner } = slot
@@ -67,17 +50,31 @@ function BannerCard({ slot, isNew }: { slot: BigSlot; isNew: boolean }) {
   )
 }
 
+/** 시트 중간 빈칸 — 순번은 차지하지만 아무것도 안 걸린 자리라 당겨 붙이지 않는다 */
+function EmptyBanner({ order }: { order: number }) {
+  return (
+    <li className="big-card empty" title="시트에서 이 순번이 비어 있습니다">
+      <span className="big-order">{order}</span>
+      <div className="big-body">
+        <div className="big-title">빈 자리</div>
+      </div>
+    </li>
+  )
+}
+
 /** 기간 타임라인 — 행이 배너, 열이 날짜. B tv 화면과 같은 방식으로 겹침·종료일을 본다 */
 function Timeline({
+  days,
   dayIndexes,
   index,
   onPick,
 }: {
+  days: BigBannerLiveDay[]
   dayIndexes: number[]
   index: number
   onPick: (i: number) => void
 }) {
-  const rows = useMemo(() => runRows(dayIndexes), [dayIndexes])
+  const rows = useMemo(() => runRows(days, dayIndexes), [days, dayIndexes])
   const cols = `200px repeat(${dayIndexes.length}, minmax(16px, 1fr))`
   const cursor = dayIndexes.indexOf(index)
 
@@ -88,18 +85,16 @@ function Timeline({
       <div className="tl-row tl-head" style={{ gridTemplateColumns: cols }}>
         <span className="tl-name muted mono">빅배너</span>
         {dayIndexes.map((di, col) => {
-          const d = bigBannerDays[di]
+          const d = days[di]
           return (
             <button
               key={d.date}
-              className={`tl-date${di === index ? ' on' : ''}${
-                d.dow === '일' ? ' sun' : d.dow === '토' ? ' sat' : ''
-              }`}
+              className={`tl-date${di === index ? ' on' : ''} ${dowClass(d.dow)}`}
               onClick={() => onPick(di)}
-              title={`${d.date} ${d.dow} · ${dayCount(d)}건`}
+              title={`${md(d.date)} ${d.dow} · ${dayCount(d)}건`}
               style={{ gridColumn: col + 2 }}
             >
-              {d.date.split('/')[1]}
+              {Number(d.date.slice(8))}
             </button>
           )
         })}
@@ -118,9 +113,9 @@ function Timeline({
               className={`tl-bar z-lib${row.isEvent ? ' targeted' : ''}`}
               style={{ gridColumn: `${run.from + 2} / ${run.to + 3}` }}
               onClick={() => onPick(dayIndexes[run.from])}
-              title={`${row.name} · ${bigBannerDays[dayIndexes[run.from]].date}~${
-                bigBannerDays[dayIndexes[run.to]].date
-              } (${run.to - run.from + 1}일)`}
+              title={`${row.name} · ${md(days[dayIndexes[run.from]].date)}~${md(days[dayIndexes[run.to]].date)} (${
+                run.to - run.from + 1
+              }일)`}
             >
               <span className="tl-bar-days">{run.to - run.from + 1}일</span>
             </button>
@@ -132,26 +127,9 @@ function Timeline({
 }
 
 export function BigBannerSchedule() {
-  const base = todayKey()
-  const [index, setIndex] = useState(() => indexOfBase(base))
+  const state = useSchedule('bigbanner')
   const [mode, setMode] = useState<'day' | 'span'>('day')
-  /** 기본은 조회기준일부터. 지난 편성은 담당자가 따로 켜서 본다 */
-  const [showPast, setShowPast] = useState(false)
-
-  const day = bigBannerDays[index]
-  const slots = useMemo(() => slotsOf(day), [day])
-  const diff = useMemo(() => diffWithPrev(index), [index])
-  const events = slots.filter((s) => s.isEvent).length
-  const onAir = slots.filter((s) => s.onAir).length
-
-  const dayIndexes = useMemo(
-    () => (showPast ? bigBannerDays.map((_, i) => i) : indexesFrom(base)),
-    [showPast, base],
-  )
-  const visible = dayIndexes.map((i) => ({ d: bigBannerDays[i], i }))
-  const maxCount = Math.max(1, ...visible.map(({ d }) => dayCount(d)))
-
-  const pick = (i: number) => setIndex(i)
+  const base = kstToday()
 
   return (
     <>
@@ -161,7 +139,7 @@ export function BigBannerSchedule() {
           <span className="label strong">편성/스케줄 › 모바일 B tv › 홈 › 빅배너</span>
           <span className="tag solid">빅배너 스케줄</span>
           <span className="mono muted" style={{ fontSize: 10.5 }}>
-            조회기준 {base} · 순번대로 롤링 노출
+            조회기준 {md(base)} · 순번대로 롤링 노출
           </span>
           <div className="btv-seg" style={{ marginLeft: 'auto' }}>
             <button className={mode === 'day' ? 'on' : ''} onClick={() => setMode('day')}>
@@ -171,112 +149,158 @@ export function BigBannerSchedule() {
               기간 타임라인
             </button>
           </div>
-          <a className="btn sm" href={SOURCE_SHEET_URL} target="_blank" rel="noreferrer">
-            원본 시트 ↗
-          </a>
+          <ScheduleSourceActions state={state} />
         </div>
+        <ScheduleNotice state={state} />
 
-        <div className="btv-split">
-          <aside className="btv-days">
-            <div className="btv-month-row">
-              {months.map((m) => {
-                const first = dayIndexes.find((i) => monthOf(bigBannerDays[i].date) === m)
+        {state.data && state.data.days.length > 0 ? (
+          <BigBody days={state.data.days} base={base} mode={mode} />
+        ) : state.data ? (
+          <div className="panel sched-state">원본 시트에 읽을 수 있는 날짜가 없습니다.</div>
+        ) : (
+          <ScheduleEmptyState state={state} />
+        )}
+      </div>
+    </>
+  )
+}
+
+function BigBody({ days, base, mode }: { days: BigBannerLiveDay[]; base: string; mode: 'day' | 'span' }) {
+  /** 고른 날짜 — 새로고침으로 목록이 바뀌어도 같은 날을 지키려고 날짜로 들고 있다 */
+  const [picked, setPicked] = useState<string | null>(null)
+  /** 기본은 조회기준일부터. 지난 편성은 담당자가 따로 켜서 본다 */
+  const [showPast, setShowPast] = useState(false)
+
+  const dates = useMemo(() => days.map((d) => d.date), [days])
+  const found = picked ? dates.indexOf(picked) : -1
+  const index = found >= 0 ? found : defaultIndex(dates, base)
+  const day = days[index]
+
+  const slots = useMemo(() => slotsOf(day), [day])
+  const live = slots.filter((s): s is BigSlot => s !== null)
+  const diff = useMemo(() => diffWithPrev(days, index), [days, index])
+  const events = live.filter((s) => s.isEvent).length
+  const onAir = live.filter((s) => s.onAir).length
+
+  const dayIndexes = useMemo(
+    () => (showPast ? days.map((_, i) => i) : indexesFrom(days, base)),
+    [days, showPast, base],
+  )
+  const visible = dayIndexes.map((i) => ({ d: days[i], i }))
+  const maxCount = Math.max(1, ...visible.map(({ d }) => dayCount(d)))
+  const groups = useMemo(() => monthGroups(dates), [dates])
+
+  const pick = (i: number) => setPicked(days[i].date)
+
+  return (
+    <div className="btv-split">
+      <aside className="btv-days">
+        <div className="btv-month-row">
+          {groups.map((g) => (
+            <span key={g.year} className="btv-month-group">
+              <span className="btv-year mono muted">{g.year}</span>
+              {g.months.map((m) => {
+                const first = dayIndexes.find((i) => monthKey(days[i].date) === m)
                 return (
                   <button
                     key={m}
-                    className={`chip${monthOf(day.date) === m ? ' on' : ''}`}
+                    className={`chip${monthKey(day.date) === m ? ' on' : ''}`}
                     disabled={first === undefined}
-                    onClick={() => first !== undefined && setIndex(first)}
+                    onClick={() => first !== undefined && pick(first)}
                   >
-                    {m}월
+                    {monthLabel(m)}
                   </button>
                 )
               })}
-              <button className={`chip${showPast ? ' on' : ''}`} onClick={() => setShowPast((v) => !v)}>
-                지난 편성
-              </button>
-            </div>
-            <div className="btv-day-cap mono muted">
-              {showPast ? `${bigBannerDays[0].date}~ 전체` : `${base} 이후`} · 숫자 = 빅배너 수
-            </div>
-            <div className="btv-day-list">
-              {visible.map(({ d, i }) => (
-                <button
-                  key={d.date}
-                  className={`btv-day${i === index ? ' on' : ''}${dayCount(d) === 0 ? ' idle' : ''}`}
-                  onClick={() => setIndex(i)}
-                >
-                  <span className="btv-day-date">
-                    {d.date}
-                    <em className={d.dow === '일' ? 'sun' : d.dow === '토' ? 'sat' : ''}>{d.dow}</em>
-                  </span>
-                  <span className="btv-day-bars" aria-hidden>
-                    <i className="bar z-lib" style={{ width: (dayCount(d) / maxCount) * 60 }} />
-                  </span>
-                  <span className="btv-day-n mono">{dayCount(d)}</span>
-                </button>
-              ))}
-            </div>
-          </aside>
-
-          <section className="btv-rail">
-            <header className="btv-rail-head">
-              <div>
-                <h1>
-                  {day.date} <em>{day.dow}요일</em>
-                  {day.date === base && <span className="tag solid">조회기준</span>}
-                </h1>
-                <p className="mono muted">
-                  {mode === 'day'
-                    ? `모바일 B tv 홈 빅배너에 1번부터 순번대로 롤링 노출됩니다 · ${SCHEDULE_YEAR}년 편성표`
-                    : '가로는 날짜, 세로는 배너입니다. 빗금 막대는 기간이 정해진 런칭·이벤트 배너입니다'}
-                </p>
-              </div>
-              <div className="btv-counts">
-                <div className="btv-count">
-                  <b>{slots.length}</b>
-                  <span>빅배너</span>
-                </div>
-                <div className="btv-count">
-                  <b>{events}</b>
-                  <span>런칭·이벤트</span>
-                </div>
-                <div className="btv-count strong" title="B tv Air에도 같이 걸리는 배너 수">
-                  <b>{onAir}</b>
-                  <span>air 동시 편성</span>
-                </div>
-              </div>
-            </header>
-
-            {mode === 'span' ? (
-              <Timeline dayIndexes={dayIndexes} index={index} onPick={pick} />
-            ) : (
-              <>
-                {diff.removed.length > 0 && (
-                  <div className="btv-ended">
-                    <span className="label">전일 종료</span>
-                    {diff.removed.map((r) => (
-                      <span key={r} className="tag wait">
-                        {r}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                {slots.length === 0 ? (
-                  <div className="btv-zone-empty">이 날은 아직 편성이 등록되지 않았습니다</div>
-                ) : (
-                  <ol className="big-cards">
-                    {slots.map((s) => (
-                      <BannerCard key={`${s.order}-${s.label}`} slot={s} isNew={diff.added.has(s.label)} />
-                    ))}
-                  </ol>
-                )}
-              </>
-            )}
-          </section>
+            </span>
+          ))}
+          <button className={`chip${showPast ? ' on' : ''}`} onClick={() => setShowPast((v) => !v)}>
+            지난 편성
+          </button>
         </div>
-      </div>
-    </>
+        <div className="btv-day-cap mono muted">
+          {showPast ? `${md(days[0].date)}~ 전체` : `${md(base)} 이후`} · 숫자 = 빅배너 수
+        </div>
+        <div className="btv-day-list">
+          {visible.map(({ d, i }) => (
+            <button
+              key={d.date}
+              className={`btv-day${i === index ? ' on' : ''}${dayCount(d) === 0 ? ' idle' : ''}`}
+              onClick={() => pick(i)}
+            >
+              <span className="btv-day-date">
+                {md(d.date)}
+                <em className={dowClass(d.dow)}>{d.dow}</em>
+              </span>
+              <span className="btv-day-bars" aria-hidden>
+                <i className="bar z-lib" style={{ width: (dayCount(d) / maxCount) * 60 }} />
+              </span>
+              <span className="btv-day-n mono">{dayCount(d)}</span>
+            </button>
+          ))}
+        </div>
+      </aside>
+
+      <section className="btv-rail">
+        <header className="btv-rail-head">
+          <div>
+            <h1>
+              {md(day.date)} <em>{day.dow}요일</em>
+              {day.date === base && <span className="tag solid">조회기준</span>}
+            </h1>
+            <p className="mono muted">
+              {mode === 'day'
+                ? `모바일 B tv 홈 빅배너에 1번부터 순번대로 롤링 노출됩니다 · ${day.date.slice(0, 4)}년 편성표`
+                : '가로는 날짜, 세로는 배너입니다. 빗금 막대는 기간이 정해진 런칭·이벤트 배너입니다'}
+            </p>
+          </div>
+          <div className="btv-counts">
+            <div className="btv-count" title={slots.length > live.length ? `빈 자리 ${slots.length - live.length}칸 포함 ${slots.length}순번` : undefined}>
+              <b>{live.length}</b>
+              <span>빅배너</span>
+            </div>
+            <div className="btv-count">
+              <b>{events}</b>
+              <span>런칭·이벤트</span>
+            </div>
+            <div className="btv-count strong" title="B tv Air에도 같이 걸리는 배너 수">
+              <b>{onAir}</b>
+              <span>air 동시 편성</span>
+            </div>
+          </div>
+        </header>
+
+        {mode === 'span' ? (
+          <Timeline days={days} dayIndexes={dayIndexes} index={index} onPick={pick} />
+        ) : (
+          <>
+            {diff.removed.length > 0 && (
+              <div className="btv-ended">
+                <span className="label">전일 종료</span>
+                {diff.removed.map((r) => (
+                  <span key={r} className="tag wait">
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {live.length === 0 ? (
+              <div className="btv-zone-empty">이 날은 아직 편성이 등록되지 않았습니다</div>
+            ) : (
+              <ol className="big-cards">
+                {slots.map((s, i) =>
+                  s ? (
+                    <BannerCard key={`${i}-${s.key}`} slot={s} isNew={diff.added.has(s.key)} />
+                  ) : (
+                    <EmptyBanner key={`${i}-empty`} order={i + 1} />
+                  ),
+                )}
+              </ol>
+            )}
+          </>
+        )}
+      </section>
+    </div>
   )
 }
