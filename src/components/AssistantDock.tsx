@@ -72,12 +72,17 @@ function IntentChip({ msg }: { msg: ChatMessage }) {
             { label: '월정액(PPM)', value: 'PPM' },
             { label: '단건(PPV)', value: 'PPV' },
           ]
-        : [
-            { label: '카피 추천받기', value: 'copy' },
-            { label: '노출 구좌 추천받기', value: 'placement' },
-            { label: '프로모션 자동화로 연결', value: 'handoff' },
-            { label: '조금 더 정리할게요', value: 'later' },
-          ]
+        : intent.kind === 'ppm-detail'
+          ? [
+              { label: 'B tv+', value: 'btvplus' },
+              { label: '지상파·종편·CP 월정액', value: 'ppm-other' },
+            ]
+          : [
+              { label: '카피 추천받기', value: 'copy' },
+              { label: '노출 구좌 추천받기', value: 'placement' },
+              { label: '프로모션 자동화로 연결', value: 'handoff' },
+              { label: '조금 더 정리할게요', value: 'later' },
+            ]
 
   return (
     <div className="intent-chip">

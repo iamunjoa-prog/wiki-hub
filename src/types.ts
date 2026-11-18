@@ -124,9 +124,12 @@ export interface IntentPrompt {
   /**
    * `product` 는 어드민으로 넘기기 직전 확인,
    * `product-qa` 는 질문만 받을 때의 확인 — 고르면 그 기준 문서로만 답한다 (어드민은 열지 않는다).
+   * `ppm-detail` 은 PPM 안의 세부 상품(B tv+ / 지상파·종편·CP 월정액) 확인이다.
    */
-  kind: 'confirm' | 'product' | 'product-qa' | 'next'
+  kind: 'confirm' | 'product' | 'product-qa' | 'ppm-detail' | 'next'
   question: string
+  /** 답을 받은 뒤 붙인 확인이면 그 원래 질문 — 고르면 고른 기준을 앞에 붙여 다시 보낸다 */
+  retry?: string
 }
 
 /**
