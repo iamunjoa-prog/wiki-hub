@@ -227,10 +227,17 @@ export interface SearchInput {
    * 프로모션 인사이트가 답에 가깝다 — 같은 점수면 이쪽을 위로 올린다.
    */
   preferSubcategory?: string[] | null
+  /**
+   * 이 1단 메뉴(카테고리)의 문서를 먼저 본다. 허브 화면 사용법을 물으면 '이용 안내' 문서가 답이다 —
+   * "바로가기"·"편성" 같은 흔한 단어 하나로 시스템 매뉴얼이 따라 올라오지 않게 한다.
+   */
+  preferCategory?: string[] | null
 }
 
 /** 선호 메뉴 가산 — 순위를 뒤집을 만큼은 올리되, 관련 없는 문서를 끌어올리지는 않는 배수 */
 const PREFERRED_CATEGORY_BOOST = 1.8
+/** 이용 안내 가산 — 안내 문서끼리의 순서는 그대로 두고, 다른 메뉴 문서와의 간격만 벌린다 */
+const PREFERRED_TOP_CATEGORY_BOOST = 1.5
 
 /**
  * 흔한 단어는 근거로서 값이 싸다. '메뉴'는 거의 모든 매뉴얼에 있지만 '띠배너'는 몇 문서에만 있다.
@@ -310,6 +317,7 @@ export function searchDocs(input: string | SearchInput, pool: WikiDoc[] = docs):
     }
     if (search.preferSubcategory && doc.subcategory && search.preferSubcategory.includes(doc.subcategory))
       score *= PREFERRED_CATEGORY_BOOST
+    if (search.preferCategory && search.preferCategory.includes(doc.category)) score *= PREFERRED_TOP_CATEGORY_BOOST
     if (score > 0) scored.push({ doc, score, excerpt: bestParagraph(doc.body, terms) })
   }
   return scored.sort((a, b) => b.score - a.score)

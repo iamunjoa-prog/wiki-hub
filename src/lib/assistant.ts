@@ -46,15 +46,35 @@ const PLAN_VERBS = ['기획', '진행', '하고 싶', '하고싶', '하려', '�
 const ADVICE_CUES = [
   '방안', '방법', '전략', '효과적', '추천해', '제안해', '좋을까', '괜찮을까',
   '어떻게 하', '어떻게 해', '어떻게 진행', '어떤 게 좋', '어떤걸 좋', '뭐가 좋', '잘하려', '잘 하려',
+  '효율', '어디가 좋', '어디가 나',
 ]
+
+/** "좋은 구좌는 어디야?"처럼 고를 곳을 묻는 말. '어디야' 하나만으로는 메뉴 위치 질문과 구분이 안 돼 평가어와 함께 볼 때만 센다 */
+const WHERE_TO_PICK = /(좋은|나은|잘\s?되는|잘\s?나오는).{0,20}어디/
+
+/** 판단 요청의 주제어 — 진행 의도 명사에 더해, 구좌·마케팅 효율을 묻는 말도 인사이트가 답이다 */
+const ADVICE_TOPICS = [...CAMPAIGN_NOUNS, '구좌', '마케팅']
 
 /**
  * 판단 요청으로 볼지. 프로모션 이야기일 때만 본다 — "CBS 승인요청 방법"은
  * 문서에 절차가 그대로 있는 사실 질문이라 판단 요청으로 다루면 안 된다.
  */
 function wantsAdvice(query: string): boolean {
-  if (!ADVICE_CUES.some((k) => query.includes(k))) return false
-  return CAMPAIGN_NOUNS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
+  if (!ADVICE_CUES.some((k) => query.includes(k)) && !WHERE_TO_PICK.test(query)) return false
+  return ADVICE_TOPICS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
+}
+
+/** 허브 화면 이름. 이 말과 아래 동작어가 함께 나오면 허브 사용법 질문이다 */
+const HUB_SCREENS = ['위키 문서', '문서', '편성', '스케줄', '시스템 바로가기', '바로가기', '내 요청', '승인', '계정', '즐겨찾기', '허브']
+const HUB_ACTIONS = ['수정', '추가', '반영', '등록', '방법', '고치', '바꾸', '신청']
+/** 시스템 이름이 나오면 그 시스템 매뉴얼을 묻는 것이다 — "CBS 승인 등록 방법"을 허브 안내로 끌고 가지 않는다 */
+const SYSTEM_NAMES = ['acs', 'cbs', 'swing']
+
+/** 허브 화면을 어떻게 쓰는지 묻는 발화. 맞으면 이용 안내 문서를 먼저 본다 */
+function wantsHubHowTo(query: string): boolean {
+  const q = query.toLowerCase()
+  if (SYSTEM_NAMES.some((k) => q.includes(k))) return false
+  return HUB_SCREENS.some((k) => q.includes(k)) && HUB_ACTIONS.some((k) => q.includes(k))
 }
 
 /**
@@ -62,6 +82,12 @@ function wantsAdvice(query: string): boolean {
  * 절차가 아니라 조각이 나온다 — 소제목을 찾아 문서 순서대로 답해야 한다.
  */
 const SEQUENCE_CUES = ['프로세스', '절차', '단계', '순서', '흐름', 'step']
+
+/**
+ * 2순위 문서를 근거로 함께 붙이는 최소 점수 비율(1순위 대비). 예시 질문에서 곁가지 문서는 0.6 밑,
+ * 함께 봐야 하는 문서(결재 라인 + 운영 절차, CBS 매뉴얼 + FAQ)는 0.6 위에 놓였다.
+ */
+const SECOND_SOURCE_RATIO = 0.6
 
 function wantsSequence(query: string): boolean {
   const q = query.toLowerCase()
@@ -667,6 +693,7 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     scope: slots.product?.scope ?? null,
     // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
     preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
+    preferCategory: wantsHubHowTo(query) ? ['guide'] : null,
   }
   let found = searchDocs(search)
   /**
@@ -717,7 +744,9 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     // 절차는 '단계명 — 하는 일'까지만 쓴다. 결재 기준·체크포인트 칸까지 붙이면 한 줄이 너무 길어진다.
     for (const s of found.lines) lines.push(`· ${s.split(' — ').slice(0, 2).join(' — ')}`)
   } else {
+    // 2순위는 1순위에 견줄 만큼 맞을 때만 붙인다 — 점수가 한참 처지는 문서의 문장은 답을 흐린다
     for (const hit of hits.slice(0, 2)) {
+      if (used.length > 0 && hit.score < used[0].score * SECOND_SOURCE_RATIO) continue
       const sentences = usableSentences(hit.doc, search, 2)
       if (sentences.length === 0) continue
       used.push(hit)
