@@ -1,4 +1,4 @@
-﻿﻿param([switch]$Check, [switch]$NoUpdate)
+﻿param([switch]$Check, [switch]$NoUpdate)
 # 플랫폼 담당 지식 허브 준비·실행 — start-hub.bat 이 매번 부른다. 이미 갖춘 단계는 줄을 내지 않고 건너뛴다.
 # 순서: 새 버전 받기(scripts/update-hub.ps1) → 실행 준비물(휴대용 node) → 프로그램 파일 → 연결 프로그램 → 로그인 → 아이콘 → 허브 켜기(5173 고정) → 브라우저.
 # 창에는 docs/ux/2026-11-12-local-hub-beginner-copy.md 의 한국어 줄만 낸다. 외부 도구 출력은 기록 파일로만 보낸다.
