@@ -184,9 +184,18 @@ export function Approvals() {
                     <div className="mono muted" style={{ fontSize: 10.5, marginTop: 5 }}>
                       {proposal.requestedBy || '요청자 확인 불가'} · {proposal.requestedAt} ·{' '}
                       {proposal.kind === 'new' ? '새 문서' : '문서 수정'} · PR #{proposal.prNumber}
+                      {proposal.via && ` · 진입 ${proposal.via}`}
                     </div>
                   </div>
-                  <div className="hint">수정 사유 — {proposal.reason || 'PR 본문에서 확인해 주세요'}</div>
+                  <div className="hint">
+                    {proposal.kind === 'new' ? '등록 사유' : '수정 사유'} — {proposal.reason || 'PR 본문에서 확인해 주세요'}
+                  </div>
+                  {proposal.via === '챗봇 리포트' && (
+                    <div className="banner warn" role="status">
+                      챗봇 리포트에서 올린 문서입니다. [외부] 문장은 공개 자료, [추정] 문장은 판단입니다. 정해진 정책처럼 읽히지 않는지,
+                      수치·회사 이름이 남지 않았는지 PR 의 변경 내용에서 확인해 주세요.
+                    </div>
+                  )}
                   <div className="hint">
                     머지는 GitHub PR 화면에서 합니다. 변경 내용(diff)도 거기서 봅니다. 머지해도 <b>다음 배포 전까지는</b> 위키
                     화면에 반영되지 않습니다. 허브에서 승인 버튼은 다음 단계에 붙습니다.

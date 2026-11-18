@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../components/AuthGate'
 import { docs as seedDocs } from '../data/docs'
 import { initialPromotions, sheets as seedSheets } from '../data/sheets'
@@ -29,6 +30,21 @@ import {
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
 import { fetchProposals } from '../lib/proposeEdit'
+import { requestPublicCheck } from '../lib/publicCheck'
+import {
+  buildReflectDraft,
+  detectReportReflect,
+  isShortAnswerRequest,
+  mayBeReport,
+  questionOf,
+  readPrefill,
+  REFLECT_EXISTING_TEXT,
+  REFLECT_FIX_TEXT,
+  REFLECT_HOW_TEXT,
+  reflectStartText,
+  savePrefill,
+  type NewDocPrefill,
+} from '../lib/report'
 import {
   EMPTY_SYSTEMS_STATE,
   fetchSystemsState,
@@ -46,6 +62,7 @@ import type {
   ProductScope,
   Promotion,
   ProposalPr,
+  PublicCheckResult,
   Role,
   Session,
   Sheet,
@@ -63,6 +80,10 @@ interface AssistantState {
   open: boolean
   messages: ChatMessage[]
   pending: boolean
+  /** 기다리는 요청이 리포트로 갈 수 있는지 — 대기 문구·「그만하고 짧게 답 받기」를 고른다 */
+  pendingReport: boolean
+  /** 기다리기 시작한 시각(ms) — 경과 시간 표시용 */
+  pendingSince: number | null
   campaignDraft: CampaignDraft | null
   /** 엔진별 상태 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini만. 확인 전이면 undefined, 서버 경로가 없으면 null */
   engineStatus: Partial<Record<Engine, EngineStatus>> | null | undefined
@@ -100,7 +121,19 @@ interface AppState {
 
   openDock: () => void
   closeDock: () => void
-  ask: (query: string) => void
+  ask: (query: string, opts?: AskOpts) => void
+  /** 같은 질문을 리포트(report) 또는 짧은 답(qa)으로 다시 받는다 — 그 질문 한 번에만 적용된다 */
+  askAgain: (messageId: string, mode: 'qa' | 'report') => void
+  /** 기다리는 리포트를 끊고 같은 질문을 짧은 답으로 다시 받는다 */
+  cancelReport: () => void
+  /** 리포트를 위키 새 문서로 올릴 준비 — 반영본을 만들어 공개 검사를 돌리고, 통과하면 새 문서 화면을 채워 연다 */
+  startReflect: (messageId: string) => void
+  /** 새 문서 화면을 리포트 내용으로 다시 연다 (검사 결과가 있으면 함께 넘긴다) */
+  openReflectEditor: (messageId: string) => void
+  /** 반영 단계 상자를 닫는다 */
+  closeReflect: (messageId: string) => void
+  /** 새 문서 화면에서 제출이 성공하면 출처 리포트 카드에 결과 한 줄을 남긴다 */
+  markReportSubmitted: (messageId: string, code: string, prNumber: number) => void
   /** 진행 의도 확인에 답한다 — '네'면 상품 유형만 더 묻고 어드민 화면을 연다 */
   resolveIntent: (messageId: string, choice: IntentChoice) => void
   setEngine: (engine: Engine) => void
@@ -155,6 +188,12 @@ const INTENT_ANSWER_LABEL: Record<IntentChoice, string> = {
 const COPY_REQUEST = '지금 정리한 프로모션 기준으로 카피 방향을 추천해줘'
 const PLACEMENT_REQUEST = '지금 정리한 프로모션 기준으로 노출 구좌를 추천해줘'
 
+interface AskOpts {
+  modeOverride?: 'qa' | 'report'
+  /** 칩으로 보낸 질문이면 칩 이름 — 사용자 말풍선에 작게 보인다 */
+  via?: string
+}
+
 const Ctx = createContext<AppState | null>(null)
 
 const today = () => new Date().toISOString().slice(0, 10)
@@ -203,6 +242,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 추천 버튼으로 보낸 질문 — 답이 오면 다음 단계 안내를 다시 붙여 연결까지 이어 준다 */
   const resumeNextRef = useRef(false)
   const [pending, setPending] = useState(false)
+  const [pendingReport, setPendingReport] = useState(false)
+  const [pendingSince, setPendingSince] = useState<number | null>(null)
+  /** 기다리는 요청을 끊는 손잡이 — 「그만하고 짧게 답 받기」 */
+  const abortRef = useRef<AbortController | null>(null)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
     () => (localStorage.getItem(LS_ENGINE) as Engine) || 'claude',
@@ -282,17 +325,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const showToast = useCallback((msg: string) => setToast(msg), [])
 
-  const ask = useCallback((query: string) => {
-    const q = query.trim()
+  const ask = useCallback((query: string, opts: AskOpts = {}) => {
+    let q = query.trim()
     if (!q) return
     setDockOpen(true)
+    const said = q
+    const lastBot = [...messagesRef.current].reverse().find((m) => m.role === 'assistant')
+    let modeOverride = opts.modeOverride
+
+    // 리포트 직후 "위키에 반영해 줘"는 수정 제안 안내가 아니라 이 리포트의 반영 요청이다 — 엔진을 부르지 않는다 (requests-report.md 5절)
+    const reflect = opts.modeOverride ? null : detectReportReflect(q, lastBot, docs)
+    if (reflect && lastBot?.report) {
+      const lines =
+        reflect === 'how'
+          ? [REFLECT_HOW_TEXT]
+          : [
+              reflectStartText(lastBot.report.title),
+              ...(reflect === 'go-fix' ? [REFLECT_FIX_TEXT] : reflect === 'go-existing' ? [REFLECT_EXISTING_TEXT] : []),
+            ]
+      setMessages((prev) => [...prev, makeMessage('user', q), makeMessage('assistant', lines.join('\n'))])
+      if (reflect !== 'how') startReflectRef.current?.(lastBot.id)
+      return
+    }
+    // 리포트 뒤 "짧게 답해줘"는 주제 없이 모드만 바꾼 말이다 — 리포트의 질문을 짧은 답으로 다시 보낸다
+    if (!modeOverride && lastBot?.report && isShortAnswerRequest(q)) {
+      const original = questionOf(messagesRef.current, lastBot.id)
+      if (original) {
+        q = original
+        modeOverride = 'qa'
+      }
+    }
+
     // 이번 질문 전까지의 대화를 이력으로 넘긴다 — 기획 상담은 여러 턴에 걸쳐 조건을 모은다
     const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
-    setMessages((prev) => [...prev, makeMessage('user', q)])
+    setMessages((prev) => [...prev, makeMessage('user', said, opts.via ? { via: opts.via } : undefined)])
     setPending(true)
+    const reportLikely = usableEngines[0] !== undefined && usableEngines[0] !== 'gemini' && mayBeReport(q, modeOverride)
+    setPendingReport(reportLikely)
+    setPendingSince(Date.now())
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
     // 새 기획 의도가 들어오면 새 상담이다 — 지난 상담에서 이미 물었다는 이유로 확인 칩을 건너뛰지 않는다
     if (detectCampaignIntent(q) && !detectDecision(q)) intentAskedRef.current = false
-    askAssistant(q, usableEngines, history, intentAskedRef.current, nextAskedRef.current).then((reply) => {
+    askAssistant(q, usableEngines, history, intentAskedRef.current, nextAskedRef.current, {
+      modeOverride,
+      signal: ctrl.signal,
+    }).then((reply) => {
+      if (abortRef.current === ctrl) abortRef.current = null
+      setPending(false)
+      setPendingReport(false)
+      setPendingSince(null)
+      // 「그만하고 짧게 답 받기」 — 끊긴 리포트 대신 같은 질문을 짧은 답으로 받는다
+      if (reply.cancelled) {
+        askRef.current?.(q, { modeOverride: 'qa', via: '짧게 답 받기' })
+        return
+      }
       // 추천을 받고 돌아왔으면 연결 버튼을 다시 붙인다 — 대화가 여기서 끊기지 않게 한다
       if (resumeNextRef.current && !reply.intent) {
         resumeNextRef.current = false
@@ -310,20 +397,95 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setMessages((prev) => [
         ...prev,
         makeMessage('assistant', reply.text, {
+          query: q,
           sources: reply.sources,
           intent: reply.intent,
           brief: reply.brief,
           answeredBy: reply.answeredBy,
           fallback: reply.fallback,
+          report: reply.report,
+          reportMeta: reply.report ? { engine: reply.answeredBy ?? '', createdAt: new Date().toISOString() } : undefined,
+          reportHint: reply.reportHint,
+          notice: reply.notice,
+          reportFailed: reply.reportFailed,
         }),
       ])
-      setPending(false)
     })
-  }, [usableEngines])
+  }, [usableEngines, docs])
 
   /** resolveIntent 가 ask 를 다시 호출해야 해서 최신 ask 를 ref 로 들고 있는다 */
-  const askRef = useRef<((query: string) => void) | null>(null)
+  const askRef = useRef<((query: string, opts?: AskOpts) => void) | null>(null)
   askRef.current = ask
+
+  const askAgain = useCallback((messageId: string, mode: 'qa' | 'report') => {
+    const q = questionOf(messagesRef.current, messageId)
+    if (q) askRef.current?.(q, { modeOverride: mode, via: mode === 'report' ? '리포트로 자세히 받기' : '짧게 답 받기' })
+  }, [])
+
+  const cancelReport = useCallback(() => {
+    abortRef.current?.abort()
+  }, [])
+
+  const patchMessage = useCallback((id: string, patch: Partial<ChatMessage>) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))
+  }, [])
+
+  const navigate = useNavigate()
+  /** 새 문서 화면을 채워 연다 — 주소창에는 본문을 싣지 않고 화면 이동 state 와 sessionStorage 로만 넘긴다 */
+  const openPrefill = useCallback(
+    (prefill: NewDocPrefill, check?: PublicCheckResult) => {
+      savePrefill(prefill)
+      navigate('/wiki/new', { state: { prefill, check } })
+    },
+    [navigate],
+  )
+
+  const startReflect = useCallback(
+    async (messageId: string) => {
+      const msg = messagesRef.current.find((m) => m.id === messageId)
+      if (!msg?.report || msg.reportReflect?.stage === 'checking') return
+      patchMessage(messageId, { reportReflect: { stage: 'checking' } })
+      const draft = buildReflectDraft(msg, docs)
+      try {
+        const check = await requestPublicCheck({ title: draft.title, body: draft.body, reason: draft.reason, via: 'report', target: 'new' })
+        // 이름 검사 없이 공개 저장소로 넘기지 않는다 (7-3)
+        if (!check.namesChecked) patchMessage(messageId, { reportReflect: { stage: 'halted' } })
+        else if (check.blocks.length) patchMessage(messageId, { reportReflect: { stage: 'blocked', check } })
+        else {
+          patchMessage(messageId, { reportReflect: { stage: 'handed' } })
+          openPrefill(draft, check)
+        }
+      } catch (err) {
+        console.info('[report] 공개 검사 실패:', (err as Error).message)
+        patchMessage(messageId, { reportReflect: { stage: 'failed' } })
+      }
+    },
+    [docs, openPrefill, patchMessage],
+  )
+  const startReflectRef = useRef<((messageId: string) => void) | null>(null)
+  startReflectRef.current = startReflect
+
+  const openReflectEditor = useCallback(
+    (messageId: string) => {
+      const msg = messagesRef.current.find((m) => m.id === messageId)
+      if (!msg?.report) return
+      // 새 문서 화면에서 고치던 내용이 있으면 그대로 다시 연다
+      const saved = readPrefill()
+      const prefill = saved?.fromMessageId === messageId ? saved : buildReflectDraft(msg, docs)
+      const reflect = msg.reportReflect
+      if (reflect?.stage === 'blocked') patchMessage(messageId, { reportReflect: { stage: 'handed' } })
+      openPrefill(prefill, reflect?.stage === 'blocked' && prefill !== saved ? reflect.check : undefined)
+    },
+    [docs, openPrefill, patchMessage],
+  )
+
+  const closeReflect = useCallback((messageId: string) => patchMessage(messageId, { reportReflect: undefined }), [patchMessage])
+
+  const markReportSubmitted = useCallback(
+    (messageId: string, code: string, prNumber: number) =>
+      patchMessage(messageId, { reportReflect: { stage: 'submitted', code, prNumber } }),
+    [patchMessage],
+  )
 
   /** 어드민(프로모션 자동화) 화면을 새 탭으로 연다. 대화에서 파악한 조건만 실어 보낸다. */
   const openCampaignAdmin = useCallback((scope?: ProductScope) => {
@@ -618,13 +780,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
     systemRequests,
     favoriteSystems,
     systemsStorage: remote ? (remote.shared ? 'shared' : 'local') : 'memory',
-    assistant: { open: dockOpen, messages, pending, campaignDraft, engineStatus, engines, engine, usableEngines },
+    assistant: {
+      open: dockOpen,
+      messages,
+      pending,
+      pendingReport,
+      pendingSince,
+      campaignDraft,
+      engineStatus,
+      engines,
+      engine,
+      usableEngines,
+    },
     toast,
     setRole: setRoleState,
     showToast,
     openDock: () => setDockOpen(true),
     closeDock: () => setDockOpen(false),
     ask,
+    askAgain,
+    cancelReport,
+    startReflect,
+    openReflectEditor,
+    closeReflect,
+    markReportSubmitted,
     resolveIntent,
     setEngine: setPreferredEngine,
     refreshEngines,

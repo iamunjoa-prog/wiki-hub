@@ -3,7 +3,15 @@ import { join } from 'node:path'
 import { guardApi, RATE_ASK } from '../server/guard.js'
 import { readGeminiFallbackModel, readGeminiKey, readGeminiModel } from '../server/env.js'
 import { askGemini, geminiErrorBody } from '../server/gemini.js'
-import { buildDocsBlock, MAX_ASK_BYTES, parseAskInput, type AskInput } from '../server/knowledge.js'
+import {
+  buildDocsBlock,
+  detectReportIntent,
+  MAX_ASK_BYTES,
+  parseAskInput,
+  qaResponse,
+  reportUnavailable,
+  type AskInput,
+} from '../server/knowledge.js'
 
 /**
  * 배포 허브(Vercel)의 챗봇 답변 — CLI가 없으므로 Gemini API로 답한다.
@@ -43,6 +51,13 @@ export async function POST(request: Request): Promise<Response> {
     return error(400, (err as Error).message || '요청 형식이 올바르지 않습니다')
   }
 
+  // 리포트는 로컬 허브 CLI 에서만 만든다 — 로컬 중계와 같은 판정으로, 리포트성 질문이면 Gemini 를 부르지 않고 안내한다
+  const intent = detectReportIntent(input.query, input.history, input.modeOverride)
+  if (intent.mode === 'report') {
+    console.info('[api/ask] 리포트성 질문 — Gemini 를 부르지 않고 로컬 허브 안내로 답함')
+    return Response.json(reportUnavailable())
+  }
+
   // 문서·프롬프트가 배포 번들에 빠지면 Gemini 호출이 파일 없음으로 죽는다. 그때 "응답 실패"가
   // 아니라 무엇이 빠졌는지 알려 준다 → vercel.json 의 includeFiles 설정 문제다.
   if (!existsSync(PROMPT_FILE))
@@ -58,7 +73,8 @@ export async function POST(request: Request): Promise<Response> {
       knowledgeDir: KNOWLEDGE_DIR,
       promptFile: PROMPT_FILE,
     })
-    return Response.json(reply)
+    // 판단 요청(중간 지대)이면 짧은 답에 로컬 허브 안내 한 줄(notice)을 붙인다
+    return Response.json(qaResponse(reply, intent, false))
   } catch (err) {
     console.error('[api/ask] gemini', err)
     // 원문 API 오류는 위 로그와 server/gemini.ts 로그에만 — 화면에는 분류된 문장과 code 를 준다

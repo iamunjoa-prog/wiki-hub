@@ -1,4 +1,5 @@
 import { readGithubRepo } from './env.js'
+import { DOC_VIAS, publicLeaks, type DocVia, type Hit } from './publicCheck.js'
 
 /**
  * "새 문서"·"문서 수정" — GitHub REST API로 브랜치를 만들고 마크다운 파일을 추가·수정해 PR을 연다.
@@ -16,10 +17,15 @@ export interface CreateDocInput {
   requestedBy: string
   /** 같은 서브메뉴(없으면 같은 카테고리) 문서들의 현재 코드 — 다음 번호를 여기서 뽑는다 */
   siblingCodes: string[]
+  /** 어디서 왔는지 — PR 본문 `- 진입:` 줄과 공개 검사 기준(리포트 반영이면 금액 차단)을 가른다 */
+  via: DocVia
+  /** 승인자가 읽는 등록 사유 — 비면 PR 본문에 절을 넣지 않는다(새 문서 화면에 사유 칸이 생기기 전 대비) */
+  reason: string
 }
 
 export interface CreateDocResult {
   prUrl: string
+  prNumber: number
   code: string
   path: string
 }
@@ -27,23 +33,45 @@ export interface CreateDocResult {
 const MAX_TITLE = 80
 const MAX_BODY = 50_000
 
+/** 진입 이름 — PR 본문과 화면(내 요청·승인 관리)이 같은 이름을 쓴다 (docs/sections/requests-chat-draft.md 7-1) */
+const VIA_LABEL: Record<DocVia, string> = {
+  form: '새 문서 화면',
+  chat: '챗봇 대화',
+  report: '챗봇 리포트',
+  attachment: '첨부 파일',
+}
+
+/** 입력 오류는 고쳐서 다시 보낼 수 있는 문제라 400 이다(EditError) — GitHub 실패(502)와 나눈다 */
 export function parseCreateDocInput(raw: unknown): CreateDocInput {
   const r = (raw ?? {}) as Record<string, unknown>
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
   const category = str(r.category).trim()
-  if (!category) throw new Error('카테고리가 비어 있습니다')
+  if (!category) throw new EditError(400, '카테고리가 비어 있습니다')
   const subRaw = str(r.subcategory).trim()
   const title = str(r.title).trim().replace(/[\r\n]+/g, ' ')
-  if (!title) throw new Error('제목이 비어 있습니다')
-  if (title.length > MAX_TITLE) throw new Error(`제목은 ${MAX_TITLE}자 이내로 입력해 주세요`)
+  if (!title) throw new EditError(400, '제목이 비어 있습니다')
+  if (title.length > MAX_TITLE) throw new EditError(400, `제목은 ${MAX_TITLE}자 이내로 입력해 주세요`)
   const body = str(r.body).replace(/\r\n?/g, '\n').trim()
-  if (!body) throw new Error('본문이 비어 있습니다')
-  if (body.length > MAX_BODY) throw new Error('본문이 너무 깁니다')
+  if (!body) throw new EditError(400, '본문이 비어 있습니다')
+  if (body.length > MAX_BODY) throw new EditError(400, '본문이 너무 깁니다')
   const scopeRaw = str(r.scope)
   const scope = scopeRaw === 'PPM' || scopeRaw === 'PPV' ? scopeRaw : '공통'
   const requestedBy = str(r.requestedBy).trim() || '알 수 없음'
   const siblingCodes = Array.isArray(r.siblingCodes) ? r.siblingCodes.filter((c): c is string => typeof c === 'string') : []
-  return { category, subcategory: subRaw || null, title, scope, body, requestedBy, siblingCodes }
+  const via = DOC_VIAS.includes(r.via as DocVia) ? (r.via as DocVia) : 'form'
+  const reason = str(r.reason).replace(/\r\n?/g, '\n').trim()
+  if (reason.length > MAX_REASON) throw new EditError(400, `등록 사유는 ${MAX_REASON}자 이내로 입력해 주세요`)
+  return { category, subcategory: subRaw || null, title, scope, body, requestedBy, siblingCodes, via, reason }
+}
+
+/** 공개 저장소에 올릴 수 없는 표현 — 화면이 걸린 줄을 다시 그리도록 blocks 를 들고 400 으로 내려간다 */
+export class PublicLeakError extends Error {
+  readonly status = 400
+  readonly code = 'public-leak'
+  constructor(readonly blocks: Hit[]) {
+    super('공개 저장소에 올릴 수 없는 표현이 있습니다')
+    this.name = 'PublicLeakError'
+  }
 }
 
 /**
@@ -203,9 +231,14 @@ export async function createDocPR(
   const repo = readGithubRepo(opts.env)
   const { token } = opts
 
+  // GitHub 을 부르기 전에 검사한다 — PR 이 열리는 순간 공개되고, 막힌 제출은 브랜치도 남기지 않아야 한다.
+  // 화면 검사(/api/publicCheck)만으로는 요청을 직접 보내 우회할 수 있다
+  const check = publicLeaks({ title: input.title, body: input.body, reason: input.reason, via: input.via }, { env: opts.env })
+  if (check.blocks.length) throw new PublicLeakError(check.blocks)
+
   const code = nextCode(input.siblingCodes, input.subcategory)
   if (!code) {
-    throw new Error('이 서브메뉴는 문서 코드 체계가 불규칙해 자동으로 새 코드를 만들 수 없습니다')
+    throw new EditError(400, '이 서브메뉴는 문서 코드 체계가 불규칙해 자동으로 새 코드를 만들 수 없습니다')
   }
 
   const path = `지식/${input.category}/${slugify(code)}.md`
@@ -221,17 +254,20 @@ export async function createDocPR(
   const pr = await openPr(repo, token, {
     title: `새 문서: ${input.title} (${code})`,
     head: branch,
+    // 형식은 docs/sections/requests-chat-draft.md 8-2 — parseProposalPr 가 이 줄들을 다시 읽는다
     body: [
-      `${input.requestedBy}님이 위키 허브 "+"로 새 문서를 요청했습니다.`,
+      `${input.requestedBy}님이 위키 허브에서 새 문서를 제안했습니다.`,
       '',
       `- 카테고리: ${input.category}${input.subcategory ? ` › ${input.subcategory}` : ''}`,
       `- 문서 코드: ${code}`,
+      `- 진입: ${VIA_LABEL[input.via]}`,
       '',
+      ...(input.reason ? ['## 등록 사유', '', input.reason, ''] : []),
       '내용을 확인하고 이상 없으면 머지해 주세요. 머지되면 다음 배포에서 위키에 반영됩니다.',
     ].join('\n'),
   })
 
-  return { prUrl: pr.html_url, code, path }
+  return { prUrl: pr.html_url, prNumber: pr.number, code, path }
 }
 
 // ── 기존 문서 수정 PR ──────────────────────────────────────────────────────────
@@ -458,6 +494,8 @@ export interface ProposalPr {
   requestedBy: string
   status: 'pending' | 'approved' | 'rejected'
   requestedAt: string
+  /** 진입 이름(`챗봇 리포트` 등) — 진입 줄이 없는 옛 PR 은 null, 화면은 아무것도 표시하지 않는다 */
+  via: string | null
 }
 
 interface PullJson {
@@ -499,13 +537,15 @@ export function parseProposalPr(pr: PullJson): ProposalPr | null {
   }
   if (!docTitle) docTitle = pr.title ?? ''
 
+  // 수정 PR 은 `## 수정 사유`, 새 문서 PR 은 `## 등록 사유`
   let reason = ''
-  const at = text.indexOf('## 수정 사유\n')
-  if (at >= 0) {
-    const rest = text.slice(at + '## 수정 사유\n'.length)
+  const heading = text.match(/^## (?:수정|등록) 사유\n/m)
+  if (heading?.index !== undefined) {
+    const rest = text.slice(heading.index + heading[0].length)
     const end = rest.lastIndexOf(PR_FOOTER)
     reason = (end >= 0 ? rest.slice(0, end) : rest).trim()
   }
+  const via = text.match(/^- 진입: (.+?)\s*$/m)?.[1] ?? null
 
   return {
     prNumber: pr.number,
@@ -517,6 +557,7 @@ export function parseProposalPr(pr: PullJson): ProposalPr | null {
     requestedBy,
     status: pr.merged_at ? 'approved' : pr.state === 'open' ? 'pending' : 'rejected',
     requestedAt: (pr.created_at ?? '').slice(0, 10),
+    via,
   }
 }
 
