@@ -3,9 +3,9 @@ title: 카피 작성 원칙
 code: MKI-C-01
 category: promotion
 subcategory: copy-guide
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: []
@@ -95,7 +95,7 @@ source: "AX 마케팅 자동화 지식베이스 · copywriting/principles.md"
 - 트랙별 고유 규칙은 이 문서가 아니라 별도 문서에 쓴다. (영화는 [영화 PPV 카피 가이드](MKI-C-02))
 - 금지 표현 목록은 [표현 검증 규칙](MKI-C-04)에 모은다. 여기 중복 기재하지 않는다.
 
-**아직 못 채운 것** — 시리즈·예능·키즈 PPV 전용 카피 가이드, PPM·B tv+ 월정액 전용 카피 가이드(현재 영화 PPV만 있음).
+**아직 못 채운 것** — 시리즈·예능·키즈 PPV 전용 카피 가이드, PPM(B tv+ 포함) 월정액 전용 카피 가이드(현재 영화 PPV만 있음).
 
 ## 다음에 볼 문서
 

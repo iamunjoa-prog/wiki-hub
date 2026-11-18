@@ -3,9 +3,9 @@ title: 프로모션 한눈에 보기
 code: PPC-P-00
 category: promotion
 subcategory: start
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: [CBS, ACS]
@@ -31,7 +31,7 @@ B tv 프로모션은 **어떤 상품을 다루는지**에 따라 네 갈래로 �
 
 | 상품 분류 | 무엇인가 | 대표 상품 |
 | --- | --- | --- |
-| **PPM** (월정액) | VOD를 매달 정액으로 무제한 보는 구독 상품 | **B tv+**, 지상파 3사 월정액, JTBC 월정액, CJ ENM 월정액 |
+| **PPM** (월정액) | VOD를 매달 정액으로 무제한 보는 구독 상품 | **B tv+**(주력 상품) / 지상파·종편·CP 월정액 |
 | **PPV** (단건) | VOD를 한 편씩 사서 보는 상품 | 영화, 애니메이션, TV방송 |
 | **실시간 채널** | 실시간으로 방송되는 유료 채널 | SPOTV Prime, 캐치온, DOG TV |
 | **비과금** | 파는 게 아니라 알리기만 하는 건 | 에이닷 안내, B캐시 적립, 커머스 링크 |

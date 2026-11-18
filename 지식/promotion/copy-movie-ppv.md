@@ -3,9 +3,9 @@ title: 영화 PPV 카피 가이드
 code: MKI-C-02
 category: promotion
 subcategory: copy-guide
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: PPV
 systems: []
@@ -17,7 +17,7 @@ source: "AX 마케팅 자동화 지식베이스 · copywriting/movie-ppv.md"
 
 > 적용대상 **PPV 전용** — 영화 단건구매·예약구매 프로모션
 >
-> **적용 제외**: PPM·B tv+ 등 월정액, 예능, 키즈. 시리즈에도 그대로 적용하지 않는다.
+> **적용 제외**: PPM(B tv+ 포함) 등 월정액, 예능, 키즈. 시리즈에도 그대로 적용하지 않는다.
 >
 > 이 문서는 **작품 분석과 카피 작성에만** 쓴다. 구좌 추천·랜딩 방식·유저플로우 판단은 [노출 구좌 개요](MKI-B-00)를 따른다. 구좌가 정해진 다음에 그 지면에 맞는 카피를 쓴다.
 

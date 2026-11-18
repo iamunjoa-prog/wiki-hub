@@ -3,9 +3,9 @@ title: 타겟팅 기준
 code: MKI-02
 category: promotion
 subcategory: insight
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -34,7 +34,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/targeting.md"
 
 TARGET 캠페인의 모수가 **80만 명을 초과하면 80만 단위로 분할**한다. 발송 Capa 기준은 [배너·TV팝업·스마트알림 운영 기준](PPC-R-06)을 따른다.
 
-## B tv+ 검증 타겟 그룹
+## PPM 중 B tv+ 검증 타겟 그룹 `[PPM]`
 
 | 그룹 | 모수 | 성격 |
 | --- | --- | --- |
@@ -92,7 +92,7 @@ TARGET 캠페인의 모수가 **80만 명을 초과하면 80만 단위로 분할
 - 모수 수치는 시점에 따라 변한다. 갱신할 때 **기준 시점을 함께 적는다.**
 - 새 타겟 그룹은 표에 행을 추가하고, 목표별 선택 기준에도 반영한다.
 
-**아직 못 채운 것** — PPV·PPM 트랙의 표준 타겟 그룹 정의(현재 B tv+ 그룹만 문서화), 타겟 그룹별 모수의 기준 시점.
+**아직 못 채운 것** — PPV 트랙과 B tv+ 외 PPM 세부 상품(지상파·종편·CP 월정액)의 표준 타겟 그룹 정의(현재 PPM 중 B tv+ 그룹만 문서화), 타겟 그룹별 모수의 기준 시점.
 
 ## 다음에 볼 문서
 

@@ -3,9 +3,9 @@ title: 프로모션 혜택 스킴
 code: MKI-03
 category: promotion
 subcategory: insight
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: [CBS]
@@ -25,7 +25,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/promotion-schemes.md"
 
 > 이 문서의 **금액·기간은 과거 사례의 범위**다. 현재 프로모션 값으로 복사하지 않는다. 담당자가 확정한 값이 우선한다.
 
-## 쿠폰 종류 (B tv+ · PPM)
+## 쿠폰 종류 (PPM, B tv+ 포함) `[PPM]`
 
 | 쿠폰 | 성격 | 사용 지침 |
 | --- | --- | --- |
@@ -47,7 +47,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/promotion-schemes.md"
 
 과거 해지 이력이 있거나 VOD 클릭 빈도가 높은 **Warm Lead에게 최우선**으로 쓴다. "오래 보실수록 이득" 메시징으로 잦은 해지·재가입 고객을 락인한다.
 
-## 이벤트 방식별 조합 (B tv+)
+## 이벤트 방식별 조합 (PPM 중 B tv+) `[PPM]`
 
 ### 할인 단독
 
@@ -102,7 +102,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/promotion-schemes.md"
 - 새 쿠폰 정책이 생기면 쿠폰 표에 추가하고 **"단독 운영 / 병행 가능" 여부를 반드시 적는다.**
 - 경품 효율 비교치는 근거 기간을 함께 기록한다.
 
-**아직 못 채운 것** — PPV 경품 스킴별 반응률(현재 PPM·B tv+ 데이터만 있음), 경품 종류별 단가 및 예산 산정 기준.
+**아직 못 채운 것** — PPV 경품 스킴별 반응률(현재 PPM 데이터만 있음, B tv+ 포함), 경품 종류별 단가 및 예산 산정 기준.
 
 ## 다음에 볼 문서
 

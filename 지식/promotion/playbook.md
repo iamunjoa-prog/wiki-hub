@@ -3,9 +3,9 @@ title: 프로모션 플레이북 (상품 × 목표별 표준 조합)
 code: MKI-05
 category: promotion
 subcategory: insight
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: [ACS, CBS]
@@ -188,7 +188,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/campaign-playbook.md"
 - 카피 방향 예시는 **방향성 표현**이지 확정 카피가 아니다. 그대로 쓰지 않도록 따옴표로 감싼다.
 - 패턴이 15개를 넘으면 트랙별 문서로 분리한다.
 
-**아직 못 채운 것** — B tv+ 전용 패턴(현재 PPV·PPM만 정리), 패턴별 실제 성과 데이터 연결.
+**아직 못 채운 것** — PPM 중 B tv+ 전용 패턴(현재 PPV·PPM 일반 패턴만 정리), 패턴별 실제 성과 데이터 연결.
 
 ## 다음에 볼 문서
 
