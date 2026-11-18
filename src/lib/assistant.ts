@@ -931,8 +931,11 @@ export function makeMessage(role: ChatMessage['role'], text: string, extra?: Par
 export const PLAN_STARTER = '프로모션을 기획하려고 해'
 
 export const SUGGESTED_QUESTIONS = [
-  '월정액 할인 쿠폰 프로모션 배너로 진행 가능해?',
-  '판촉용 쿠폰 품의는 누구 결재가 필요해?',
-  'CBS에서 승인요청 버튼이 안 눌려',
-  '전환동의 팝업은 어느 UI 버전부터 돼?',
+  'B tv 마케팅 프로세스 알려줘',
+  '마케팅 효율이 좋은 B tv 구좌는 어디야?',
+  '위키 문서는 어떻게 수정해?',
+  '신규 편성·스케줄은 어떻게 반영해?',
+  '시스템 바로가기는 어떻게 수정하거나 추가해?',
+  '모바일 B tv 마케팅 프로세스 알려줘',
+  '모바일 B tv 외부연동 규격 알려줘',
 ]
