@@ -3,9 +3,9 @@ title: 마케팅 인사이트 개요
 code: MKI-00
 category: promotion
 subcategory: insight
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-18
 ownerId: ppc-team
 scope: 공통
 systems: [ACS, CBS]
@@ -41,7 +41,7 @@ source: "AX 마케팅 자동화 지식베이스 · domain/overview.md"
 | --- | --- | --- |
 | **인지** | 콘텐츠·상품의 존재를 알림 | PPV, PPM |
 | **구매 전환** | 단건 콘텐츠 결제 유도 | PPV |
-| **신규 가입** | 월정액 최초 가입 유도 | PPM, B tv+ |
+| **신규 가입** | 월정액 최초 가입 유도 | PPM (주력 상품 B tv+ 포함) |
 | **리텐션 / 해지방어** | 기존 가입자 유지 | PPM |
 | **시청 유도** | 가입자의 실제 시청 증대 | PPM |
 

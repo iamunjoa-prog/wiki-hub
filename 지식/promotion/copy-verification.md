@@ -3,9 +3,9 @@ title: 표현 검증 규칙
 code: MKI-C-04
 category: promotion
 subcategory: copy-guide
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-18
 ownerId: ppc-team
 scope: 공통
 systems: []
@@ -87,7 +87,7 @@ source: "AX 마케팅 자동화 지식베이스 · copywriting/verification-rule
 
 ## 규제 검수
 
-월정액(PPM·B tv+) 프로모션은 다크패턴 규제 검수가 추가로 필요하다. 할인 종료 후 정가 전환 고지가 카피와 유저플로우에 반영되었는지 확인한다. → [PPM(월정액) 프로모션 정책](PPC-P-02)
+월정액(PPM, B tv+ 포함) 프로모션은 다크패턴 규제 검수가 추가로 필요하다. 할인 종료 후 정가 전환 고지가 카피와 유저플로우에 반영되었는지 확인한다. → [PPM(월정액) 프로모션 정책](PPC-P-02)
 
 ## 확정 전 체크리스트
 

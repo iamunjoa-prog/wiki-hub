@@ -3,9 +3,9 @@ title: 용어 사전
 code: PPC-R-03
 category: promotion
 subcategory: ops-reference
-version: 3
+version: 4
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-18
 ownerId: ppc-team
 scope: 공통
 systems: [CBS, ACS, Swing]
@@ -35,7 +35,8 @@ source: "Confluence · PPC 프로모션 정책 및 업무 프로세스 메뉴얼
 | 용어 | 설명 |
 | --- | --- |
 | **PPV** | VOD 단건 구매 상품. 쿠폰은 건 단위 → [상품 분류](PPC-P-01) |
-| **PPM** | 월정액 상품. 쿠폰은 월 단위. 본 트리에서 "월정액" = PPM |
+| **PPM** | 월정액 상품. 쿠폰은 월 단위. 본 트리에서 "월정액" = PPM. 세부 상품은 B tv+ / 지상파·종편·CP 월정액 → [상품 트랙](MKI-01) |
+| **B tv+** | B tv 자체 OTT 번들 월정액. **PPM 세부 상품 중 하나이자 주력 상품**이다 — PPV·PPM과 나란한 별도 트랙이 아니다. 상품 표시는 `[PPM]` → [상품 트랙](MKI-01) |
 | **실시간 채널** | 실시간으로 방송되는 유료 채널(SPOTV Prime, 캐치온 등). **PPM이 아니다** — PPM·PPV와 나란한 별도 상품 분류로, 그대로 「실시간 채널」이라 부른다 → [프로모션 한눈에 보기](PPC-P-00) |
 | **비과금** | 판매가 아니라 안내만 하는 프로모션(에이닷 안내, B캐시 적립, 커머스 링크 등) |
 | **PPS** | CBS 상품 유형 선택지 중 하나 — **확인 필요** |
