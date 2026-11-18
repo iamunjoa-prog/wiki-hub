@@ -64,17 +64,31 @@ function wantsAdvice(query: string): boolean {
   return ADVICE_TOPICS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
 }
 
-/** 허브 화면 이름. 이 말과 아래 동작어가 함께 나오면 허브 사용법 질문이다 */
-const HUB_SCREENS = ['위키 문서', '문서', '편성', '스케줄', '시스템 바로가기', '바로가기', '내 요청', '승인', '계정', '즐겨찾기', '허브']
+/**
+ * 허브 화면 이름. 이 말과 아래 동작어가 함께 나오면 허브 사용법 질문이다.
+ * '승인'·'문서'처럼 업무에서도 흔히 쓰는 말은 넣지 않는다 — "판촉 품의 승인 방법"이 허브 안내로 빠진다.
+ */
+const HUB_SCREENS = ['위키', '편성', '스케줄', '시스템 바로가기', '바로가기', '내 요청', '승인 관리', '계정', '즐겨찾기', '허브']
 const HUB_ACTIONS = ['수정', '추가', '반영', '등록', '방법', '고치', '바꾸', '신청']
-/** 시스템 이름이 나오면 그 시스템 매뉴얼을 묻는 것이다 — "CBS 승인 등록 방법"을 허브 안내로 끌고 가지 않는다 */
-const SYSTEM_NAMES = ['acs', 'cbs', 'swing']
+/** 업무어가 나오면 허브 화면이 아니라 프로모션 업무를 묻는 것이다 */
+const WORK_TERMS = ['품의', '결재', '쿠폰', '배너', '소재', '프로모션', '캠페인']
+/** 질문에 이름이 직접 나오는 시스템과 그 매뉴얼 문서 코드 */
+const SYSTEM_DOCS: Record<string, string> = { acs: 'PPC-ACS', cbs: 'PPC-CBS', swing: 'PPC-SWG' }
 
 /** 허브 화면을 어떻게 쓰는지 묻는 발화. 맞으면 이용 안내 문서를 먼저 본다 */
 function wantsHubHowTo(query: string): boolean {
   const q = query.toLowerCase()
-  if (SYSTEM_NAMES.some((k) => q.includes(k))) return false
+  // 시스템 이름이 나오면 그 시스템 매뉴얼을 묻는 것이다 — "CBS 승인 등록 방법"을 허브 안내로 끌고 가지 않는다
+  if (Object.keys(SYSTEM_DOCS).some((k) => q.includes(k))) return false
+  if (WORK_TERMS.some((k) => q.includes(k))) return false
   return HUB_SCREENS.some((k) => q.includes(k)) && HUB_ACTIONS.some((k) => q.includes(k))
+}
+
+/** 사용자가 시스템 이름이나 문서 코드로 직접 가리킨 문서. 점수가 처져도 근거에서 빼지 않는다 */
+function namedInQuery(doc: WikiDoc, query: string): boolean {
+  const q = query.toLowerCase()
+  const code = doc.code.toLowerCase()
+  return q.includes(code) || Object.entries(SYSTEM_DOCS).some(([name, c]) => c.toLowerCase() === code && q.includes(name))
 }
 
 /**
@@ -746,7 +760,7 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   } else {
     // 2순위는 1순위에 견줄 만큼 맞을 때만 붙인다 — 점수가 한참 처지는 문서의 문장은 답을 흐린다
     for (const hit of hits.slice(0, 2)) {
-      if (used.length > 0 && hit.score < used[0].score * SECOND_SOURCE_RATIO) continue
+      if (used.length > 0 && hit.score < used[0].score * SECOND_SOURCE_RATIO && !namedInQuery(hit.doc, query)) continue
       const sentences = usableSentences(hit.doc, search, 2)
       if (sentences.length === 0) continue
       used.push(hit)
