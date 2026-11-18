@@ -1,6 +1,6 @@
 import { guardApi, RATE_PR } from '../server/guard.js'
 import { readGithubToken } from '../server/env.js'
-import { createEditPR, EditError, parseEditDocInput } from '../server/github.js'
+import { createEditPR, EditError, editErrorBody, parseEditDocInput } from '../server/github.js'
 import { MAX_PR_BYTES } from '../server/knowledge.js'
 
 /**
@@ -29,7 +29,8 @@ export async function POST(request: Request): Promise<Response> {
     const input = guard.account ? { ...parsed, requestedBy: guard.account.name } : parsed
     return Response.json(await createEditPR(input, { token }))
   } catch (err) {
-    if (err instanceof EditError) return error(err.status, err.message)
+    // 409 는 최신 버전·본문(mainVersion·mainBody)을 함께 싣는다
+    if (err instanceof EditError) return Response.json(editErrorBody(err), { status: err.status })
     console.error('[api/proposeEdit]', err)
     return error(502, (err as Error).message)
   }

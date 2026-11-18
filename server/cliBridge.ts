@@ -25,6 +25,7 @@ import {
   bodyHeaderProblem,
   LOCAL_HUB_ORIGINS,
   readOriginProblem,
+  rejectionBody,
   TOO_LARGE,
   writeOriginProblem,
   type Rejection,
@@ -35,6 +36,7 @@ import {
   createDocPR,
   createEditPR,
   EditError,
+  editErrorBody,
   listProposalPrs,
   parseCreateDocInput,
   parseEditDocInput,
@@ -389,6 +391,7 @@ const askClaude = async (input: AskInput, signal?: AbortSignal) =>
       undefined,
       { signal },
     ),
+    KNOWLEDGE_DIR,
   )
 
 /** 위키 문서 전체(약 100KB)를 프롬프트에 넣는다 */
@@ -406,6 +409,7 @@ const askCodex = async (input: AskInput, signal?: AbortSignal) =>
       undefined,
       signal,
     ),
+    KNOWLEDGE_DIR,
   )
 
 const ASK: Record<Engine, (input: AskInput, signal?: AbortSignal) => Promise<CliReply>> = { claude: askClaude, codex: askCodex }
@@ -589,7 +593,7 @@ const headerOf = (req: IncomingMessage, name: string): string | undefined => {
 function sendRejection(res: ServerResponse, r: Rejection): void {
   res.statusCode = r.status
   res.setHeader('Content-Type', 'application/json; charset=utf-8')
-  res.end(JSON.stringify(r.code ? { error: r.error, code: r.code } : { error: r.error }))
+  res.end(JSON.stringify(rejectionBody(r)))
 }
 
 /**
@@ -884,7 +888,9 @@ export function cliBridge(): Plugin {
           }
           if (!reporting) {
             log.info(
-              `[cli-bridge] ${engine} ${secs()}s · ${input.query}` + (input.history.length ? ` (이력 ${input.history.length}턴)` : ''),
+              `[cli-bridge] ${engine} ${secs()}s · ${input.query}` +
+                (input.history.length ? ` (이력 ${input.history.length}턴)` : '') +
+                (response.action.type !== 'none' ? ` · 초안 ${response.action.type}` : ''),
             )
           }
           res.end(JSON.stringify(response))
@@ -1040,8 +1046,17 @@ export function cliBridge(): Plugin {
             return
           }
           log.error(`[cli-bridge] createDoc ${(err as Error).message}`)
+          // 배포 api/createDoc.ts 와 같은 형태 — 입력 문제는 400 과 code
           res.statusCode = err instanceof SyntaxError ? 400 : err instanceof EditError ? err.status : 502
-          res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+          res.end(
+            JSON.stringify(
+              err instanceof SyntaxError
+                ? { error: '요청 형식이 올바르지 않습니다' }
+                : err instanceof EditError
+                  ? editErrorBody(err)
+                  : { error: (err as Error).message },
+            ),
+          )
         }
       })
 
@@ -1063,12 +1078,21 @@ export function cliBridge(): Plugin {
         try {
           const input = parseEditDocInput(JSON.parse(body || '{}'))
           const result = await createEditPR(input, { token: githubToken, env: { ...process.env, ...env } })
-          log.info(`[cli-bridge] proposeEdit ${input.code} · ${input.title} · ${input.requestedBy} · PR #${result.prNumber}`)
+          log.info(`[cli-bridge] proposeEdit ${input.code} · ${input.title} · ${input.requestedBy} · ${input.via} · PR #${result.prNumber}`)
           res.end(JSON.stringify(result))
         } catch (err) {
           log.error(`[cli-bridge] proposeEdit ${(err as Error).message}`)
+          // 배포 api/proposeEdit.ts 와 같은 형태 — 409 는 mainVersion·mainBody 를 함께 싣는다
           res.statusCode = err instanceof SyntaxError ? 400 : err instanceof EditError ? err.status : 502
-          res.end(JSON.stringify({ error: err instanceof SyntaxError ? '요청 형식이 올바르지 않습니다' : (err as Error).message }))
+          res.end(
+            JSON.stringify(
+              err instanceof SyntaxError
+                ? { error: '요청 형식이 올바르지 않습니다' }
+                : err instanceof EditError
+                  ? editErrorBody(err)
+                  : { error: (err as Error).message },
+            ),
+          )
         }
       })
 
