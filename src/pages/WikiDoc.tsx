@@ -2,6 +2,7 @@ import { Children, isValidElement, useEffect, useMemo, useRef, useState } from '
 import type { ReactNode } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import type { Components } from 'react-markdown'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
@@ -22,6 +23,16 @@ function parseHeadings(body: string): Heading[] {
     .map((m) => ({ level: m[1].length as 2 | 3, text: headingPlain(m[2].trim()) }))
 }
 
+/**
+ * 문서 첫 줄 `> 대상 독자 … · 적용대상 …` 인용은 메타 줄 옆 태그로 옮긴다 — 원문·검색·챗봇 근거는 그대로, 화면에서만.
+ * 이 줄 다음이 빈 줄·빈 `>` 줄·문서 끝일 때만 떼어 낸다. 뒤에 이어지는 주의 인용은 본문에 남긴다.
+ */
+function splitScope(body: string): { scope: string[]; body: string } {
+  const m = body.match(/^\s*> ((?:대상 독자|적용대상) [^\r\n]*)(?:\r?\n>[ \t]*(?=\r?\n)|(?=\r?\n[ \t]*(?:\r?\n|$))|$)/)
+  if (!m) return { scope: [], body }
+  return { scope: m[1].split(' · '), body: body.slice(m[0].length) }
+}
+
 /** 렌더된 제목의 글자만 — 굵게·코드가 섞이면 children 이 배열이라 String() 하면 [object Object] 가 된다 */
 function textOf(node: ReactNode): string {
   return Children.toArray(node)
@@ -39,8 +50,56 @@ export function WikiDoc() {
   const [activeHeading, setActiveHeading] = useState<string | null>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const inlineTocRef = useRef<HTMLDetailsElement>(null)
+  const tocRef = useRef<HTMLElement>(null)
 
   const headings = useMemo(() => (doc ? parseHeadings(doc.body) : []), [doc])
+  const scoped = useMemo(() => splitScope(doc?.body ?? ''), [doc])
+  /**
+   * ReactMarkdown 에 넘기는 렌더러는 렌더마다 새로 만들면 React 가 본문 제목·표를 통째로 다시 만든다.
+   * 그러면 스크롤할 때마다(목차 강조가 바뀔 때마다) 본문 DOM 이 새로 생기고 붙잡아 둔 제목 노드가 문서에서 떨어져 나간다 — 한 번만 만든다.
+   */
+  const md = useMemo(() => {
+    /** 본문·적용대상 태그가 같이 쓰는 링크 — 문서 코드면 허브 안 이동, 아니면 새 창 */
+    const mdLink = ({ href, children }: { href?: string; children?: ReactNode }) => {
+      // 문서 코드 뒤에 #소제목을 붙이면(예: PPC-P-02#h-다크패턴-대응) 그 소제목으로 바로 스크롤한다
+      const [code, anchor] = (href ?? '').split('#')
+      const target = docs.find((d) => d.code === code)
+      if (target) {
+        const to = `/wiki/${target.id}${anchor ? `#${anchor}` : ''}`
+        return (
+          <a
+            href={to}
+            onClick={(e) => {
+              e.preventDefault()
+              navigate(to)
+            }}
+          >
+            {children}
+          </a>
+        )
+      }
+      return (
+        // 새 창으로 열리는 바깥 주소는 ↗ 로 문서 안 이동과 구분한다
+        <a href={href} target="_blank" rel="noreferrer" className={/^https?:/i.test(href ?? '') ? 'ext' : undefined}>
+          {children}
+        </a>
+      )
+    }
+    const body: Components = {
+      h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
+      h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
+      a: mdLink,
+      // 좁은 폭에서 표만 옆으로 밀고 본문 화면 전체가 밀리지 않게
+      table: ({ children }) => (
+        <div className="table-wrap">
+          <table>{children}</table>
+        </div>
+      ),
+    }
+    const scope: Components = { p: ({ children }) => <>{children}</>, a: mdLink }
+    return { body, scope }
+  }, [docs, navigate])
+
   // location.hash는 퍼센트 인코딩된 상태다 — getElementById는 원문(디코딩된) id로 찾아야 한다
   const hashId = location.hash ? decodeURIComponent(location.hash.slice(1)) : null
 
@@ -65,21 +124,50 @@ export function WikiDoc() {
     setActiveHeading(hashId && headings.some((h) => headingId(h.text) === hashId) ? hashId : headings[0] ? headingId(headings[0].text) : null)
   }, [docId, headings, hashId])
 
+  // 지금 읽는 장 = 본문 위쪽 기준선을 마지막으로 넘은 제목. 바뀐 제목만 알려 주는 IntersectionObserver 는
+  // 빠르게 스크롤하면 기준 구역을 건너뛰고, 목차로 이동하면 바로 아래 소제목을 잡아서 위치로 직접 잰다
   useEffect(() => {
-    if (headings.length === 0) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries.filter((e) => e.isIntersecting)
-        if (visible[0]) setActiveHeading(visible[0].target.id)
-      },
-      { rootMargin: '0px 0px -70% 0px', threshold: 0 },
-    )
-    headings.forEach((h) => {
-      const el = document.getElementById(headingId(h.text))
-      if (el) observer.observe(el)
-    })
-    return () => observer.disconnect()
-  }, [headings, docId])
+    const box = contentRef.current
+    if (!box || headings.length === 0) return
+    let frame = 0
+    const update = () => {
+      frame = 0
+      const els = headings.map((h) => document.getElementById(headingId(h.text))).filter((el): el is HTMLElement => Boolean(el))
+      if (els.length === 0) return
+      // 끝까지 내렸으면 마지막 제목 — 짧은 마지막 장은 기준선까지 올라오지 못한다
+      if (box.scrollTop > 0 && box.scrollTop + box.clientHeight >= box.scrollHeight - 2) {
+        setActiveHeading(els[els.length - 1].id)
+        return
+      }
+      const line = box.getBoundingClientRect().top + 96
+      let current = els[0].id
+      for (const el of els) {
+        if (el.getBoundingClientRect().top > line) break
+        current = el.id
+      }
+      setActiveHeading(current)
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(update)
+    }
+    box.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      box.removeEventListener('scroll', onScroll)
+      cancelAnimationFrame(frame)
+    }
+  }, [headings, docId, md])
+
+  // 목차가 길어 스크롤되면 지금 읽는 항목을 목차 안에서 보이게 한다 — 본문 스크롤은 건드리지 않게 목차 상자만 움직인다
+  useEffect(() => {
+    const toc = tocRef.current
+    const on = toc?.querySelector<HTMLElement>('a.on')
+    if (!toc || !on || toc.scrollHeight <= toc.clientHeight) return
+    const pad = parseFloat(getComputedStyle(toc).paddingBottom) || 0
+    if (on.offsetTop < toc.scrollTop) toc.scrollTop = on.offsetTop - 8
+    else if (on.offsetTop + on.offsetHeight > toc.scrollTop + toc.clientHeight - pad) {
+      toc.scrollTop = on.offsetTop + on.offsetHeight - toc.clientHeight + pad
+    }
+  }, [activeHeading])
 
   if (!doc) {
     return (
@@ -147,6 +235,16 @@ export function WikiDoc() {
                   <span>
                     최종 수정 {doc.updatedBy} · {doc.updatedAt} · v{doc.version}
                   </span>
+                  {scoped.scope.map((s, i) => (
+                    <span key={i} className="doc-scope">
+                      <ReactMarkdown
+                        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
+                        components={md.scope}
+                      >
+                        {s}
+                      </ReactMarkdown>
+                    </span>
+                  ))}
                 </div>
               </div>
               <button className="btn sm" onClick={() => setShowHistory((v) => !v)}>
@@ -187,42 +285,14 @@ export function WikiDoc() {
               {/* `**용어(설명)**를`처럼 닫는 ** 앞이 문장부호이고 뒤에 조사가 붙으면 표준 규칙상 굵게가 안 닫혀 별표가 남는다 */}
               <ReactMarkdown
                 remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
-                components={{
-                  h2: ({ children }) => <h2 id={headingId(textOf(children))}>{children}</h2>,
-                  h3: ({ children }) => <h3 id={headingId(textOf(children))}>{children}</h3>,
-                  a: ({ href, children }) => {
-                    // 문서 코드 뒤에 #소제목을 붙이면(예: PPC-P-02#h-다크패턴-대응) 그 소제목으로 바로 스크롤한다
-                    const [code, anchor] = (href ?? '').split('#')
-                    const target = docs.find((d) => d.code === code)
-                    if (target) {
-                      const to = `/wiki/${target.id}${anchor ? `#${anchor}` : ''}`
-                      return (
-                        <a
-                          href={to}
-                          onClick={(e) => {
-                            e.preventDefault()
-                            navigate(to)
-                          }}
-                        >
-                          {children}
-                        </a>
-                      )
-                    }
-                    return (
-                      // 새 창으로 열리는 바깥 주소는 ↗ 로 문서 안 이동과 구분한다
-                      <a href={href} target="_blank" rel="noreferrer" className={/^https?:/i.test(href ?? '') ? 'ext' : undefined}>
-                        {children}
-                      </a>
-                    )
-                  },
-                }}
+                components={md.body}
               >
-                {doc.body}
+                {scoped.body}
               </ReactMarkdown>
             </div>
           </div>
 
-          <nav className="doc-toc">
+          <nav className="doc-toc" ref={tocRef}>
             <div className="label" style={{ marginBottom: 8 }}>
               목차
             </div>

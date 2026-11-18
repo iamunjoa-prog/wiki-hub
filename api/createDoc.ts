@@ -1,7 +1,8 @@
 import { guardApi, RATE_PR } from '../server/guard.js'
 import { readGithubToken } from '../server/env.js'
-import { createDocPR, EditError, editErrorBody, parseCreateDocInput } from '../server/github.js'
+import { createDocPR, EditError, editErrorBody, parseCreateDocInput, PublicLeakError } from '../server/github.js'
 import { MAX_PR_BYTES } from '../server/knowledge.js'
+import { hitCounts } from '../server/publicCheck.js'
 
 /**
  * 위키 문서 목록의 "+ 새 문서" — GitHub API로 브랜치를 만들고 PR을 연다.
@@ -27,9 +28,15 @@ export async function POST(request: Request): Promise<Response> {
     const parsed = parseCreateDocInput(guard.body)
     // 작성자는 화면이 보낸 이름이 아니라 로그인한 계정의 이름으로 남긴다
     const input = guard.account ? { ...parsed, requestedBy: guard.account.name } : parsed
+    // 배포본은 공유 드라이브의 이름 목록을 읽을 수 없어 금액·별표 2개만 검사한다(requests-report.md 13절 R-B)
     const result = await createDocPR(input, { token })
     return Response.json(result)
   } catch (err) {
+    if (err instanceof PublicLeakError) {
+      // 걸린 표기는 로그에 남기지 않는다 — 종류별 건수만
+      console.info(`[api/createDoc] 차단 · publicCheck block ${hitCounts(err.blocks)}`)
+      return Response.json({ error: err.message, code: err.code, blocks: err.blocks }, { status: 400 })
+    }
     // 입력 문제는 400 — 화면이 GitHub 실패와 갈라 "고쳐서 다시 제출"로 안내한다
     if (err instanceof EditError) return Response.json(editErrorBody(err), { status: err.status })
     console.error('[api/createDoc]', err)

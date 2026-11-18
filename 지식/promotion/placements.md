@@ -3,9 +3,9 @@ title: 노출 구좌 개요
 code: MKI-B-00
 category: promotion
 subcategory: banner-spec
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-18
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -51,6 +51,8 @@ B tv 화면에서 프로모션이 노출될 수 있는 자리들. 각 구좌는 
 > **풀페이지 배너는 최초 노출 구좌가 아니다.** 진입 구좌 없이 단독으로 시작하는 유저플로우를 만들지 않는다.
 
 ## 구좌 선택 기준
+
+구좌별 마케팅 효율이 실제로 어떻게 관찰됐는지는 [실적 벤치마크](MKI-04#h-구좌별-효율-관찰치)의 **구좌별 효율 관찰치**에 경향으로 정리되어 있습니다. 효율만 보고 고르지 말고 아래처럼 프로모션 목표에 맞는 조합을 먼저 정합니다.
 
 | 프로모션 목표 | 권장 구좌 조합 |
 | --- | --- |

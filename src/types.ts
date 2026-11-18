@@ -63,6 +63,8 @@ export interface ProposalPr {
   requestedBy: string
   status: ProposalStatus
   requestedAt: string
+  /** 진입 이름(`챗봇 리포트` 등) — PR 본문 `- 진입:` 줄. 그 줄이 없는 옛 PR 이면 null */
+  via?: string | null
 }
 
 export type SheetType = 'sheet' | 'screen'
@@ -180,10 +182,71 @@ export interface EngineStatus {
   loggedIn: boolean
 }
 
+/** 공개 규칙 검사에 걸린 곳 — server/publicCheck.ts Hit 와 같은 모양. text 는 사용자가 쓴 글자 중 걸린 부분만 */
+export interface PublicHit {
+  kind: 'amount' | 'name' | 'doubleStar' | 'company' | 'url' | 'email' | 'phone' | 'todo' | 'figure'
+  where: 'title' | 'body' | 'reason'
+  line: number | null
+  text: string
+}
+
+export interface PublicCheckResult {
+  blocks: PublicHit[]
+  warnings: PublicHit[]
+  /** 비공개 이름 목록으로 이름 검사를 했는지 — 목록이 연결되지 않았으면 false */
+  namesChecked: boolean
+}
+
+export type ReportType = 'compare' | 'audit' | 'insight' | 'brief'
+
+/** 리포트 — server/knowledge.ts ReportReply 와 같은 모양 */
+export interface ChatReport {
+  title: string
+  summary: string
+  markdown: string
+  reportType: ReportType
+  claims: { text: string; basis: 'wiki' | 'external' | 'inference'; refs: string[] }[]
+  sourcePaths: string[]
+  externalSources: { title: string; url: string; accessedAt: string }[]
+  searchQueries: string[]
+  gaps: string[]
+  webSearch: boolean
+  webSearchOff: 'engine' | 'terms' | 'type' | null
+  masked: { amount: number; name: number }
+  warnings: PublicHit[]
+}
+
+/**
+ * 리포트 카드의 위키 반영 단계 (docs/sections/requests-report.md 8-1).
+ * checking 공개 검사 중 · handed 새 문서 화면으로 넘김 · blocked 차단 항목 · halted 이름 목록 없음 · failed 검사 실패 · submitted 제출됨
+ */
+export type ReportReflect =
+  | { stage: 'checking' }
+  | { stage: 'handed' }
+  | { stage: 'blocked'; check: PublicCheckResult }
+  | { stage: 'halted' }
+  | { stage: 'failed' }
+  | { stage: 'submitted'; code: string; prNumber: number }
+
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   text: string
+  /** 칩으로 다시 보낸 질문이면 그 칩 이름 — 사용자 말풍선 위에 작게 보인다 */
+  via?: string
+  /** 이 답을 만든 질문 — 「리포트로 자세히 받기」·「짧게 답 받기」가 같은 질문을 다시 보낸다 */
+  query?: string
+  /** 리포트 답 — 있으면 말풍선의 text 는 3줄 요약이고 아래에 리포트 카드를 붙인다 */
+  report?: ChatReport
+  /** 리포트를 만든 엔진 이름과 시각 — .md 저장 머리·반영본 "이 문서는" 문단에 쓴다 */
+  reportMeta?: { engine: string; createdAt: string }
+  reportReflect?: ReportReflect
+  /** offer: 짧은 답 아래 「리포트로 자세히 받기」 칩 · local-only: 칩 없이 notice 한 줄 */
+  reportHint?: 'offer' | 'local-only'
+  /** 서버가 붙인 안내 한 줄 (로컬 허브 CLI 에서만 리포트가 된다 등) */
+  notice?: string
+  /** 리포트를 만들지 못했다 — 「짧게 답 받기」 칩만 붙인다 */
+  reportFailed?: boolean
   sources?: SourceRef[]
   campaign?: CampaignDraft
   /** 지금까지 정리된 프로모션 뼈대 — 이벤트명·기간·스킴 */
@@ -233,4 +296,16 @@ export interface SystemRequest {
   rejectReason?: string
   requestedBy: string
   requestedAt: string
+}
+
+/**
+ * 내 PC 허브의 새 버전 확인 결과 (GET /api/hubVersion). 배포본에는 이 경로가 없다.
+ * reason — no-version: 자동 업데이트 전에 받은 허브, git-checkout: 개발용 폴더, offline: 확인 못 함
+ */
+export interface HubVersionInfo {
+  current: string | null
+  latest: string | null
+  updateAvailable: boolean
+  checkedAt: string
+  reason?: 'no-version' | 'git-checkout' | 'offline'
 }

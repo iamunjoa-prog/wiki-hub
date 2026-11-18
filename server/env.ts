@@ -22,6 +22,21 @@ export function readGeminiFallbackModel(env: Record<string, string | undefined> 
   return env.GEMINI_FALLBACK_MODEL?.trim() || undefined
 }
 
+/** 로컬 claude CLI 모델 — 버전이 바뀌어도 그대로 쓰이게 별칭(opus·sonnet·haiku)을 권한다. 비워 두면 그 PC의 CLI 기본 모델 */
+export function readClaudeModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.CLAUDE_MODEL?.trim() || undefined
+}
+
+/** claude CLI 기본 모델이 혼잡할 때 넘어갈 예비 모델(--fallback-model) — 비워 두면 쓰지 않는다 */
+export function readClaudeFallbackModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.CLAUDE_FALLBACK_MODEL?.trim() || undefined
+}
+
+/** 로컬 codex CLI 모델(-m) — 비워 두면 그 PC의 CLI 기본 모델 */
+export function readCodexModel(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.CODEX_MODEL?.trim() || undefined
+}
+
 /** "새 문서" 기능이 브랜치·PR을 만들 때 쓰는 GitHub 토큰 — repo contents·pull-requests 쓰기 권한 필요 */
 const GITHUB_TOKEN_NAMES = ['GITHUB_TOKEN', 'GH_TOKEN']
 
@@ -45,6 +60,23 @@ export function readJiraBaseUrl(env: Record<string, string | undefined> = proces
 
 export function readJiraProjectKey(env: Record<string, string | undefined> = process.env): string | undefined {
   return env.JIRA_PROJECT_KEY?.trim() || undefined
+}
+
+/** 편성표 구글 시트 편집 주소 — 공개 저장소라 코드에 두지 않는다. 시트의 주소창 URL(gid 포함)을 그대로 적는다 */
+export function readBtvSheetUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.HUB_BTV_SHEET_URL?.trim() || undefined
+}
+
+export function readBigBannerSheetUrl(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.HUB_BIGBANNER_SHEET_URL?.trim() || undefined
+}
+
+/**
+ * 공개하면 안 되는 이름 목록(제휴사 실명 등) 파일 — 공개 저장소라 목록은 코드에 두지 않고 공유 드라이브 파일을 가리킨다.
+ * 비어 있으면 새 문서 이름 검사를 건너뛰고, 리포트 모드는 웹 검색을 끈다(server/publicCheck.ts)
+ */
+export function readPrivateTermsFile(env: Record<string, string | undefined> = process.env): string | undefined {
+  return env.HUB_PRIVATE_TERMS_FILE?.trim() || undefined
 }
 
 /**

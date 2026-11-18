@@ -117,6 +117,8 @@ export const RATE_EDIT: RateRule = { name: 'edit', limit: 10, windowSeconds: 60 
 /** 새 문서·수정 제안은 둘 다 GitHub 에 PR 을 여는 일이라 하루 횟수를 함께 센다 */
 export const RATE_PR: RateRule = { name: 'pr', limit: 30, windowSeconds: 24 * 60 * 60 }
 export const RATE_DOWNLOAD: RateRule = { name: 'download', limit: 5, windowSeconds: 60 }
+/** 공개 규칙 검사 — 제출 전 [다시 검사]를 몇 번 누를 수 있게 넉넉히 */
+export const RATE_CHECK: RateRule = { name: 'check', limit: 30, windowSeconds: 60 }
 
 /** 배포가 넣어 주는 접속 IP — Vercel 은 이 헤더를 자기 값으로 덮어써서 요청자가 꾸밀 수 없다 */
 export function clientIp(forwardedFor: string | null | undefined, realIp: string | null | undefined): string {

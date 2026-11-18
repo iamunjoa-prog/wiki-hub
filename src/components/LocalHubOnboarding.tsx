@@ -11,7 +11,7 @@ import {
 } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import { useAuth } from './AuthGate'
-import { AccountChoice, LocalHubGuide } from './LocalHubGuide'
+import { AccountChoice, HUB_LEAD, LocalHubGuide } from './LocalHubGuide'
 
 const LATER_TOAST = '대시보드 "챗봇 답변 엔진 → 내 PC에서 쓰기"에서 언제든 다시 볼 수 있습니다'
 
@@ -80,7 +80,7 @@ export function LocalHubOnboarding() {
   if (!open) return null
 
   return (
-    <div className="modal-back onb-back" onClick={later}>
+    <div className="modal-back hub-back" onClick={later}>
       <div className="modal onb-modal" role="dialog" aria-label="내 계정으로 챗봇 쓰기" onClick={(ev) => ev.stopPropagation()}>
         <div className="panel-head">
           <span className="label strong">내 계정으로 챗봇 쓰기</span>
@@ -91,21 +91,11 @@ export function LocalHubOnboarding() {
 
         <div className="modal-body">
           <p className="onb-hello">{user ? `${user.name}님, 허브에 오신 것을 환영합니다.` : '허브에 오신 것을 환영합니다.'}</p>
-          <ul className="onb-why">
-            <li>
-              Claude나 ChatGPT 계정이 있으면 챗봇이 <b>내 계정으로</b> 답합니다.
-            </li>
-            <li>공용 AI 엔진이 붐비거나 한도에 걸려도 영향을 덜 받습니다.</li>
-            <li>한 번 세팅하면 다음부터는 바탕화면 아이콘으로 켭니다.</li>
-          </ul>
+          <p className="cli-guide">{HUB_LEAD}</p>
 
           <AccountChoice value={choice} onChange={pick} />
 
-          {choice && choice !== 'unknown' && (
-            <div className="onb-guide">
-              <LocalHubGuide account={choice} onDownloaded={onDownloaded} />
-            </div>
-          )}
+          {choice !== 'unknown' && <LocalHubGuide account={choice} onDownloaded={onDownloaded} />}
 
           {choice === 'unknown' && (
             <div className="onb-guide">

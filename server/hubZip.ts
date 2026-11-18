@@ -5,7 +5,17 @@
  */
 
 import { unzipSync, zipSync, strToU8, type Zippable } from 'fflate'
-import { HUB_DIR, README_NAME, ROOT_BAT, ROOT_BAT_NAME, ROOT_COMMAND, ROOT_COMMAND_NAME, readmeText } from './hubZipRoot.js'
+import {
+  HUB_DIR,
+  HUB_VERSION_NAME,
+  README_NAME,
+  ROOT_BAT,
+  ROOT_BAT_NAME,
+  ROOT_COMMAND,
+  ROOT_COMMAND_NAME,
+  hubVersionText,
+  readmeText,
+} from './hubZipRoot.js'
 
 export const HUB_ZIP_FILENAME = 'wiki-hub.zip'
 
@@ -52,13 +62,23 @@ const fileMode = (path: string) => (/\.(command|sh)$/.test(path) ? 0o100755 : 0o
 /**
  * zipball(최상위 owner-repo-<sha>/ 하나)을 루트에 실행기 2개 + 안내 txt + hub/ 만 있는 ZIP으로 다시 묶는다.
  * 최상위 폴더를 두지 않아야 풀기 도구마다 폴더 깊이가 갈라지지 않는다. 한글 항목명은 fflate가 UTF-8 플래그를 켠다.
- * accounts 가 있으면 hub/hub-setup.json 으로 넣는다
+ * accounts 가 있으면 hub/hub-setup.json 으로 넣는다. repo 가 있으면 hub/.hub-version 을 넣어 실행기가 켤 때 스스로 최신을 받는다
  */
-export function repackHubZip(zipball: Uint8Array, now: Date, accounts: HubAccount[] | null = null): Uint8Array {
-  return repack(zipball, now, accounts).zip
+export function repackHubZip(
+  zipball: Uint8Array,
+  now: Date,
+  accounts: HubAccount[] | null = null,
+  repo: string | null = null,
+): Uint8Array {
+  return repack(zipball, now, accounts, repo).zip
 }
 
-function repack(zipball: Uint8Array, now: Date, accounts: HubAccount[] | null): { zip: Uint8Array; files: number } {
+function repack(
+  zipball: Uint8Array,
+  now: Date,
+  accounts: HubAccount[] | null,
+  repo: string | null,
+): { zip: Uint8Array; files: number } {
   const entries = unzipSync(zipball)
   const out: Zippable = {}
   const entry = (data: Uint8Array, mode: number): Zippable[string] => [data, { os: 3, attrs: mode << 16, mtime: now }]
@@ -83,6 +103,12 @@ function repack(zipball: Uint8Array, now: Date, accounts: HubAccount[] | null): 
   out[ROOT_COMMAND_NAME] = entry(strToU8(ROOT_COMMAND), 0o100755)
   out[README_NAME] = entry(strToU8(readmeText(now, version)), 0o100644)
   let files = count + 3
+  // 버전을 모르면 넣지 않는다 — 실행기가 업데이트를 건너뛰고 받은 그대로 켠다
+  if (repo && version !== '알 수 없음') {
+    const name = `${HUB_DIR}/${HUB_VERSION_NAME}`
+    if (!(name in out)) files++
+    out[name] = entry(strToU8(hubVersionText(version, repo)), 0o100644)
+  }
   if (accounts) {
     const name = `${HUB_DIR}/${HUB_SETUP_NAME}`
     if (!(name in out)) files++
@@ -133,7 +159,7 @@ export async function proxyHubZip(token: string | undefined, repo: string, accou
   try {
     const zipball = new Uint8Array(await upstream.arrayBuffer())
     if (zipball.byteLength > MAX_ZIPBALL_BYTES) return fail(502, tooBig)
-    repacked = repack(zipball, new Date(), accounts)
+    repacked = repack(zipball, new Date(), accounts, repo)
   } catch (err) {
     // 원문은 서버 로그에만 — 화면에는 한 줄 안내
     console.error(`[download-hub] repack 실패: ${(err as Error).message}`)

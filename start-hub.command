@@ -4,6 +4,7 @@
 # 창에는 docs/ux/2026-11-12-local-hub-beginner-copy.md 의 한국어 줄만 낸다. 외부 도구 출력은 기록 파일로만 보낸다.
 # macOS 기본 /bin/bash(3.2)에서 돌아야 한다 — 연관 배열·${var,,}·mapfile 을 쓰지 않는다.
 #   ./start-hub.command --check : 설치·생성 없이 상태만 확인 (담당자용)
+#   ./start-hub.command --no-update : 새 버전 받기를 건너뛴다. 이전 버전이 바꾼 뒤 새 실행기를 이 이름으로 다시 부르므로 이름을 바꾸지 않는다
 
 # 바탕화면 바로가기는 이 파일의 심볼릭 링크라서, 링크를 끝까지 따라가 진짜 위치를 찾는다
 SELF="$0"
@@ -15,6 +16,8 @@ cd "$(dirname "$SELF")" || exit 1
 ROOT="$(pwd)"
 CHECK=0
 [ "$1" = "--check" ] && CHECK=1
+NO_UPDATE=0
+[ "$1" = "--no-update" ] && NO_UPDATE=1
 
 HUB_URL="http://localhost:5173/"
 HUB_PORT=5173
@@ -26,6 +29,9 @@ TOOLS_BIN="$TOOLS_DIR/node_modules/.bin"
 LOG_DIR="$HOME/wiki-hub-기록"
 LOG_FILE="$LOG_DIR/설치기록.txt"
 SETUP_FILE="$ROOT/hub-setup.json"
+# 켤 때 업데이트가 hub/ 에 남기는 버전 파일과, 패키지 목록이 바뀌었다는 표시 (2단계가 npm install 을 다시 돌리고 지운다)
+HUB_VERSION_FILE="$ROOT/.hub-version"
+REINSTALL_MARK="$ROOT/node_modules/.hub-reinstall"
 SHORTCUT="$HOME/Desktop/플랫폼 담당 지식 허브.command"
 NODE_MIN_MAJOR=18
 LOGIN_LIMIT=300
@@ -306,6 +312,123 @@ make_icon() {
   ln -s "$target" "$SHORTCUT"
 }
 
+# ---------- 새 버전 받기 ----------
+# Windows 의 scripts/update-hub.ps1 과 같은 흐름이다. 최신 커밋은 공개 저장소의 git 광고(info/refs — API 호출 한도에 걸리지 않는다)로,
+# 파일은 codeload 압축으로 받는다. 바꾸는 것은 새 버전에 든 최상위 항목뿐이고, node_modules·hub-setup.json·.env 계열은 그대로 둔다.
+# 바꾸기 전 항목은 ../.hub-backup 으로 옮겨 두고, 중간에 실패하면 되돌린다. 결과는 UPDATE_RESULT 에: updated latest skipped offline failed
+UPDATE_RESULT=skipped
+UPDATE_TO=""
+json_field() { sed -n "s/.*\"$1\"[[:space:]]*:[[:space:]]*\"\([^\"]*\)\".*/\1/p" "$2" 2>/dev/null | head -n 1; }
+keep_name() { # 새 버전에 들어 있어도 건드리지 않는 이름 — 내 PC에서 생긴 것들 (.env.example 은 저장소 파일이라 바꾼다)
+  case "$1" in node_modules | hub-setup.json | .git) return 0 ;; .env.example) return 1 ;; .env*) return 0 ;; esac
+  return 1
+}
+
+# 끊긴 바꾸기를 되돌린다 — 표시 파일이 남아 있으면 백업 항목을 제자리로 옮긴다
+restore_interrupted() {
+  local backup="$1" item
+  [ -f "$backup/.hub-swap" ] || return 0
+  log "[업데이트] 지난번 바꾸기가 끊겨 이전 버전으로 되돌림"
+  for item in "$backup"/* "$backup"/.[!.]* "$backup"/..?*; do
+    [ -e "$item" ] || continue
+    [ "$(basename "$item")" = .hub-swap ] && continue
+    rm -rf "${ROOT:?}/$(basename "$item")" && mv "$item" "$ROOT/"
+  done
+  rm -f "$backup/.hub-swap"
+}
+
+# 새 버전 폴더($1)의 최상위 항목을 하나씩 바꿔 넣는다. bash 는 실행 중인 파일을 조금씩 읽으므로 덮어쓰지 않고 mv 로만 바꾼다
+swap_files() {
+  local incoming="$1" backup="$2" item name i
+  local names=() backed=() placed=()
+  rm -rf "$backup" && mkdir -p "$backup" || return 1
+  : >"$backup/.hub-swap"
+  for item in "$incoming"/* "$incoming"/.[!.]* "$incoming"/..?*; do
+    [ -e "$item" ] || continue
+    name="$(basename "$item")"
+    keep_name "$name" && continue
+    names+=("$name"); backed+=(0); placed+=(0)
+    i=$((${#names[@]} - 1))
+    if [ -e "$ROOT/$name" ] || [ -L "$ROOT/$name" ]; then
+      mv "$ROOT/$name" "$backup/$name" 2>>"$LOG_FILE" || { swap_back; return 1; }
+      backed[$i]=1
+    fi
+    mv "$item" "$ROOT/$name" 2>>"$LOG_FILE" || { swap_back; return 1; }
+    placed[$i]=1
+  done
+  rm -f "$backup/.hub-swap"
+}
+swap_back() { # swap_files 의 지역 변수를 그대로 본다 (bash 는 동적 범위)
+  local j
+  log "[업데이트] 바꾸기 실패, 되돌림"
+  for ((j = ${#names[@]} - 1; j >= 0; j--)); do
+    # 넣은 새 항목은 받은 폴더로 되돌려 보낸다 (지우다 멈추는 일이 없게 이름 바꾸기로)
+    [ "${placed[$j]}" = 1 ] && mv "$ROOT/${names[$j]}" "$incoming/${names[$j]}" 2>>"$LOG_FILE"
+    if [ "${backed[$j]}" = 1 ]; then
+      mv "$backup/${names[$j]}" "$ROOT/${names[$j]}" 2>>"$LOG_FILE" || log "[업데이트] 되돌리기 실패 ${names[$j]}"
+    fi
+  done
+  rm -f "$backup/.hub-swap"
+}
+
+# ditto 가 한글 파일명을 그대로 푼다 (unzip 은 macOS 에서 깨질 수 있다)
+unpack_zip() { if [ "$OS_NAME" = Darwin ]; then ditto -x -k "$1" "$2"; else unzip -q "$1" -d "$2"; fi; }
+
+update_hub() {
+  local parent backup cur repo latest lock tmp stage incoming lock_changed=0
+  UPDATE_RESULT=skipped
+  parent="$(dirname "$ROOT")"
+  backup="$parent/.hub-backup"
+  # 개발 저장소에서는 git 이 버전을 맡는다
+  if [ -e "$ROOT/.git" ]; then log "[업데이트] git 체크아웃이라 건너뜀"; return 0; fi
+  restore_interrupted "$backup"
+  cur="$(json_field version "$HUB_VERSION_FILE")"
+  repo="$(json_field repo "$HUB_VERSION_FILE")"
+  if ! printf '%s' "$cur" | grep -Eq '^[0-9a-f]{7,40}$' || ! printf '%s' "$repo" | grep -Eq '^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$'; then
+    log "[업데이트] .hub-version 이 없거나 읽지 못해 건너뜀"
+    return 0
+  fi
+  # 확인 때문에 켜지는 시간이 늘지 않게 짧게. HEAD 는 맨 앞 줄에 온다
+  latest="$(curl -fsS --max-time 4 -A wiki-hub-update "https://github.com/$repo.git/info/refs?service=git-upload-pack" 2>>"$LOG_FILE" | head -c 4096 | grep -aEo '[0-9a-f]{40} HEAD' | head -n 1 | cut -c1-40)"
+  if [ -z "$latest" ]; then log "[업데이트] 최신 버전 확인 실패"; UPDATE_RESULT=offline; return 0; fi
+  case "$latest" in "$cur"*) log "[업데이트] 최신 버전 ($cur)"; UPDATE_RESULT=latest; return 0 ;; esac
+  UPDATE_TO="$(printf '%s' "$latest" | cut -c1-7)"
+  log "[업데이트] 새 버전 $cur -> $UPDATE_TO"
+
+  # 두 창이 함께 바꾸지 않게 잠근다 (10분 넘은 잠금은 끊긴 것으로 본다)
+  lock="$parent/.hub-update.lock"
+  find "$lock" -maxdepth 0 -mmin +10 -exec rm -rf {} \; 2>/dev/null
+  if ! mkdir "$lock" 2>/dev/null; then log "[업데이트] 다른 창이 바꾸는 중이라 건너뜀"; return 0; fi
+  UPDATE_RESULT=failed
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/wiki-hub-update.XXXXXX")"
+  stage="$parent/.hub-update"
+  rm -rf "$stage"
+  if ! curl -fsSL --max-time 60 -o "$tmp/hub.zip" "https://codeload.github.com/$repo/zip/$latest" 2>>"$LOG_FILE"; then
+    log "[업데이트] 새 버전 받기 실패"
+  elif ! mkdir -p "$stage" || ! unpack_zip "$tmp/hub.zip" "$stage" >>"$LOG_FILE" 2>&1; then
+    log "[업데이트] 받은 압축을 풀지 못함"
+  else
+    # codeload 압축은 최상위 폴더(repo-커밋) 하나 아래에 파일이 있다
+    incoming="$(find "$stage" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+    if [ -n "$incoming" ] && [ -f "$incoming/package.json" ] && [ -f "$incoming/start-hub.command" ] && [ -f "$incoming/scripts/setup.ps1" ]; then
+      printf '{"version":"%s","repo":"%s"}\n' "$UPDATE_TO" "$repo" >"$incoming/.hub-version"
+      cmp -s "$ROOT/package-lock.json" "$incoming/package-lock.json" || lock_changed=1
+      chmod +x "$incoming/start-hub.command" 2>/dev/null
+      if swap_files "$incoming" "$backup"; then
+        # 패키지 목록이 바뀌었을 때만 다시 설치한다
+        [ "$lock_changed" = 1 ] && [ -d "$ROOT/node_modules" ] && printf '%s' "$UPDATE_TO" >"$REINSTALL_MARK"
+        log "[업데이트] 바꿈 $cur -> $UPDATE_TO · 패키지 목록 바뀜 $lock_changed · 백업 $backup"
+        UPDATE_RESULT=updated
+      fi
+    else
+      log "[업데이트] 받은 압축의 구성이 예상과 다름"
+    fi
+  fi
+  rm -rf "$tmp" "$stage"
+  rmdir "$lock" 2>/dev/null
+  return 0
+}
+
 # ---------- --check (담당자용) ----------
 if [ "$CHECK" = 1 ]; then
   node_ok || { [ -x "$NODE_DIR/bin/node" ] && export PATH="$NODE_DIR/bin:$PATH"; }
@@ -334,7 +457,10 @@ fi
 
 # ---------- 기록 파일 ----------
 mkdir -p "$LOG_DIR" 2>/dev/null
-VERSION="$(sed -n 's/.*버전(담당자용): *\([^ ]*\).*/\1/p' "$ROOT/../읽어주세요.txt" 2>/dev/null | tr -d '\r' | head -n 1)"
+README_VERSION="$(sed -n 's/.*버전(담당자용): *\([^ ]*\).*/\1/p' "$ROOT/../읽어주세요.txt" 2>/dev/null | tr -d '\r' | head -n 1)"
+# 켤 때 업데이트가 hub/.hub-version 을 고쳐 쓰므로 안내문보다 이 파일을 먼저 믿는다
+HUB_VERSION="$(json_field version "$HUB_VERSION_FILE")"
+VERSION="${HUB_VERSION:-$README_VERSION}"
 [ -n "$VERSION" ] || VERSION="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo '알 수 없음')"
 OS_LABEL="$(sw_vers -productName 2>/dev/null) $(sw_vers -productVersion 2>/dev/null)"
 [ -n "${OS_LABEL// /}" ] || OS_LABEL="$(uname -sr)"
@@ -344,6 +470,21 @@ FIRST_RUN=0
 files_ready || FIRST_RUN=1
 read_accounts
 log "===== 플랫폼 담당 지식 허브 실행 $(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S') KST · $OS_LABEL · 버전 $VERSION · 계정 선택 $([ "$SETUP_STATE" = file ] && echo "${ACCOUNTS[*]:-unknown}" || echo "$SETUP_STATE") ====="
+
+# ---------- 새 버전 받기 — 묻지 않고 바꾸고, 안 되면 지금 버전으로 켠다 ----------
+if [ "$NO_UPDATE" = 0 ]; then
+  update_hub
+  case "$UPDATE_RESULT" in
+    updated)
+      ok "최신 버전으로 바꿨어요 ($UPDATE_TO)"
+      # 바뀐 단계가 있을 수 있어 새 실행기로 처음부터 다시 간다 (HUB_LAUNCHER 는 환경에 그대로 남는다)
+      log "[업데이트] 새 start-hub.command 로 다시 시작"
+      exec /bin/bash "$ROOT/start-hub.command" --no-update
+      ;;
+    offline) warn "업데이트를 확인하지 못해 지금 버전으로 켭니다." ;;
+    failed) warn "새 버전으로 바꾸지 못해 지금 버전으로 켭니다." ;;
+  esac
+fi
 
 NEED_NODE=0
 if ! node_ok; then
@@ -399,8 +540,8 @@ if [ "$NEED_NODE" = 1 ]; then
   ok "[1/$TOTAL] 허브 실행 준비물 설치를 마쳤어요."
 fi
 
-# 2. 허브 프로그램 파일 (npm install — 조용히 1회 재시도)
-if ! files_ready; then
+# 2. 허브 프로그램 파일 (npm install — 조용히 1회 재시도). 업데이트로 패키지 목록이 바뀌었으면 다시 설치한다
+if ! files_ready || [ -f "$REINSTALL_MARK" ]; then
   DID_WORK=1
   step_begin 2 "허브 프로그램 파일(npm install)"
   say "[2/$TOTAL] 허브 프로그램 파일을 준비하는 중… (1~3분)"
@@ -415,7 +556,15 @@ if ! files_ready; then
   if [ "$code" != 0 ] || ! files_ready; then
     stop_step "허브 프로그램 파일을 준비하지 못했어요." "start-hub 를 다시 더블클릭해 보고, 같은 화면이 나오면 기록 파일을 허브 담당자에게 보내 주세요."
   fi
+  rm -f "$REINSTALL_MARK"
   ok "[2/$TOTAL] 허브 프로그램 파일을 준비했어요."
+fi
+
+# 루트 실행기·안내문 — 업데이트로 버전이 바뀌었으면 server/hubZipRoot.ts 내용으로 다시 쓴다 (창에는 내지 않고, 실패해도 계속)
+if [ -n "$HUB_VERSION" ] && [ -n "$README_VERSION" ] && [ "$HUB_VERSION" != "$README_VERSION" ]; then
+  step_begin 2 "루트 실행기·안내문 다시 쓰기"
+  run_tool node "$ROOT/scripts/hub-root.mjs"
+  step_end 2 $?
 fi
 
 # 3. 챗봇 연결 프로그램 (실패해도 허브는 연다)

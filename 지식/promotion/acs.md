@@ -3,9 +3,9 @@ title: ACS 시스템 매뉴얼
 code: PPC-ACS
 category: promotion
 subcategory: system
-version: 2
+version: 3
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-18
 ownerId: ppc-team
 scope: 공통
 systems: [ACS]
@@ -88,6 +88,8 @@ source: "Confluence · PPC 프로모션 정책 및 업무 프로세스 메뉴얼
 | **Push Message (모바일 B tv)** | 메시지 형태 / Notice No / Content ID | 아래 작성 규칙 참고 |
 
 ### Push Message 작성 규칙
+
+모바일 B tv 푸시는 ACS 접점 채널 중 **Push Message** 채널로 연동합니다. 연동 규격의 핵심 필드는 메시지 형태 · Notice No · Content ID 세 가지이고, 랜딩 목적지에 따라 아래처럼 적습니다.
 
 - **VOD 상세보기 이동**: Content ID 필드에 **중괄호를 포함한 코드**를 적습니다 (예: `{D28F151D-...}`). **SER_NO 필드는 반드시 빈칸**입니다.
 - **Web 이동**: 메시지 길이 제한 때문에 원본 URL을 **단축 URL**로 줄여 등록합니다. 이미지 URL도 동일합니다.
