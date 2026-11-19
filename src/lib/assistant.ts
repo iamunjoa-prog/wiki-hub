@@ -47,7 +47,11 @@ const CHANNELS: { keywords: string[]; label: string }[] = [
 /** 프로모션 진행 의도로 볼 명사 — 이 중 하나가 있어야 확인을 띄운다 */
 const CAMPAIGN_NOUNS = ['프로모션', '캠페인', '쿠폰', '이벤트', '배너']
 /** 앞으로 무언가를 하겠다는 서술 — 사실 질문("품의 결재선은?")과 가르는 기준 */
-const PLAN_VERBS = ['기획', '진행', '하고 싶', '하고싶', '하려', '할까', '돌리', '띄우', '만들', '준비', '집행']
+// '돌려보'·'해보려'는 규약의 기획 상담 예("배너로 쿠폰 돌려보려는데")다 — '보려'만 넣으면 "쿠폰함 보려고"가 걸려 붙여 쓴다
+const PLAN_VERBS = [
+  '기획', '진행', '하고 싶', '하고싶', '하려', '할까', '돌리', '띄우', '만들', '준비', '집행',
+  '돌려보', '돌려 보', '해보려', '해 보려',
+]
 
 /**
  * 판단·제안을 요청하는 발화. 사실 조회("결재선은?")와 답변 모양이 달라야 한다 —
@@ -61,6 +65,11 @@ const ADVICE_CUES = [
   '는 게 좋', '는 게 나',
 ]
 
+/** 조작 순서를 묻는 말 — 시스템 이름과 함께면 매뉴얼 질문이다(규약 86행) */
+const HOW_CUES = ['방법', '어떻게 하', '어떻게 해', '어떻게 진행']
+/** 무엇이 나은지를 묻는 말 — 시스템 이름이 있어도 판단 요청이다(규약 89행) */
+const JUDGE_CUES = ADVICE_CUES.filter((k) => !HOW_CUES.includes(k))
+
 /** "좋은 구좌는 어디야?"처럼 고를 곳을 묻는 말. '어디야' 하나만으로는 메뉴 위치 질문과 구분이 안 돼 평가어와 함께 볼 때만 센다 */
 const WHERE_TO_PICK = /(좋은|나은|잘\s?되는|잘\s?나오는).{0,20}어디/
 
@@ -72,8 +81,10 @@ const ADVICE_TOPICS = [...CAMPAIGN_NOUNS, '구좌', '마케팅']
  * 문서에 절차가 그대로 있는 사실 질문이라 판단 요청으로 다루면 안 된다.
  */
 function wantsAdvice(query: string): boolean {
-  // "CBS에서 쿠폰 정책 등록하는 방법"은 시스템 매뉴얼 질문이다 — '방법'+'쿠폰'만 보고 인사이트 안내를 붙이지 않는다
-  if (Object.keys(SYSTEM_DOCS).some((k) => query.toLowerCase().includes(k))) return false
+  // "CBS에서 쿠폰 정책 등록하는 방법"은 시스템 매뉴얼 질문이다 — '방법'+'쿠폰'만 보고 인사이트 안내를 붙이지 않는다.
+  // 시스템 이름보다 질문 성격이 기준이라 "ACS 캠페인 효율 좋은 방법"처럼 평가어가 있으면 판단 요청으로 둔다
+  const namesSystem = Object.keys(SYSTEM_DOCS).some((k) => query.toLowerCase().includes(k))
+  if (namesSystem && !JUDGE_CUES.some((k) => query.includes(k)) && !WHERE_TO_PICK.test(query)) return false
   if (!ADVICE_CUES.some((k) => query.includes(k)) && !WHERE_TO_PICK.test(query)) return false
   return ADVICE_TOPICS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
 }
@@ -156,10 +167,21 @@ export function detectCampaignIntent(query: string): boolean {
   if (wantsSequence(query)) return false
   // "프로모션 문서 작성하고 싶어"는 기획이 아니라 위키 작성이다 — 어드민 확인 칩이 끼어들지 않게 먼저 거른다.
   if (detectKnowledgeEdit(query)) return false
-  // "~로 진행 가능해?"는 하겠다는 말이 아니라 되는지 묻는 사실 질문이다. '진행'이 PLAN_VERBS에 걸린다고
-  // 기획 상담으로 끌면 "가능해?"에 답 없이 확인 칩만 뜬다 — 분류가 어휘 우연에 기대지 않게 가능성 질문을 먼저 거른다.
-  if (asksPossibility(query)) return false
+  // "~하려면?", "~하려는데 가능해?"는 하겠다는 말이 아니라 묻는 말이다. '하려'가 PLAN_VERBS에 걸린다고
+  // 기획 상담으로 끌면 답 없이 확인 칩만 뜬다 — 가능성 질문도 isQuestion 안에 들어 있어 이 판정 하나로 거른다.
+  if (asksRatherThanPlans(query)) return false
   return CAMPAIGN_NOUNS.some((k) => query.includes(k)) && PLAN_VERBS.some((k) => query.includes(k))
+}
+
+/** "~하려면", "~만들려면"은 하겠다는 말이 아니라 조건을 걸고 묻는 말이다 */
+const CONDITIONAL_ASK = /려면/
+/** "할까 해", "해 볼까 하는데"는 묻는 말이 아니라 하려는 뜻이다 — isQuestion 의 '할까'·'볼까' 어미에 걸리지 않게 먼저 지운다 */
+const PLAN_MUSING = /(?:할까|볼까)\s*(?:해|하는데|하고|하는|싶|생각|고민)/g
+
+/** 기획 의도를 말한 게 아니라 묻고 있는지 — 묻고 있으면 진행 확인 대신 답을 한다 */
+function asksRatherThanPlans(query: string): boolean {
+  const q = query.replace(PLAN_MUSING, ' ')
+  return CONDITIONAL_ASK.test(q) || isQuestion(q)
 }
 
 export const INTENT_CONFIRM_QUESTION = '혹시 지금 진행하려는 프로모션이 있으신가요? 있으시면 프로모션 어드민 화면으로 바로 열어드리겠습니다.'
@@ -600,6 +622,8 @@ export interface AssistantReply {
   reportFailed?: boolean
   /** 사용자가 「그만하고 짧게 답 받기」로 끊었다 — 화면은 이 답을 그리지 않고 짧은 답을 다시 요청한다 */
   cancelled?: boolean
+  /** 규칙 기반이 상품을 몰라 PPM 전용 줄을 뺐다 — 답 아래 상품 칩을 한 번 붙이는 기준(엔진 답에는 없다) */
+  scopeTrimmed?: true
 }
 
 /** 이번 답변에 진행 확인을 붙일지. 이미 묻거나 답을 들은 대화에는 다시 붙이지 않는다. */
@@ -721,7 +745,8 @@ function userText(turns: ChatTurn[]): string {
 
 /** 다른 상품 유형 전용 표현 — PPV 답변에 PPM 정책 문장이 섞이는 것을 막는다 */
 const SCOPE_ONLY_TERMS: Record<ProductScope, string[]> = {
-  PPM: ['전환동의', '자동 해지', '약정', '월정액', '첫달 무료', 'ppm'],
+  // 해지방어·다크패턴도 PPM 전용이다 — `ppv.md` 머리말 "다크패턴·전환동의·약정 제약은 PPV에는 해당하지 않습니다"
+  PPM: ['전환동의', '자동 해지', '약정', '월정액', '첫달 무료', 'ppm', '해지방어', '다크패턴'],
   PPV: ['단건', 'ppv'],
 }
 
@@ -737,6 +762,8 @@ interface ChatSearch extends SearchInput {
   ppmDetail?: PpmDetail | null
   /** PPV 안에서 영화인지 — 영화 전용 카피 가이드를 거르는 기준 */
   ppvKind?: PpvKind | null
+  /** 상품을 몰라 PPM 전용 줄을 뺐는지 — keepUsable 이 표시하고, 답 아래 상품 칩을 붙이는 기준이 된다 */
+  scopeTrimmed?: boolean
 }
 
 /** B tv+ 전용 배너 문서 — B tv+ 를 고르지 않은 PPM 답에는 근거로 쓰지 않는다 */
@@ -764,18 +791,38 @@ function offDetail(lower: string, search: ChatSearch): boolean {
   return terrestrial || btvplusOnly
 }
 
+/**
+ * 상품을 모를 때 뺄 PPM 전용 줄. 규약은 정보가 모자라면 좁은 쪽을 택한다 — PPV 담당자에게 약정·전환동의 제약이 답처럼 보이지 않게 한다.
+ * 두 상품을 함께 말하는 비교 줄과, 질문이 그 PPM 항목을 직접 물었을 때(사실상 PPM 질문)는 빼지 않는다.
+ * PPV 전용 줄은 빼지 않는다 — PPV 쪽 말은 상품 이름뿐이라 PPM 담당자를 막아 세울 제약이 없다.
+ */
+function unscopedPpmOnly(lower: string, search: ChatSearch): boolean {
+  if (search.scope) return false
+  const asked = `${search.query}\n${search.context ?? ''}`.toLowerCase()
+  if (SCOPE_ONLY_TERMS.PPM.some((t) => asked.includes(t))) return false
+  return SCOPE_ONLY_TERMS.PPM.some((t) => lower.includes(t)) && !SCOPE_ONLY_TERMS.PPV.some((t) => lower.includes(t))
+}
+
 function keepUsable(lines: string[], search: ChatSearch, limit: number): string[] {
   const other = search.scope === 'PPV' ? SCOPE_ONLY_TERMS.PPM : search.scope === 'PPM' ? SCOPE_ONLY_TERMS.PPV : []
-  return lines
-    .filter((line) => !GAP_MARKERS.some((m) => line.includes(m)))
-    .filter((line) => !offDetail(line.toLowerCase(), search))
-    .filter((line) => {
-      const lower = line.toLowerCase()
-      if (!other.length) return true
+  const kept: string[] = []
+  for (const line of lines) {
+    if (kept.length >= limit) break
+    if (GAP_MARKERS.some((m) => line.includes(m))) continue
+    const lower = line.toLowerCase()
+    if (offDetail(lower, search)) continue
+    if (other.length) {
       const mine = (SCOPE_ONLY_TERMS[search.scope as ProductScope] ?? []).some((t) => lower.includes(t))
-      return mine || !other.some((t) => lower.includes(t))
-    })
-    .slice(0, limit)
+      if (!mine && other.some((t) => lower.includes(t))) continue
+    }
+    // 실제로 답에 나갔을 줄을 뺐을 때만 표시한다 — 후보 끝자리 줄까지 세면 상품 칩이 관계없는 질문에도 붙는다
+    if (unscopedPpmOnly(lower, search)) {
+      search.scopeTrimmed = true
+      continue
+    }
+    kept.push(line)
+  }
+  return kept
 }
 
 function usableSentences(doc: WikiDoc, search: ChatSearch, limit: number): string[] {
@@ -832,23 +879,34 @@ const DELIVERABLE_TAIL: Record<DeliverableKind, string> = {
 /** 플레이북 조합표에서 구좌를 고르는 칸 — 이 두 칸이 "어디에 띄우나"의 답이다 */
 const PLACEMENT_ROWS = ['편성 영역', '필수 배너']
 
+/** 플레이북의 영화 전용 조합 제목("2. 영화 · 구매 전환 / …") */
+const MOVIE_COMBO = /^\d+\.\s*영화\s*·/
+
+/** 이 혜택 조합이 플레이북에 영화 PPV 기준으로만 있을 때 — 없는 조합을 단순 홍보 등으로 바꿔 보여 주지 않고 없다고 밝힌다 */
+const MOVIE_ONLY_COMBO_LINE = '이 혜택 조합은 플레이북에 영화 PPV 기준으로만 있습니다.'
+
 /**
  * 플레이북(MKI-05)에서 해당 상품 절의 조합 하나. 상품 절 아래 번호 붙은 소제목 중 질문과 가장 맞는 것을,
- * 없으면 그 상품의 첫 조합을 쓴다.
+ * 없으면 그 상품의 첫 조합을 쓴다. 영화 조합은 영화라고 밝힌 PPV 에만 쓴다 — 맞는 조합이 영화 조합뿐이면 `movieOnly`.
  */
-function playbookCombo(doc: WikiDoc, search: ChatSearch): { heading: string; lines: string[] } | null {
+function playbookCombo(doc: WikiDoc, search: ChatSearch): { heading: string; lines: string[] } | { movieOnly: true } | null {
   const sections = parseSections(doc.body)
   const start = sections.findIndex((s) => s.heading.startsWith(`${search.scope} `))
   if (start < 0) return null
-  const combos: DocSection[] = []
+  const all: DocSection[] = []
   for (const s of sections.slice(start + 1)) {
     if (!/^\d+\./.test(s.heading)) break
-    combos.push(s)
+    all.push(s)
   }
+  const dropMovie = search.scope === 'PPV' && search.ppvKind !== 'movie'
+  const combos = dropMovie ? all.filter((c) => !MOVIE_COMBO.test(c.heading)) : all
   if (combos.length === 0) return null
-  const terms = tokenize(search.query)
+  // '영화 외'의 '영화'가 "영화 ·" 조합 제목에 걸려 점수가 오르지 않게 부정어를 지우고 센다
+  const terms = tokenize(search.query.replace(NOT_MOVIE, ' '))
   const fit = (c: DocSection) => terms.filter((t) => c.heading.toLowerCase().includes(t)).length
   const combo = combos.reduce((best, c) => (fit(c) > fit(best) ? c : best))
+  // 선발급을 물었는데 맞는 조합이 영화 조합뿐이면 첫 조합(단순 홍보)으로 대신하지 않는다
+  if (fit(combo) === 0 && combos.length < all.length && all.some((c) => fit(c) > 0)) return { movieOnly: true }
   const rows = combo.lines.filter((l) => PLACEMENT_ROWS.some((r) => l.startsWith(r)))
   const lines = keepUsable(rows, search, 2)
   return lines.length ? { heading: combo.heading, lines } : null
@@ -894,11 +952,12 @@ function deliverableReply(kind: DeliverableKind, query: string, history: ChatTur
   if (kind === 'placement') {
     const playbook = scope ? byCode('MKI-05') : undefined
     const combo = playbook ? playbookCombo(playbook, search) : null
-    if (playbook && combo) {
+    if (playbook && combo && 'heading' in combo) {
       used.push(playbook)
       lines.push(`**${playbook.title}** (${playbook.code}) — ${combo.heading}`)
       for (const l of combo.lines) lines.push(`· ${l}`)
     } else {
+      if (combo) lines.push(MOVIE_ONLY_COMBO_LINE)
       const overview = byCode('MKI-B-00')
       const sentences = overview ? usableSentences(overview, search, 2) : []
       if (overview && sentences.length) {
@@ -956,9 +1015,10 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
 
   /**
    * 기획 의도 발화는 확인 칩을 붙일지(`intentAsked`)와 **별개로** 정책을 쏟지 않는다.
-   * 칩을 이미 한 번 물었어도 새 기획 상담이 시작된 것이면 한 줄만 답한다. 질문 형태("~하려면 뭐부터?")는 답을 해야 하니 제외.
+   * 칩을 이미 한 번 물었어도 새 기획 상담이 시작된 것이면 한 줄만 답한다. 질문 형태("~하려면 뭐부터?")는
+   * `detectCampaignIntent` 가 이미 거른다 — 여기서 isQuestion 을 또 보면 "할까 해" 같은 기획 발화가 검색으로 빠진다.
    */
-  if (detectCampaignIntent(query) && !isQuestion(query) && !detectDecision(query)) {
+  if (detectCampaignIntent(query) && !detectDecision(query)) {
     const slots = readSlots(turns)
     return {
       text: slots.product
@@ -1089,7 +1149,7 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     label: `출처 · ${h.doc.title}`,
   }))
 
-  return { text: lines.join('\n'), sources }
+  return { text: lines.join('\n'), sources, ...(search.scopeTrimmed ? { scopeTrimmed: true as const } : {}) }
 }
 
 /**
@@ -1252,6 +1312,9 @@ function withRefine(reply: AssistantReply, query: string, turns: ChatTurn[], ask
   const deliverable = Boolean(detectDeliverable(query))
   const slots = readSlots(turns)
   if (deliverable && !slots.product && !asked.product)
+    return { ...reply, intent: { kind: 'product-qa', question: INTENT_PRODUCT_RETRY_QUESTION, retry: query } }
+  // 상품을 몰라 PPM 전용 줄을 뺀 답 — PPM 담당자가 못 받은 줄은 상품을 고르면 다시 맞춰 준다(대화당 한 번)
+  if (reply.scopeTrimmed && !slots.product && !asked.product)
     return { ...reply, intent: { kind: 'product-qa', question: INTENT_PRODUCT_RETRY_QUESTION, retry: query } }
   if ((deliverable || wantsAdvice(query)) && slots.product?.scope === 'PPM' && !slots.ppmDetail && !asked.detail)
     return { ...reply, intent: { kind: 'ppm-detail', question: PPM_DETAIL_QUESTION, retry: query } }
