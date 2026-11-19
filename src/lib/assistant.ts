@@ -72,6 +72,8 @@ const ADVICE_TOPICS = [...CAMPAIGN_NOUNS, '구좌', '마케팅']
  * 문서에 절차가 그대로 있는 사실 질문이라 판단 요청으로 다루면 안 된다.
  */
 function wantsAdvice(query: string): boolean {
+  // "CBS에서 쿠폰 정책 등록하는 방법"은 시스템 매뉴얼 질문이다 — '방법'+'쿠폰'만 보고 인사이트 안내를 붙이지 않는다
+  if (Object.keys(SYSTEM_DOCS).some((k) => query.toLowerCase().includes(k))) return false
   if (!ADVICE_CUES.some((k) => query.includes(k)) && !WHERE_TO_PICK.test(query)) return false
   return ADVICE_TOPICS.some((k) => query.includes(k)) || PRODUCTS.some((p) => p.keywords.some((k) => query.toLowerCase().includes(k)))
 }
@@ -216,6 +218,30 @@ export function detectPpmDetail(text: string): PpmDetail | null {
 }
 
 export const ppmDetailLabel = (detail: PpmDetail) => PPM_DETAILS.find((d) => d.value === detail)?.label ?? ''
+
+/**
+ * PPV 안에서 영화인지. 위키의 영화 전용 기준(MKI-C-02 등)은 영화에만 쓴다(`promotion/products.md`) —
+ * '영화 외'·'영화가 아닌' 같은 부정과 시리즈·예능·키즈·다시보기는 영화가 아니다. 둘 다 나오면 정하지 않는다.
+ */
+type PpvKind = 'movie' | 'other'
+const NOT_MOVIE = /영화가?\s*(?:외|말고|빼고|제외|아닌|아니)|시리즈|예능|키즈|다시\s*보기/g
+
+function detectPpvKind(text: string): PpvKind | null {
+  const rest = text.replace(NOT_MOVIE, ' ')
+  const other = rest !== text
+  const movie = rest.includes('영화')
+  return movie === other ? null : movie ? 'movie' : 'other'
+}
+
+/** 가장 최근에 영화 여부를 말한 사용자 발화가 정한다 — 상품 유형과 같은 이유로 대화 중간에 바뀔 수 있다 */
+function readPpvKind(turns: ChatTurn[]): PpvKind | null {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    if (turns[i].role !== 'user') continue
+    if (!turns[i].text.includes('영화') && turns[i].text.replace(NOT_MOVIE, ' ') === turns[i].text) continue
+    return detectPpvKind(turns[i].text)
+  }
+  return null
+}
 
 /** 한 발화에 언급된 상품 유형 전부 — 배열 순서가 아니라 언급 여부만 본다 */
 function mentionedProducts(text: string): (typeof PRODUCTS)[number][] {
@@ -709,13 +735,19 @@ const GAP_MARKERS = ['아직 못 채운 것', '(보완 필요)']
 /** 챗봇 검색 입력 — 상품이 PPM이면 세부 상품까지 실어 줄을 한 번 더 거른다 */
 interface ChatSearch extends SearchInput {
   ppmDetail?: PpmDetail | null
+  /** PPV 안에서 영화인지 — 영화 전용 카피 가이드를 거르는 기준 */
+  ppvKind?: PpvKind | null
 }
 
 /** B tv+ 전용 배너 문서 — B tv+ 를 고르지 않은 PPM 답에는 근거로 쓰지 않는다 */
 const BTVPLUS_ONLY_DOC = 'MKI-B-12'
 
-/** 이 문서를 근거로 써도 되는지 — PPM인데 B tv+ 를 고르지 않았으면 B tv+ 전용 문서는 뺀다 */
+/** 영화 PPV 전용 카피 가이드 — 시리즈·예능·키즈 PPV 에는 적용하지 않는다(`promotion/products.md`) */
+const MOVIE_ONLY_DOC = 'MKI-C-02'
+
+/** 이 문서를 근거로 써도 되는지 — PPM인데 B tv+ 를 고르지 않았으면 B tv+ 전용 문서는, 영화가 아니라고 했으면 영화 전용 문서는 뺀다 */
 function docUsable(doc: WikiDoc, search: ChatSearch): boolean {
+  if (search.ppvKind === 'other' && doc.code === MOVIE_ONLY_DOC) return false
   return !(search.scope === 'PPM' && search.ppmDetail !== 'btvplus' && doc.code === BTVPLUS_ONLY_DOC)
 }
 
@@ -846,11 +878,13 @@ function guideLines(doc: WikiDoc, search: ChatSearch, limit: number): string[] {
 
 function deliverableReply(kind: DeliverableKind, query: string, history: ChatTurn[], slots: CampaignSlots): AssistantReply {
   const scope = slots.product?.scope ?? null
+  const ppvKind = readPpvKind([...history, { role: 'user', text: query }])
   const search: ChatSearch = {
     query,
     context: [userText(history), slots.ppmDetail === 'btvplus' ? 'B tv+' : ''].filter(Boolean).join('\n'),
     scope,
     ppmDetail: slots.ppmDetail,
+    ppvKind,
     preferSubcategory: kind === 'placement' ? ['insight', 'banner-spec'] : ['copy-guide'],
   }
   const byCode = (code: string) => docs.find((d) => d.code === code)
@@ -874,8 +908,8 @@ function deliverableReply(kind: DeliverableKind, query: string, history: ChatTur
       }
     }
   } else {
-    // 영화 PPV 카피 가이드는 영화 PPV 에만 — 월정액은 전용 가이드가 없어 공통 원칙으로 답한다
-    const moviePpv = scope === 'PPV' || (!scope && /영화|ppv/i.test(query))
+    // 영화 PPV 카피 가이드는 영화라고 확인된 PPV 에만 — 월정액·그 밖의 PPV 는 전용 가이드가 없어 공통 원칙으로 답한다
+    const moviePpv = scope !== 'PPM' && ppvKind === 'movie'
     const guide = byCode(moviePpv ? 'MKI-C-02' : 'MKI-C-01')
     const check = scope === 'PPM' ? byCode('MKI-C-04') : undefined
     // 월정액이면 기준 하나를 정가 전환 고지로 쓴다 — 다크패턴 규제 검수가 월정액에만 붙는다
@@ -960,6 +994,7 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     context: [userText(history), slots.ppmDetail === 'btvplus' ? 'B tv+' : ''].filter(Boolean).join('\n'),
     scope: slots.product?.scope ?? null,
     ppmDetail: slots.ppmDetail,
+    ppvKind: readPpvKind(turns),
     // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
     preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
     preferCategory: wantsHubHowTo(query) ? ['guide'] : null,
@@ -1039,6 +1074,8 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     const more = hits
       .slice(0, 3)
       .filter((h) => ['insight', 'copy-guide'].includes(h.doc.subcategory ?? '') && !used.includes(h))
+      // 영화 전용 가이드는 영화라고 확인됐을 때만 더 볼 문서로 권한다
+      .filter((h) => h.doc.code !== MOVIE_ONLY_DOC || search.ppvKind === 'movie')
       .map((h) => `${h.doc.title}(${h.doc.code})`)
     lines.push(
       more.length
