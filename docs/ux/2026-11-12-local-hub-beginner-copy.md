@@ -28,6 +28,10 @@
 | Gemini API · 규칙 기반 답변 | 공용 AI 엔진 · 간단한 답변 | Gemini는 "고급 설정(담당자용)" 안에서만 쓴다 |
 | 로그 | 기록 파일 | |
 | 콘솔·명령 프롬프트 | 검은 창 (Windows) · 터미널 창 (Mac) | Mac은 창 제목이 "터미널"이라 그대로 쓴다. "터미널에서 ~하세요"(명령 지시)는 금지 |
+
+> 2026-11-19 개정 (기준: `docs/plan/2026-11-19-one-line-install.md`): "터미널에서 ~하세요"(명령 지시) 금지에 **예외 하나**를 둔다. `LocalHubGuide.tsx` Mac 보기의 **한 줄 설치 명령을 [복사] → 터미널에 붙여 넣기 → return** 하는 단계만 허용한다.
+> 왜 예외인가: 브라우저로 받은 ZIP은 macOS 격리 표시 때문에 첫 실행이 "열지 않음" 창에서 막다른 길이 되는데, 터미널에 붙여 넣은 명령으로 받은 파일에는 그 표시가 붙지 않아 경고 창 없이 끝나는 유일한 길이기 때문이다.
+> 예외의 한계: 명령은 사용자가 읽거나 고칠 필요가 없게 [복사] 버튼으로만 건네고, 화면에 "입력하세요"·"실행하세요"라고 쓰지 않고 "붙여 넣고 return"으로 쓴다. 두 번째 명령은 없다. Windows 보기와 설정 창의 다른 영역, 검은 창·터미널 창 문구에는 예외가 없다. 문구는 `docs/ux/2026-11-19-one-line-install-copy.md` (G-3x·G-4x·G-5x, W-6x·W-7x).
 | localhost:5173 | 쓰지 않는다 | 다시 열기는 "바탕화면 아이콘 더블클릭"으로 안내 |
 
 ### 0-2. 기록 파일 위치 (문구에 넣는 값)
@@ -140,6 +144,8 @@ A-10 은 "받아서 아래 순서대로 하면 끝나요. 중간에 고를 일�
 ### 3-3. Mac 단계
 
 Mac은 버전을 확인하게 하지 않는다. 본 단계는 "우클릭 → 열기" 하나로 쓰고, 안 될 때 경로는 그 단계 안에 접어 둔다.
+
+> 2026-11-19 개정: Mac 보기의 주 경로는 한 줄 설치 명령으로 바뀐다(`docs/ux/2026-11-19-one-line-install-copy.md` 2장). 아래 G-21~G-27 은 "파일(ZIP)로 받기"를 고른 사람용으로 "자세히 보기" 안(G-58)에 남는다.
 
 | ID | 단계 | 문구 |
 | --- | --- | --- |
@@ -413,7 +419,7 @@ P1-4 의 [연결하기] API가 나오기 전 임시 문구 (dev-front가 먼저 
 | 질문 형식 | Y/N, (Y/N), Y를, N), N을 | 번호 키, 버튼 |
 | 영어 시스템 문구 | Press any key, Press any key to continue, Terminate batch job, press h + enter to show help, ready in, vulnerabilities, deprecated, added N packages, Error, Failed, Warning, OK, Done | W-91 등 한국어 문구 |
 | Windows 기본 문구 | 계속하려면 아무 키나 누르십시오 | 아무 키나 누르면 창이 닫힙니다. |
-| 명령 지시 | 터미널에서, 명령을 실행, 복사해서 실행 | 버튼 |
+| 명령 지시 | 터미널에서, 명령을 실행, 복사해서 실행 | 버튼 (예외: Mac 한 줄 설치 명령 칸 G-30 과 [복사]·붙여 넣기 단계 G-3x·G-4x — 0-1절 2026-11-19 개정. 명령 칸 안의 `curl`·`bash` 도 이 칸에서만 허용) |
 | 키·설정 | GITHUB_TOKEN, GH_TOKEN, GITHUB_REPO, .env.local, API 키, GEMINI_API_KEY | 담당자용 정보로 접기 |
 | 엔진 이름 | Gemini API, 규칙 기반 | 공용 AI 엔진, 간단한 답변 |
 | 계정 이름 | Claude Code, Codex (A-07·A-24 라벨 `ChatGPT (Codex)` 만 허용), Pro, Plus, Max | Claude 계정, ChatGPT 계정 |
