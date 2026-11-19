@@ -1337,3 +1337,93 @@ export const SUGGESTED_QUESTIONS = [
   '모바일 B tv 마케팅 프로세스 알려줘',
   '모바일 B tv 외부연동 규격 알려줘',
 ]
+
+/* ---------- 빈칸 채워 질문하기 · 입력창 예시 ---------- */
+
+/** 문장 속 빈칸 하나 — 값 글자가 곧 보내는 글자다(따로 표시 이름을 두지 않는다) */
+export interface QuestionTemplateSlot {
+  label: string
+  values?: string[]
+  /** 앞 빈칸 id — 앞 빈칸 값에 따라 고를 수 있는 값이 달라진다 */
+  dependsOn?: string
+  valuesBy?: Record<string, string[]>
+}
+
+export interface QuestionTemplate {
+  id: string
+  label: string
+  /** 문장 조각 — 글자 또는 빈칸 id. 빈칸 순서는 이 배열 순서를 따른다 */
+  parts: (string | { slot: string })[]
+  slots: Record<string, QuestionTemplateSlot>
+}
+
+// 값은 docs/plan/2026-11-19-first-visit-question-templates.md 4-1~4-3 확정본과 글자 단위로 같아야 한다
+const TPL_PRODUCTS = ['B tv+', '지상파·종편·CP 월정액', '영화 PPV', '영화 외 PPV']
+const TPL_PPM_BENEFITS = ['단순 홍보', '할인 쿠폰', '할인 쿠폰 + 경품', '해지방어 전원 경품', '시청자 경품 추첨']
+const TPL_PPV_BENEFITS = ['단순 홍보', '할인 쿠폰 선발급', '할인 쿠폰 다운로드', '구매자 경품', '할인 쿠폰 + 경품', '시즌 특가']
+
+export const QUESTION_TEMPLATES: QuestionTemplate[] = [
+  {
+    id: 'plan',
+    label: '프로모션 기획',
+    parts: [{ slot: 'product' }, ' 프로모션을 ', { slot: 'benefit' }, ' 방식으로 기획하려고 해'],
+    slots: {
+      product: { label: '상품', values: TPL_PRODUCTS },
+      benefit: {
+        label: '혜택',
+        dependsOn: 'product',
+        valuesBy: {
+          'B tv+': TPL_PPM_BENEFITS,
+          '지상파·종편·CP 월정액': TPL_PPM_BENEFITS,
+          '영화 PPV': TPL_PPV_BENEFITS,
+          '영화 외 PPV': TPL_PPV_BENEFITS,
+        },
+      },
+    },
+  },
+  {
+    id: 'placement',
+    label: '노출 구좌',
+    parts: [{ slot: 'product' }, ' ', { slot: 'benefit' }, ' 프로모션 노출 구좌 잡아 줘'],
+    slots: {
+      product: { label: '상품', values: TPL_PRODUCTS },
+      benefit: {
+        label: '혜택',
+        dependsOn: 'product',
+        valuesBy: {
+          'B tv+': TPL_PPM_BENEFITS,
+          '지상파·종편·CP 월정액': TPL_PPM_BENEFITS,
+          '영화 PPV': TPL_PPV_BENEFITS,
+          // 플레이북 PPV 2~5 는 영화 전용 조합이라 영화가 아닌 상품에는 붙이지 않는다
+          '영화 외 PPV': ['단순 홍보', '시즌 특가'],
+        },
+      },
+    },
+  },
+  {
+    id: 'policy',
+    label: '정책 확인',
+    parts: [{ slot: 'product' }, ' 프로모션에서 ', { slot: 'item' }, ' 기준 알려줘'],
+    slots: {
+      product: { label: '상품', values: ['월정액(PPM)', '단건(PPV)'] },
+      item: {
+        label: '정책 항목',
+        dependsOn: 'product',
+        valuesBy: {
+          '월정액(PPM)': ['전환동의', '30일 이하 월 전환동의', '약정 쿠폰', '해지방어 쿠폰'],
+          // 전환동의·약정·해지방어는 PPV 에 해당하지 않는다
+          '단건(PPV)': ['쿠폰 적용 범위', '최대 할인 금액', '쿠폰 사용 요일·시간'],
+        },
+      },
+    },
+  },
+]
+
+/** 입력창 placeholder 로 4초마다 도는 예시 — SUGGESTED_QUESTIONS·빈칸 완성 문장과 겹치지 않게 고른 것 */
+export const PLACEHOLDER_EXAMPLES = [
+  'PPV 쿠폰 신작에만 걸 수 있어?',
+  '전환동의 팝업 몇 버전부터 떠?',
+  '쿠폰명 끝에 쿠폰 붙여도 돼?',
+  '판촉 쿠폰 품의 결재선은?',
+  'Swing 공지는 언제 올려?',
+]

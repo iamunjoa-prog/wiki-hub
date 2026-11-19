@@ -124,6 +124,12 @@ interface AppState {
 
   openDock: () => void
   closeDock: () => void
+  /** 독을 열고 빈칸 채워 질문하기 패널을 그 틀로 연다 — 대시보드 카드처럼 독 밖에서 여는 길 */
+  openQuestionTemplate: (templateId: string) => void
+  /** 독이 아직 받지 않은 패널 열기 요청. n 은 같은 틀을 다시 눌러도 독이 알아차리게 하는 순번 */
+  questionTemplateRequest: { id: string; n: number } | null
+  /** 독이 요청을 받아 패널을 연 뒤 지운다 — 독을 닫았다 다시 열 때 패널이 또 열리지 않게 */
+  clearQuestionTemplateRequest: () => void
   ask: (query: string, opts?: AskOpts) => void
   /** 같은 질문을 리포트(report) 또는 짧은 답(qa)으로 다시 받는다 — 그 질문 한 번에만 적용된다 */
   askAgain: (messageId: string, mode: 'qa' | 'report') => void
@@ -236,6 +242,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [dockOpen, setDockOpen] = useState<boolean>(
     () => localStorage.getItem(LS_DOCK) === '1',
   )
+  const [questionTemplateRequest, setQuestionTemplateRequest] = useState<{ id: string; n: number } | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   // ask 콜백이 매 메시지마다 새로 만들어지지 않도록 최신 대화는 ref로 읽는다
   const messagesRef = useRef<ChatMessage[]>(messages)
@@ -859,6 +866,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     showToast,
     openDock: () => setDockOpen(true),
     closeDock: () => setDockOpen(false),
+    openQuestionTemplate: (templateId: string) => {
+      setDockOpen(true)
+      setQuestionTemplateRequest((r) => ({ id: templateId, n: (r?.n ?? 0) + 1 }))
+    },
+    questionTemplateRequest,
+    clearQuestionTemplateRequest: () => setQuestionTemplateRequest(null),
     ask,
     askAgain,
     cancelReport,

@@ -4,7 +4,6 @@ import { TopBar } from '../components/AppShell'
 import { CliStatus } from '../components/CliStatus'
 import { SystemCard } from '../components/SystemCard'
 import { categories, categoryShort } from '../data/docs'
-import { PLAN_STARTER } from '../lib/assistant'
 import { countWeeklyUpdates, kstDate, weekStartLabel } from '../lib/weeklyUpdates'
 import { useApp } from '../store/AppStore'
 import type { ProposalStatus } from '../types'
@@ -22,7 +21,7 @@ function StatusTag({ status, doc }: { status: ProposalStatus; doc?: boolean }) {
 }
 
 export function Dashboard() {
-  const { docs, proposals: prs, ensureProposals, promotions, systems, systemRequests, favoriteSystems, session, ask } = useApp()
+  const { docs, proposals: prs, ensureProposals, promotions, systems, systemRequests, favoriteSystems, session, openQuestionTemplate } = useApp()
   const proposals = prs ?? []
   useEffect(() => ensureProposals(), [ensureProposals])
   const navigate = useNavigate()
@@ -47,8 +46,7 @@ export function Dashboard() {
 
   // 처음 온 사람이 첫 화면에서 바로 누를 업무 — 역할과 상관없이 같은 4장, 같은 순서
   const tasks = [
-    // 작업 2 에서 빈칸 템플릿(openQuestionTemplate)으로 바뀐다 — 그때까지는 기존 기획 시작 질문
-    { name: '프로모션 기획', desc: '상품과 혜택을 고르면 질문 문장이 완성됩니다', hint: '어시스턴트로 기획 시작 →', go: () => ask(PLAN_STARTER) },
+    { name: '프로모션 기획', desc: '상품과 혜택을 고르면 질문 문장이 완성됩니다', hint: '어시스턴트에서 빈칸 채우기 →', go: () => openQuestionTemplate('plan') },
     { name: '편성 확인', desc: '홈 Today B tv 편성을 날짜별로 확인합니다', hint: '편성표 열기 →', go: () => navigate('/sheets/btv') },
     { name: '정책 확인', desc: '월정액(PPM)·단건(PPV) 프로모션 정책 문서를 모아 봅니다', hint: '정책 문서 보기 →', go: () => navigate('/wiki?category=promotion&sub=policy') },
     { name: '시스템 사용법', desc: 'ACS·CBS·Swing 매뉴얼에서 화면별 사용법을 찾습니다', hint: '매뉴얼 보기 →', go: () => navigate('/wiki?category=promotion&sub=system') },

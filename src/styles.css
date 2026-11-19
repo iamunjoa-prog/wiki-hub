@@ -788,6 +788,43 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 /* 세 바로가기는 모두 같은 무게로 둔다 — 하나만 강조하면 기본값으로 골라 둔 것처럼 보인다 */
 
 .dock-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+/* 빈칸 채워 질문하기 — 입력창 바로 위에 두어 여기서 만든 문장이 그 자리로 보내진다는 관계가 보이게 */
+.dock-template {
+  flex: none;
+  max-height: 50%;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface-subtle);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tpl-head { display: flex; align-items: center; gap: 8px; }
+.tpl-head .btn { margin-left: auto; }
+.tpl-field { display: flex; flex-direction: column; gap: 6px; }
+.tpl-field > .label { font: 11.5px var(--mono); color: var(--muted); }
+/* 13자 값도 버튼 안에서는 한 줄 — 줄바꿈은 버튼과 버튼 사이에서만 */
+.dock-template .suggest button { white-space: nowrap; }
+.dock-template .suggest button.on { border-color: var(--accent); color: var(--accent); }
+/* 보낼 말풍선과 같은 글자 크기로 미리 보인다 */
+.tpl-sentence { margin: 0; font-size: 14.5px; line-height: 1.9; word-break: keep-all; overflow-wrap: anywhere; }
+.tpl-slot {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  line-height: 1.6;
+  color: var(--text);
+}
+.tpl-slot.empty { border-style: dashed; color: var(--text-2); }
+.tpl-slot.on { border-color: var(--accent); color: var(--accent); }
+.tpl-slot:disabled { background: var(--surface-disabled); color: var(--muted); cursor: not-allowed; }
+.tpl-preview { display: flex; flex-direction: column; font-size: 12.5px; }
+.tpl-actions { display: flex; justify-content: flex-end; gap: 6px; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .dock-foot .composer { display: flex; gap: 6px; }
 .dock-foot .composer input { flex: 1; }
