@@ -3,9 +3,9 @@ title: 프로모션 정책·업무 개요
 code: PPC-P-01
 category: promotion
 subcategory: policy
-version: 3
+version: 4
 updatedBy: 구*화
-updatedAt: 2026-09-17
+updatedAt: 2026-11-19
 ownerId: ppc-team
 scope: 공통
 systems: [CBS, ACS, Swing]
@@ -21,7 +21,7 @@ source: "Confluence · PPC 프로모션 정책 및 업무 프로세스 메뉴얼
 
 프로모션을 **무엇을, 왜, 어떤 기준으로** 운영하는지 다루는 문서입니다. 상품 분류 → 운영 프로세스 → 시스템 연계 순서로 읽으면 전체 흐름이 잡힙니다.
 
-"내 건이 어떤 프로모션인지"부터 막막하다면 이 문서보다 [프로모션 한눈에 보기](PPC-P-00)를 먼저 보세요. 시스템 **조작법**은 여기 없습니다 — ACS·CBS·Swing 버튼을 어떻게 누르는지는 최상위 **시스템** 메뉴의 [ACS](PPC-ACS) · [CBS](PPC-CBS) · [Swing](PPC-SWG) 문서에 있습니다.
+"내 건이 어떤 프로모션인지"부터 막막하다면 이 문서보다 [프로모션 한눈에 보기](PPC-P-00)를 먼저 보세요. 시스템 **조작법**은 여기 없습니다 — ACS·CBS·Swing 버튼을 어떻게 누르는지는 **프로모션 › 시스템 매뉴얼**의 [ACS](PPC-ACS) · [CBS](PPC-CBS) · [Swing](PPC-SWG) 문서에 있습니다.
 
 ---
 
