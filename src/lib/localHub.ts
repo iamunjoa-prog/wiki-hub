@@ -6,6 +6,16 @@ import type { CliEngine, Engine, EngineStatus } from '../types'
 export const LOCAL_URL = 'http://localhost:5173'
 export const DOWNLOAD_URL = '/api/download-hub'
 
+/**
+ * Mac 한 줄 설치 명령이 받아 갈 저장소. 화면은 서버 환경값을 모르므로 상수로 둔다.
+ * server/env.ts readGithubRepo 의 기본값과 같아야 한다 — 저장소를 옮기면 둘을 함께 고친다.
+ */
+export const HUB_REPO = 'iamunjoa-prog/wiki-hub'
+
+/** 계정 값이 그대로 설치 스크립트 인자가 된다 (scripts/install-hub.sh claude|codex|both) */
+export const installCommand = (account: HubAccount): string =>
+  `curl -fsSL https://raw.githubusercontent.com/${HUB_REPO}/HEAD/scripts/install-hub.sh | bash -s -- ${account}`
+
 const CLI_ENGINES: CliEngine[] = ['claude', 'codex']
 
 export type Os = 'win' | 'mac'
@@ -38,6 +48,8 @@ export const isLocalStatus = (status: Partial<Record<Engine, EngineStatus>> | nu
  */
 export function useHubDownload(showToast: (msg: string) => void, account: HubAccount, onDownloaded?: () => void) {
   const [downloading, setDownloading] = useState(false)
+  // Mac 보기의 ZIP 대안 링크가 받은 뒤 안내(G-36b)를 띄우는 데 쓴다
+  const [done, setDone] = useState(false)
   // 서버 원문(담당자용). 화면에는 DOWNLOAD_FAIL_TEXT 를 먼저 보인다
   const [error, setError] = useState('')
 
@@ -59,6 +71,7 @@ export function useHubDownload(showToast: (msg: string) => void, account: HubAcc
       a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 10_000)
       showToast(`wiki-hub.zip 을 받았어요. 다운로드 폴더에서 압축을 풀고 ${detectOs() === 'mac' ? 'start-hub-mac.command 를 우클릭 → 열기하세요' : 'start-hub-windows.bat 을 더블클릭하세요'}`)
+      setDone(true)
       onDownloaded?.()
     } catch (err) {
       const message = (err as Error).message || '내려받지 못했습니다'
@@ -69,7 +82,7 @@ export function useHubDownload(showToast: (msg: string) => void, account: HubAcc
     }
   }, [showToast, account, onDownloaded])
 
-  return { downloading, error, download }
+  return { downloading, done, error, download }
 }
 
 /* ---------- 첫 안내 창 기록 ---------- */
