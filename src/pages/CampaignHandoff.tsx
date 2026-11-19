@@ -27,7 +27,7 @@ export function CampaignHandoff() {
                 navigate('/')
               }}
             >
-              어시스턴트와 대화 시작
+              챗봇과 대화 시작
             </button>
           </div>
         </div>
@@ -55,7 +55,7 @@ export function CampaignHandoff() {
         <div className="panel handoff">
           <div className="panel-head" style={{ boxShadow: 'inset 2px 0 0 var(--accent)' }}>
             <span className="label" style={{ color: 'var(--accent)' }}>
-              어시스턴트가 정리한 확정 조건
+              챗봇이 정리한 확정 조건
             </span>
           </div>
 

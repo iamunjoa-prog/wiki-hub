@@ -59,7 +59,7 @@ export function SystemCard({ system }: { system: SystemEntry }) {
         className={`sys-star${fav ? ' on' : ''}`}
         onClick={() => toggleFavoriteSystem(system.id)}
         aria-pressed={fav}
-        title={fav ? '자주 사용하는 시스템에서 빼기' : '자주 사용하는 시스템에 담기'}
+        title={fav ? '대시보드에서 빼기' : '대시보드에 올리기'}
       >
         <Star on={fav} />
       </button>

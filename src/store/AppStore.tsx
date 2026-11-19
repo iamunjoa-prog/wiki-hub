@@ -684,7 +684,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     (id: string) => {
       const on = favoriteSystems.includes(id)
       setFavoriteSystems((prev) => (on ? prev.filter((f) => f !== id) : [...prev, id]))
-      setToast(on ? '자주 사용하는 시스템에서 뺐습니다' : '자주 사용하는 시스템에 담았습니다')
+      setToast(on ? '대시보드에서 뺐습니다' : '대시보드에 올렸습니다')
     },
     [favoriteSystems],
   )

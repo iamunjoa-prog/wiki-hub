@@ -221,7 +221,7 @@ function engineTitle(e: Engine, usable: boolean, installed: boolean): string {
   if (e === 'gemini') return usable ? 'Gemini API로 답변' : 'Gemini API 키가 설정되지 않았습니다'
   if (usable) return `${ENGINE_LABEL[e]} CLI로 답변`
   return installed
-    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 메인에서 로그인`
+    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 대시보드에서 로그인`
     : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
 }
 
@@ -317,7 +317,7 @@ function QuickActions({
       <span className="label">바로 확인하기</span>
       <div className="suggest">
         <button onClick={() => navigate('/sheets/btv')}>
-          <QuickIcon name="tv" />홈 편성 스케줄 (B tv)
+          <QuickIcon name="tv" />Today B tv 편성표
         </button>
         <button onClick={() => navigate('/sheets/campaign')}>
           <QuickIcon name="calendar" />캠페인 신청 캘린더
@@ -727,8 +727,8 @@ export function AssistantDock() {
         onKeyDown={onKeyDown}
       />
       <div className="dock-head">
-        <span className="t">무엇이든 물어보세요</span>
-        <button onClick={closeDock} aria-label="어시스턴트 닫기">
+        <span className="t">챗봇</span>
+        <button onClick={closeDock} aria-label="챗봇 닫기">
           ▸
         </button>
       </div>
@@ -802,7 +802,7 @@ export function AssistantDock() {
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
             placeholder={`예: ${placeholder}`}
-            aria-label="어시스턴트에게 질문"
+            aria-label="챗봇에게 질문"
           />
           <button className="btn accent" disabled={!input.trim()}>
             ↩
