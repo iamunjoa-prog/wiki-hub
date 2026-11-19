@@ -484,6 +484,16 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* ---------- dashboard ---------- */
 
 .dash-wrap { max-width: 1440px; margin: 0 auto; }
+/* 업무 시작 카드 — 첫 화면에서 바로 누를 일. 독을 열어 좁아지면 2열, 더 좁으면 1열 */
+.task-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.task-head h2 { margin: 0; }
+.task-first { margin-left: auto; font-size: 13.5px; color: var(--text-2); word-break: keep-all; }
+.task-first a { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; }
+.task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+.link-card.task-card { text-align: left; align-items: flex-start; justify-content: flex-start; background: var(--surface); word-break: keep-all; }
+.task-card:focus-visible { border-color: var(--line); color: var(--text); box-shadow: var(--shadow-hover); }
+.task-card .mono { font-size: 12px; }
+.task-grid + .kpi-grid { margin-top: 14px; }
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .kpi { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--border); text-align: left; background: none; border-top: 0; border-bottom: 0; border-left: 0; }
 .kpi:last-child { border-right: 0; }
