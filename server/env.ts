@@ -50,6 +50,7 @@ export function readGithubToken(env: Record<string, string | undefined> = proces
 
 /** 새 문서 PR을 올릴 저장소 — 비워 두면 이 허브 저장소를 그대로 쓴다 */
 export function readGithubRepo(env: Record<string, string | undefined> = process.env): string {
+  // 기본값은 src/lib/localHub.ts HUB_REPO, scripts/install-hub.sh 의 저장소 상수와 같게 유지
   return env.GITHUB_REPO?.trim() || 'iamunjoa-prog/wiki-hub'
 }
 

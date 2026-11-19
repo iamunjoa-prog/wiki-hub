@@ -933,6 +933,14 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .hub-back .modal-body { overflow-y: auto; min-height: 0; word-break: keep-all; }
 .cli-dl { display: flex; flex-direction: column; gap: 4px; }
 .cli-dl .btn { justify-content: center; padding: 10px 14px; font-size: 14px; }
+/* Mac 한 줄 설치 명령 — 긴 주소가 잘리지 않게 줄을 바꾸고, 좁으면 [복사]가 아래로 내려간다 */
+.cli-copy { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; }
+.cli-copy .btn { flex: none; }
+.cli-cmd { flex: 1 1 300px; width: auto; min-height: 40px; align-items: center; word-break: break-all; line-height: 1.5; cursor: pointer; user-select: all; }
+.cli-cmd.empty { border-style: dashed; cursor: default; }
+.cli-zip { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 12.5px; }
+.cli-zip .muted { word-break: keep-all; }
+.cli-os-switch:disabled { color: var(--muted); cursor: default; text-decoration: none; }
 .cli-more ul { margin: 0 0 6px; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; line-height: 1.6; color: var(--text-2); }
 .cli-more li { display: list-item; }
 .cli-guide { margin: 0; font-size: 14px; line-height: 1.7; color: var(--text-2); }

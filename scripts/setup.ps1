@@ -148,10 +148,24 @@ function Test-LoggedIn($name) {
 function Test-FilesReady {
   (Test-Path (Join-Path $root 'node_modules\vite\bin\vite.js')) -and (Test-Path (Join-Path $root 'node_modules\.package-lock.json'))
 }
+# 지금 실행기 — 내려받은 ZIP의 루트 실행기가 HUB_LAUNCHER 로 자기 경로를 넘기면 그것, 아니면 이 폴더의 실행기
+function Get-IconLauncher {
+  if ($env:HUB_LAUNCHER -and (Test-Path $env:HUB_LAUNCHER)) { return $env:HUB_LAUNCHER }
+  return (Join-Path $root 'start-hub.bat')
+}
+# 실행기 경로 → 그 실행기가 켜는 hub 폴더. ZIP 루트 실행기(start-hub-windows.bat)는 옆의 hub\ 를 켠다
+function Get-HubDirOf([string]$launcher) {
+  $dir = Split-Path -Parent $launcher
+  if ((Split-Path -Leaf $launcher) -eq 'start-hub-windows.bat') { $dir = Join-Path $dir 'hub' }
+  try { return [IO.Path]::GetFullPath($dir).TrimEnd('\') } catch { return $dir }
+}
+# 기획 2026-11-19 D5 — Windows 는 고정 설치가 없어 "지금 실행기와 같은 폴더인가"만 더 본다 (다른 폴더면 마지막에 켠 폴더가 이긴다)
 function Test-IconReady {
   if (-not (Test-Path $shortcut)) { return $false }
+  try { $target = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut).TargetPath } catch { return $true }
   # 폴더를 옮겨 깨진 바로가기는 새로 만든다
-  try { return (Test-Path ((New-Object -ComObject WScript.Shell).CreateShortcut($shortcut).TargetPath)) } catch { return $true }
+  if (-not $target -or -not (Test-Path $target)) { return $false }
+  return ((Get-HubDirOf $target) -eq (Get-HubDirOf (Get-IconLauncher)))
 }
 
 # hub = 이 허브가 응답 · other = 다른 프로그램이 5173 을 씀 · none = 비어 있음
@@ -479,8 +493,7 @@ if ($needIcon) {
   try {
     $link = (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut)
     # 내려받은 ZIP의 루트 실행기가 HUB_LAUNCHER 로 자기 경로를 넘기면 그걸 가리킨다 (실무자가 직접 누른 파일과 같게)
-    $launcher = Join-Path $root 'start-hub.bat'
-    if ($env:HUB_LAUNCHER -and (Test-Path $env:HUB_LAUNCHER)) { $launcher = $env:HUB_LAUNCHER }
+    $launcher = Get-IconLauncher
     $link.TargetPath = $launcher
     $link.WorkingDirectory = Split-Path -Parent $launcher
     $link.Save()

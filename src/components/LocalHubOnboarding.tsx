@@ -115,7 +115,7 @@ export function LocalHubOnboarding() {
           <div className="onb-foot">
             <span className="muted">
               {downloaded
-                ? '받은 파일로 위 단계를 따라 하세요. 이 안내는 다시 자동으로 뜨지 않습니다.'
+                ? '위 순서대로 하면 끝나요. 이 안내는 다시 자동으로 뜨지 않습니다.'
                 : choice
                   ? '나중에 하시려면 [다음에] — 대시보드에서 언제든 다시 볼 수 있습니다.'
                   : lastChance
