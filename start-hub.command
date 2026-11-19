@@ -33,11 +33,15 @@ SETUP_FILE="$ROOT/hub-setup.json"
 HUB_VERSION_FILE="$ROOT/.hub-version"
 REINSTALL_MARK="$ROOT/node_modules/.hub-reinstall"
 SHORTCUT="$HOME/Desktop/플랫폼 담당 지식 허브.command"
+# 한 줄 설치(scripts/install-hub.sh)의 고정 설치 자리 — 바탕화면 아이콘은 이 자리를 우선한다
+FIXED_HUB="$HOME/wiki-hub/hub"
 NODE_MIN_MAJOR=18
 LOGIN_LIMIT=300
 OS_NAME="$(uname -s)"
 
 export PATH="$TOOLS_BIN:$PATH"
+# curl | bash(scripts/install-hub.sh)처럼 표준 입력이 키보드가 아니면 키보드로 바꿔 잇는다 — 계정 질문·"아무 키나"가 스크립트 본문을 읽지 않게
+if [ ! -t 0 ] && (exec </dev/tty) 2>/dev/null; then exec </dev/tty; fi
 printf '\033]0;%s\007' '플랫폼 담당 지식 허브'
 
 say() { printf '%s\n' "$1"; }
@@ -206,7 +210,38 @@ logged_in() {
 }
 
 files_ready() { [ -f "$ROOT/node_modules/vite/bin/vite.js" ] && [ -f "$ROOT/node_modules/.package-lock.json" ]; }
-icon_ready() { [ ! -d "$HOME/Desktop" ] || [ -e "$SHORTCUT" ]; }
+
+# ---------- 바탕화면 아이콘 판정 (기획 2026-11-19 D5) ----------
+# 지금 실행기 — ZIP 루트 실행기가 HUB_LAUNCHER 로 자기 경로를 넘기면 그것, 아니면 이 폴더의 실행기
+icon_launcher() {
+  if [ -n "$HUB_LAUNCHER" ] && [ -f "$HUB_LAUNCHER" ]; then echo "$HUB_LAUNCHER"; else echo "$ROOT/start-hub.command"; fi
+}
+# 실행기 경로 → 그 실행기가 켜는 hub 폴더의 실제 경로. ZIP 루트 실행기(start-hub-mac.command)는 옆의 hub/ 를 켠다. 없는 폴더면 빈 값
+hub_dir_of() {
+  local dir
+  dir="$(dirname "$1")"
+  [ "$(basename "$1")" = start-hub-mac.command ] && dir="$dir/hub"
+  (cd "$dir" 2>/dev/null && pwd -P)
+}
+icon_ready() {
+  local target here fixed
+  [ -d "$HOME/Desktop" ] || return 0
+  [ -e "$SHORTCUT" ] || [ -L "$SHORTCUT" ] || return 1
+  [ -L "$SHORTCUT" ] || return 0 # 링크가 아닌 일반 파일은 사용자가 만든 것이라 건드리지 않는다
+  [ -e "$SHORTCUT" ] || return 1 # 폴더를 옮겨 깨진 바로가기는 새로 만든다
+  target="$(readlink "$SHORTCUT")"
+  case "$target" in /*) ;; *) target="$HOME/Desktop/$target" ;; esac
+  target="$(hub_dir_of "$target")"
+  here="$(hub_dir_of "$(icon_launcher)")"
+  [ -n "$target" ] && [ "$target" = "$here" ] && return 0
+  fixed="$(cd "$FIXED_HUB" 2>/dev/null && pwd -P)"
+  # 지금 실행기가 고정 설치면 고정 설치로 다시 만든다
+  [ -n "$fixed" ] && [ "$here" = "$fixed" ] && return 1
+  # 고정 설치를 가리키고 고정 설치가 살아 있으면, 다운로드의 옛 폴더로 켜도 아이콘을 빼앗지 않는다
+  [ -n "$fixed" ] && [ "$target" = "$fixed" ] && [ -f "$FIXED_HUB/start-hub.command" ] && return 0
+  # 그 밖에는 마지막에 켠 폴더가 이긴다
+  return 1
+}
 
 # hub = 이 허브가 응답 · other = 다른 프로그램이 5173 을 씀 · none = 비어 있음
 hub_state() {
@@ -306,9 +341,9 @@ connect_account() {
 
 make_icon() {
   # macOS에는 .lnk가 없어 심볼릭 링크를 만든다. 내려받은 ZIP의 루트 실행기가 HUB_LAUNCHER 로 자기 경로를 넘기면 그걸 가리킨다 (격리 승인을 받은 파일과 같게)
-  local target="${HUB_LAUNCHER:-$ROOT/start-hub.command}"
-  [ -f "$target" ] || target="$ROOT/start-hub.command"
-  [ -L "$SHORTCUT" ] && rm -f "$SHORTCUT" # 폴더를 옮겨 깨진 바로가기는 새로 만든다
+  local target
+  target="$(icon_launcher)"
+  [ -L "$SHORTCUT" ] && rm -f "$SHORTCUT" # 깨졌거나 다른 폴더를 가리키는 바로가기는 새로 만든다 (일반 파일이면 icon_ready 가 여기까지 오지 않는다)
   ln -s "$target" "$SHORTCUT"
 }
 
@@ -442,7 +477,8 @@ if [ "$CHECK" = 1 ]; then
     if has "$name"; then installed=true; logged_in "$name" && logged=true; fi
     echo "[확인] $name: 설치=$installed 로그인=$logged ($(command -v "$name"))"
   done
-  if [ -e "$SHORTCUT" ]; then echo "[확인] 바탕화면 바로가기: true"; else echo "[확인] 바탕화면 바로가기: false"; fi
+  if [ -e "$SHORTCUT" ]; then echo "[확인] 바탕화면 바로가기: true ($(readlink "$SHORTCUT" 2>/dev/null || echo 일반 파일))"; else echo "[확인] 바탕화면 바로가기: false"; fi
+  if icon_ready; then echo "[확인] 바로가기 다시 만들기: 필요 없음"; else echo "[확인] 바로가기 다시 만들기: 필요"; fi
   echo "[확인] 허브(5173): $(hub_state)"
   exit 0
 fi

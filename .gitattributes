@@ -1,5 +1,6 @@
 *.bat text eol=crlf
 *.command text eol=lf
+*.sh text eol=lf
 
 # 로컬 허브 내려받기(GitHub zipball)에서 뺀다 — 실무자 PC의 설치·실행(npm install · npm run dev · start-hub --check)에 쓰지 않는 것만
 /.claude export-ignore
