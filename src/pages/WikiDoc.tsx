@@ -44,7 +44,7 @@ export function WikiDoc() {
   const { docId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { docs } = useApp()
+  const { docs, openDocQuestion } = useApp()
   const doc = docs.find((d) => d.id === docId)
   const [showHistory, setShowHistory] = useState(false)
   const [activeHeading, setActiveHeading] = useState<string | null>(null)
@@ -247,6 +247,10 @@ export function WikiDoc() {
                   ))}
                 </div>
               </div>
+              {/* 검색 결과의 '챗봇에게 묻기'와 같은 동작이라 같은 모양 — 바로 보내지 않고 패널만 연다 */}
+              <button className="btn sm accent" title="챗봇이 이 문서를 근거로 답합니다" onClick={() => openDocQuestion(doc.id)}>
+                이 문서로 질문하기
+              </button>
               <button className="btn sm" onClick={() => setShowHistory((v) => !v)}>
                 ⎇ 히스토리
               </button>

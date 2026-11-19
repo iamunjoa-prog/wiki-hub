@@ -825,6 +825,10 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .tpl-slot:disabled { background: var(--surface-disabled); color: var(--muted); cursor: not-allowed; }
 .tpl-preview { display: flex; flex-direction: column; font-size: 12.5px; }
 .tpl-actions { display: flex; justify-content: flex-end; gap: 6px; }
+/* 이 문서로 질문 — 빈칸 패널과 같은 자리·같은 결. 칩은 보내는 문장 그대로라 줄임표 없이 칩 안에서 줄바꿈한다 */
+.docask-doc { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--text); word-break: keep-all; }
+.dock-docask .suggest button { white-space: normal; word-break: keep-all; }
+.docask-hint { font: 11.5px/1.5 var(--mono); word-break: keep-all; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .dock-foot .composer { display: flex; gap: 6px; }
 .dock-foot .composer input { flex: 1; }
@@ -836,9 +840,25 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .msg-text { word-break: keep-all; overflow-wrap: anywhere; }
 .msg-text p { margin: 0; }
 .msg-text p + p { margin-top: 11px; }
-.sources { display: flex; gap: 4px; flex-wrap: wrap; }
-.sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
-.sources button:hover { border-color: var(--text); color: var(--text); }
+/* 리포트 카드 안 근거 버튼 — 답 아래 근거 묶음은 .msg-sources 로 옮겼고 이 모양은 카드에만 남는다 */
+.report-refs .sources { display: flex; gap: 4px; flex-wrap: wrap; }
+.report-refs .sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
+.report-refs .sources button:hover { border-color: var(--text); color: var(--text); }
+/* 이 답의 근거 — 답 본문 바로 밑. 답변 줄과 같은 무게면 부가 정보로 읽혀 구분선과 진한 제목으로 띄운다 */
+.msg-sources { border-top: 1px solid var(--border); padding-top: 7px; display: flex; flex-direction: column; gap: 5px; }
+.msg-sources .label { font: 11.5px var(--mono); color: var(--muted); }
+/* 근거 1건이면 라벨과 문서를 한 줄에 */
+.msg-sources.one { flex-direction: row; align-items: center; flex-wrap: wrap; column-gap: 8px; }
+.msg-sources.one .source-row { flex: 1 1 200px; }
+.source-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* 긴 제목은 줄바꿈되고 열기는 줄 밖으로 밀리지 않는다 */
+.source-title { flex: 0 1 auto; min-width: 0; padding: 0; border: 0; background: none; text-align: left; font: 600 13px/1.45 var(--sans); color: var(--text); word-break: keep-all; overflow-wrap: anywhere; }
+button.source-title:hover { color: var(--accent); }
+.source-row .tag { flex: none; }
+.source-open { flex: none; margin-left: auto; }
+span.source-open { font: 11.5px var(--mono); }
+.msg-sources.none { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; }
+.msg-sources.none .muted { font: 11.5px var(--mono); }
 
 .campaign-card {
   border: 1px solid var(--accent);

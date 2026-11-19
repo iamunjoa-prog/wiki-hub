@@ -130,6 +130,12 @@ interface AppState {
   questionTemplateRequest: { id: string; n: number } | null
   /** 독이 요청을 받아 패널을 연 뒤 지운다 — 독을 닫았다 다시 열 때 패널이 또 열리지 않게 */
   clearQuestionTemplateRequest: () => void
+  /** 독을 열고 이 문서로 질문 패널을 그 문서로 연다 — 위키 문서 머리 버튼이 여는 길 */
+  openDocQuestion: (docId: string) => void
+  /** 독이 아직 받지 않은 문서 질문 요청. n 은 같은 문서를 다시 눌러도 독이 알아차리게 하는 순번 */
+  docQuestionRequest: { docId: string; n: number } | null
+  /** 독이 요청을 받아 패널을 연 뒤 지운다 — 독을 닫았다 다시 열 때 패널이 또 열리지 않게 */
+  clearDocQuestionRequest: () => void
   ask: (query: string, opts?: AskOpts) => void
   /** 같은 질문을 리포트(report) 또는 짧은 답(qa)으로 다시 받는다 — 그 질문 한 번에만 적용된다 */
   askAgain: (messageId: string, mode: 'qa' | 'report') => void
@@ -243,6 +249,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     () => localStorage.getItem(LS_DOCK) === '1',
   )
   const [questionTemplateRequest, setQuestionTemplateRequest] = useState<{ id: string; n: number } | null>(null)
+  const [docQuestionRequest, setDocQuestionRequest] = useState<{ docId: string; n: number } | null>(null)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   // ask 콜백이 매 메시지마다 새로 만들어지지 않도록 최신 대화는 ref로 읽는다
   const messagesRef = useRef<ChatMessage[]>(messages)
@@ -872,6 +879,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     questionTemplateRequest,
     clearQuestionTemplateRequest: () => setQuestionTemplateRequest(null),
+    openDocQuestion: (docId: string) => {
+      setDockOpen(true)
+      setDocQuestionRequest((r) => ({ docId, n: (r?.n ?? 0) + 1 }))
+    },
+    docQuestionRequest,
+    clearDocQuestionRequest: () => setDocQuestionRequest(null),
     ask,
     askAgain,
     cancelReport,

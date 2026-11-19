@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useId, useRef, useState, type RefObject } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ENGINE_LABEL,
   ENGINE_TIMEOUT_MS,
@@ -12,9 +12,10 @@ import {
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
+import { docAskChips, docAskHint, docAskPlaceholder, docAskSentence, docAskVia } from '../lib/docAsk'
 import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine, PromotionBrief } from '../types'
+import type { ChatMessage, Engine, PromotionBrief, WikiDoc } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 import { ReportCard } from './ReportCard'
 
@@ -127,8 +128,66 @@ function BriefCard({ brief }: { brief: PromotionBrief }) {
   )
 }
 
-function Message({ msg }: { msg: ChatMessage }) {
+/**
+ * 이 답의 근거 — 답 바로 밑에 문서 제목·코드·열기를 둔다. 제목·코드는 라벨을 쪼개지 않고 문서 목록에서 읽고,
+ * 라벨은 앞머리(`참고 ·` = 위키 수정 안내 답)만 본다. 사라진 문서 줄은 뺀다.
+ */
+function SourceList({ msg }: { msg: ChatMessage }) {
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const { docs } = useApp()
+  const rows = (msg.sources ?? []).flatMap((s) => {
+    const doc = docs.find((d) => d.id === s.docId)
+    return doc ? [{ s, doc }] : []
+  })
+
+  if (rows.length === 0) {
+    // 되묻기·정리 카드·리포트·리포트 실패·대화로 만든 안내는 질문에 대한 답이 아니거나 다음 행동이 따로 있다
+    if (msg.intent || msg.intentAnswer || msg.brief || msg.report || msg.reportFailed || !msg.query || !msg.text) return null
+    const q = msg.query
+    return (
+      <div className="msg-sources none">
+        <span className="muted">근거 문서 없음</span>
+        <button type="button" className="btn sm" onClick={() => navigate(`/search?q=${encodeURIComponent(q)}`)}>
+          위키에서 찾아보기 →
+        </button>
+      </div>
+    )
+  }
+
+  const label = rows[0].s.label.startsWith('참고 ·') ? '참고할 문서' : '이 답의 근거'
+  return (
+    <div className={`msg-sources${rows.length === 1 ? ' one' : ''}`}>
+      <span className="label">{label}</span>
+      {rows.map(({ s, doc }) => {
+        const to = `/wiki/${doc.id}${s.anchor ? `#${s.anchor}` : ''}`
+        // 지금 화면의 문서면 갈 곳이 없다 — 버튼 대신 글자로 알린다
+        const here = pathname === `/wiki/${doc.id}`
+        return (
+          <div key={s.docId} className="source-row">
+            {here ? (
+              <span className="source-title">{doc.title}</span>
+            ) : (
+              <button type="button" className="source-title" onClick={() => navigate(to)}>
+                {doc.title}
+              </button>
+            )}
+            <span className="tag">{doc.code}</span>
+            {here ? (
+              <span className="source-open muted">지금 보는 문서</span>
+            ) : (
+              <button type="button" className="btn sm source-open" aria-label={`${doc.title} 문서 열기`} onClick={() => navigate(to)}>
+                {s.anchor ? '해당 부분 열기' : '열기'}
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function Message({ msg }: { msg: ChatMessage }) {
   const { session, assistant, askAgain } = useApp()
   // 안내는 규칙 기반으로 떨어진 답에만 — 다음 엔진이 답했으면 답은 정상이라 출처 줄만 남긴다
   const notice = msg.fallback?.length && msg.answeredBy === RULE_BASED_LABEL ? fallbackNotice(msg.fallback) : null
@@ -150,6 +209,7 @@ function Message({ msg }: { msg: ChatMessage }) {
     <div className={`msg bot${msg.report ? ' has-report' : ''}`}>
       {msg.text && <RichText text={msg.text} />}
       {msg.report && <ReportCard msg={msg} />}
+      <SourceList msg={msg} />
       {msg.notice && <div className="fallback-notice">{msg.notice}</div>}
       {(msg.reportHint === 'offer' || msg.reportFailed) && (
         <div className="suggest report-chip">
@@ -157,15 +217,6 @@ function Message({ msg }: { msg: ChatMessage }) {
             {msg.reportFailed ? '짧게 답 받기' : '리포트로 자세히 받기'}
           </button>
           {!msg.reportFailed && <span className="muted">근거·비교를 갖춘 보고 문서로 받습니다 · {REPORT_WAIT_HINT}</span>}
-        </div>
-      )}
-      {msg.sources && msg.sources.length > 0 && (
-        <div className="sources">
-          {msg.sources.map((s) => (
-            <button key={s.docId} onClick={() => navigate(`/wiki/${s.docId}`)}>
-              {s.label}
-            </button>
-          ))}
         </div>
       )}
       {msg.brief && <BriefCard brief={msg.brief} />}
@@ -526,6 +577,57 @@ function TemplatePanel({
   )
 }
 
+/* ---------- 이 문서로 질문 ---------- */
+
+/** 위키 문서 머리에서 연 패널 — 칩 글자가 곧 보내는 글자다. 누르기 전에는 아무것도 보내지 않는다 */
+function DocAskPanel({
+  doc,
+  pending,
+  chipsRef,
+  onCancel,
+  onSend,
+}: {
+  doc: WikiDoc
+  pending: boolean
+  chipsRef: RefObject<HTMLDivElement>
+  onCancel: () => void
+  onSend: (sentence: string) => void
+}) {
+  const block = pending ? '답을 받는 중에는 보낼 수 없습니다' : undefined
+  return (
+    <div
+      className="dock-template dock-docask"
+      role="region"
+      aria-label="이 문서로 질문"
+      onKeyDown={(e) => {
+        if (e.key !== 'Escape') return
+        e.preventDefault()
+        onCancel()
+      }}
+    >
+      <div className="tpl-head">
+        <span className="label strong">이 문서로 질문</span>
+        <button type="button" className="btn sm" aria-label="이 문서로 질문 닫기" onClick={onCancel}>
+          닫기
+        </button>
+      </div>
+      <div className="docask-doc">
+        <span className="tag">{doc.code}</span>
+        <span className="muted">·</span>
+        <span>{doc.title}</span>
+      </div>
+      <div className="suggest" role="group" aria-label="이 문서 예시 질문" ref={chipsRef}>
+        {docAskChips(doc.code).map((q) => (
+          <button key={q} type="button" disabled={pending} title={block} onClick={() => onSend(q)}>
+            {q}
+          </button>
+        ))}
+      </div>
+      <span className="docask-hint muted">{docAskHint(doc.code)}</span>
+    </div>
+  )
+}
+
 /**
  * 입력창 placeholder 순환 — 4초마다 다음 예시. 포커스·입력 중에는 멈추고,
  * 동작 줄이기 설정이면 첫 예시에 고정한다.
@@ -630,10 +732,16 @@ function useDockResize() {
 }
 
 export function AssistantDock() {
-  const { assistant, closeDock, ask, questionTemplateRequest, clearQuestionTemplateRequest } = useApp()
+  const { assistant, docs, closeDock, ask, questionTemplateRequest, clearQuestionTemplateRequest, docQuestionRequest, clearDocQuestionRequest } =
+    useApp()
+  const location = useLocation()
   const [input, setInput] = useState('')
   const [inputFocused, setInputFocused] = useState(false)
-  const placeholder = usePlaceholderCycle(inputFocused || input.length > 0)
+  /** 이 문서로 질문 패널이 가리키는 문서 — 빈칸 패널과 동시에 열리지 않는다 */
+  const [docAskId, setDocAskId] = useState<string | null>(null)
+  const docAsk = docAskId ? docs.find((d) => d.id === docAskId) ?? null : null
+  // 문서 패널이 열려 있으면 입력창 안내가 그 문서 기준이라 순환을 멈춘다
+  const placeholder = usePlaceholderCycle(inputFocused || input.length > 0 || Boolean(docAsk))
   const { width, dragging, startDrag, onKeyDown } = useDockResize()
   const logRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -643,8 +751,9 @@ export function AssistantDock() {
   const entryRef = useRef<HTMLButtonElement>(null)
   const valuesRef = useRef<HTMLDivElement>(null)
   const tplSendRef = useRef<HTMLButtonElement>(null)
+  const docChipsRef = useRef<HTMLDivElement>(null)
   // 고른 뒤 다음 렌더에서 옮길 포커스 — 값 목록은 렌더가 끝나야 생긴다
-  const focusNext = useRef<'values' | 'entry' | 'input' | null>(null)
+  const focusNext = useRef<'values' | 'entry' | 'input' | 'doc-chips' | null>(null)
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' })
@@ -656,6 +765,7 @@ export function AssistantDock() {
     focusNext.current = null
     if (target === 'entry') entryRef.current?.focus()
     else if (target === 'input') inputRef.current?.focus()
+    else if (target === 'doc-chips') docChipsRef.current?.querySelector('button')?.focus()
     else {
       // 고를 빈칸이 없으면 다 채운 것 — 보내기로
       const first = valuesRef.current?.querySelector('button')
@@ -671,6 +781,7 @@ export function AssistantDock() {
         ? { ...prev, active: nextEmptySlot(prev.id, prev.filled) }
         : freshTemplate(id),
     )
+    setDocAskId(null)
     focusNext.current = 'values'
   }, [])
 
@@ -680,6 +791,33 @@ export function AssistantDock() {
     openTemplate(questionTemplateRequest.id)
     clearQuestionTemplateRequest()
   }, [questionTemplateRequest, clearQuestionTemplateRequest, openTemplate])
+
+  // 위키 문서 머리 버튼에서 온 요청 — 같은 문서를 다시 눌러도 패널을 다시 열고 칩으로 포커스를 옮긴다
+  useEffect(() => {
+    if (!docQuestionRequest) return
+    setTpl(CLOSED_TEMPLATE)
+    setDocAskId(docQuestionRequest.docId)
+    focusNext.current = 'doc-chips'
+    clearDocQuestionRequest()
+  }, [docQuestionRequest, clearDocQuestionRequest])
+
+  // 패널이 가리키는 문서 화면을 떠나면 닫는다 — 다른 화면에서 그 문서 기준 접두어가 붙지 않게
+  useEffect(() => {
+    if (docAskId && location.pathname !== `/wiki/${docAskId}`) setDocAskId(null)
+  }, [docAskId, location.pathname])
+
+  const cancelDocAsk = () => {
+    setDocAskId(null)
+    focusNext.current = 'input'
+  }
+
+  const sendDocAsk = (sentence: string) => {
+    if (!docAsk) return
+    ask(sentence, { via: docAskVia(docAsk.title) })
+    // 이어지는 질문은 대화 이력에 코드가 남아 따로 붙이지 않는다
+    setDocAskId(null)
+    focusNext.current = 'input'
+  }
 
   const cancelTemplate = () => {
     setTpl(CLOSED_TEMPLATE)
@@ -709,6 +847,13 @@ export function AssistantDock() {
 
   const send = (text: string) => {
     ask(text)
+    setInput('')
+  }
+
+  /** 입력창 전송 — 문서 패널이 열려 있으면 안내한 대로 코드 접두어를 붙인다(말풍선에도 붙은 문장 그대로) */
+  const submitInput = (text: string) => {
+    if (!docAsk) return send(text)
+    sendDocAsk(docAskSentence(docAsk.code, text))
     setInput('')
   }
 
@@ -770,6 +915,10 @@ export function AssistantDock() {
         )}
       </div>
 
+      {docAsk && (
+        <DocAskPanel doc={docAsk} pending={assistant.pending} chipsRef={docChipsRef} onCancel={cancelDocAsk} onSend={sendDocAsk} />
+      )}
+
       {tpl.open && (
         <TemplatePanel
           panelId={templatePanelId}
@@ -791,7 +940,7 @@ export function AssistantDock() {
           className="composer"
           onSubmit={(e) => {
             e.preventDefault()
-            if (input.trim()) send(input.trim())
+            if (input.trim()) submitInput(input.trim())
           }}
         >
           <input
@@ -801,7 +950,7 @@ export function AssistantDock() {
             onChange={(e) => setInput(e.target.value)}
             onFocus={() => setInputFocused(true)}
             onBlur={() => setInputFocused(false)}
-            placeholder={`예: ${placeholder}`}
+            placeholder={docAsk ? docAskPlaceholder(docAsk.code) : `예: ${placeholder}`}
             aria-label="챗봇에게 질문"
           />
           <button className="btn accent" disabled={!input.trim()}>
