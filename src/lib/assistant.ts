@@ -127,6 +127,30 @@ function namedInQuery(doc: WikiDoc, query: string): boolean {
 }
 
 /**
+ * 질문에 문서 코드가 **통째로** 든 문서 — 위키 문서 화면 '이 문서로 질문하기'가 코드를 실어 보낸다.
+ * 검색기는 `PPC-P-03` 을 `ppc`·`03` 으로 쪼개 같은 접두어 문서와 섞으므로, 점수와 상관없이 근거 맨 앞에 둔다.
+ * 앞뒤가 코드 글자로 이어지면 다른 코드다 — `PPC-ACS-01` 안의 `PPC-ACS` 는 세지 않는다.
+ */
+function docsNamedByCode(query: string): WikiDoc[] {
+  const q = query.toLowerCase()
+  return docs.filter((d) => {
+    const code = d.code.toLowerCase()
+    for (let i = q.indexOf(code); i >= 0; i = q.indexOf(code, i + 1)) {
+      if (!/[0-9a-z-]/.test(q[i - 1] ?? '') && !/[0-9a-z-]/.test(q[i + code.length] ?? '')) return true
+    }
+    return false
+  })
+}
+
+/** 코드로 가리킨 문서가 한 상품 전용이면 그 상품을 이번 질문의 상품으로 본다 — 두 상품 문서를 함께 가리키면 정하지 않는다 */
+function namedScope(named: WikiDoc[]): ProductScope | null {
+  const scopes = new Set(named.flatMap((d) => (d.scope === 'PPM' || d.scope === 'PPV' ? [d.scope] : [])))
+  return scopes.size === 1 ? [...scopes][0] : null
+}
+
+const productOf = (scope: ProductScope | null) => PRODUCTS.find((p) => p.scope === scope) ?? null
+
+/**
  * 일이 **어떤 순서로** 진행되는지 묻는 발화. 이런 질문에 문장을 점수순으로 2개 뽑으면
  * 절차가 아니라 조각이 나온다 — 소제목을 찾아 문서 순서대로 답해야 한다.
  */
@@ -764,6 +788,8 @@ interface ChatSearch extends SearchInput {
   ppvKind?: PpvKind | null
   /** 상품을 몰라 PPM 전용 줄을 뺐는지 — keepUsable 이 표시하고, 답 아래 상품 칩을 붙이는 기준이 된다 */
   scopeTrimmed?: boolean
+  /** 코드로 가리킨 문서의 줄을 고를 때 — 그 문서를 직접 물었으니 상품을 몰라도 PPM 전용 줄을 빼지 않는다 */
+  named?: boolean
 }
 
 /** B tv+ 전용 배너 문서 — B tv+ 를 고르지 않은 PPM 답에는 근거로 쓰지 않는다 */
@@ -797,7 +823,7 @@ function offDetail(lower: string, search: ChatSearch): boolean {
  * PPV 전용 줄은 빼지 않는다 — PPV 쪽 말은 상품 이름뿐이라 PPM 담당자를 막아 세울 제약이 없다.
  */
 function unscopedPpmOnly(lower: string, search: ChatSearch): boolean {
-  if (search.scope) return false
+  if (search.scope || search.named) return false
   const asked = `${search.query}\n${search.context ?? ''}`.toLowerCase()
   if (SCOPE_ONLY_TERMS.PPM.some((t) => asked.includes(t))) return false
   return SCOPE_ONLY_TERMS.PPM.some((t) => lower.includes(t)) && !SCOPE_ONLY_TERMS.PPV.some((t) => lower.includes(t))
@@ -934,8 +960,45 @@ function guideLines(doc: WikiDoc, search: ChatSearch, limit: number): string[] {
   )
 }
 
+/** 문서 요약을 원하는 말 — 코드로 가리킨 문서에만 쓴다 */
+const SUMMARY_CUES = /핵심|요약|간단히|간단하게|한눈에|개요/
+
+/** 코드로 가리킨 문서에서 인용하지 않는 절 — 머리말(적용대상 인용)과 다른 문서로 넘기는 절 */
+const NAMED_SKIP_HEADINGS = ['', '관련 문서', '다음에 볼 문서', '갱신 기준']
+
+/**
+ * 코드로 가리킨 문서에서 인용할 줄. 코드 글자는 다른 문서 링크 줄에도 걸리므로 빼고 나머지 질문 단어로 평소처럼 고른다.
+ * 걸리는 줄이 없으면 문서 순서대로 — '이 문서는' 절이 맨 앞이라 "핵심만"에 요약이 나간다.
+ * 상품 필터로 줄이 다 빠져도 문서는 근거에서 빼지 않는다 — 그때는 비어 있다고 표시한 줄만 거른다.
+ */
+function namedDocLines(doc: WikiDoc, search: ChatSearch, limit: number): string[] {
+  const query = search.query.replace(new RegExp(doc.code, 'gi'), ' ')
+  const keep: ChatSearch = { ...search, query, named: true }
+  // "핵심만 짧게"처럼 요약을 원하면 단어가 걸린 줄이 아니라 문서 앞 절(요약)부터 — '짧게'가 걸린 엉뚱한 줄이 나가지 않게
+  const matched = SUMMARY_CUES.test(query) ? [] : keepUsable(extractSentences(doc, keep, limit + 3), keep, limit)
+  if (matched.length) return matched
+  const ordered = parseSections(doc.body)
+    .filter((s) => !NAMED_SKIP_HEADINGS.includes(s.heading))
+    .flatMap((s) => s.lines)
+    .filter((l) => l.length > 5)
+  const kept = keepUsable(ordered, keep, limit)
+  return kept.length ? kept : keepUsable(ordered, { query, named: true }, limit)
+}
+
+/** 코드로 가리킨 문서를 맨 앞에 — 이미 문장을 뽑아 둔 문서는 다시 넣지 않는다 */
+function pushNamed(named: WikiDoc[], search: ChatSearch, used: WikiDoc[], lines: string[], limit: number) {
+  for (const doc of named) {
+    if (used.includes(doc)) continue
+    const picked = namedDocLines(doc, search, limit)
+    used.push(doc)
+    lines.push(`**${doc.title}** (${doc.code})`)
+    for (const l of picked) lines.push(`· ${l}`)
+  }
+}
+
 function deliverableReply(kind: DeliverableKind, query: string, history: ChatTurn[], slots: CampaignSlots): AssistantReply {
-  const scope = slots.product?.scope ?? null
+  const named = docsNamedByCode(query)
+  const scope = namedScope(named) ?? slots.product?.scope ?? null
   const ppvKind = readPpvKind([...history, { role: 'user', text: query }])
   const search: ChatSearch = {
     query,
@@ -948,11 +1011,12 @@ function deliverableReply(kind: DeliverableKind, query: string, history: ChatTur
   const byCode = (code: string) => docs.find((d) => d.code === code)
   const lines = [DELIVERABLE_LEAD[kind]]
   const used: WikiDoc[] = []
+  pushNamed(named, search, used, lines, 2)
 
   if (kind === 'placement') {
     const playbook = scope ? byCode('MKI-05') : undefined
     const combo = playbook ? playbookCombo(playbook, search) : null
-    if (playbook && combo && 'heading' in combo) {
+    if (playbook && combo && 'heading' in combo && !used.includes(playbook)) {
       used.push(playbook)
       lines.push(`**${playbook.title}** (${playbook.code}) — ${combo.heading}`)
       for (const l of combo.lines) lines.push(`· ${l}`)
@@ -960,7 +1024,7 @@ function deliverableReply(kind: DeliverableKind, query: string, history: ChatTur
       if (combo) lines.push(MOVIE_ONLY_COMBO_LINE)
       const overview = byCode('MKI-B-00')
       const sentences = overview ? usableSentences(overview, search, 2) : []
-      if (overview && sentences.length) {
+      if (overview && sentences.length && !used.includes(overview)) {
         used.push(overview)
         lines.push(`**${overview.title}** (${overview.code})`)
         for (const l of sentences) lines.push(`· ${l}`)
@@ -976,11 +1040,11 @@ function deliverableReply(kind: DeliverableKind, query: string, history: ChatTur
       ? keepUsable(findSection(check, '규제 검수')?.lines.filter((l) => l.includes('정가 전환')) ?? [], search, 1)
       : []
     const sentences = guide ? guideLines(guide, search, notice.length ? 1 : 2) : []
-    if (guide && sentences.length) {
+    if (guide && sentences.length && !used.includes(guide)) {
       used.push(guide)
       lines.push(`**${guide.title}** (${guide.code})`)
       for (const l of sentences) lines.push(`· ${l}`)
-      if (check && notice.length) {
+      if (check && notice.length && !used.includes(check)) {
         used.push(check)
         lines.push(`· ${notice[0]}`)
       }
@@ -1042,6 +1106,9 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
   }
 
   const slots = readSlots(turns)
+  // 코드로 가리킨 PPV·PPM 문서는 그 상품을 이번 질문의 상품으로 본다 — 앞 대화에서 다른 상품을 골랐어도
+  const named = docsNamedByCode(query)
+  const product = productOf(namedScope(named)) ?? slots.product
   /**
    * 이번 발화를 가장 무겁게 보고, 앞선 **사용자** 발화만 보조 맥락으로 쓴다.
    * 대화 전체를 한 덩어리로 검색하면 어시스턴트가 되물은 "월정액(PPM)인가요?" 때문에
@@ -1052,8 +1119,8 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     query,
     // B tv+ 를 골랐으면 B tv+ 조합·타겟 그룹 문서가 먼저 오게 맥락에 덧붙인다
     context: [userText(history), slots.ppmDetail === 'btvplus' ? 'B tv+' : ''].filter(Boolean).join('\n'),
-    scope: slots.product?.scope ?? null,
-    ppmDetail: slots.ppmDetail,
+    scope: product?.scope ?? null,
+    ppmDetail: product?.scope === 'PPM' ? slots.ppmDetail : null,
     ppvKind: readPpvKind(turns),
     // 판단을 물으면 정책 문서보다 마케팅 인사이트·카피 가이드(타겟팅·플레이북·카피 등)가 답에 가깝다
     preferSubcategory: advice ? ['insight', 'copy-guide'] : null,
@@ -1072,6 +1139,14 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
       ...found.filter((h) => !policy.includes(h.doc)),
     ]
   }
+  // 코드로 가리킨 문서는 순위·상품 필터와 상관없이 맨 앞 — 점수는 제 점수를 두어 2순위 문서를 견주는 기준이 흔들리지 않게
+  if (named.length) {
+    const top = found[0]?.score ?? 0
+    found = [
+      ...named.map((doc) => ({ doc, score: found.find((h) => h.doc === doc)?.score ?? top, excerpt: '' })),
+      ...found.filter((h) => !named.includes(h.doc)),
+    ]
+  }
   const hits = found.slice(0, 3)
 
   if (hits.length === 0) {
@@ -1085,11 +1160,11 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
 
   // 결론부터 한 줄 — 무엇을 기준으로 답했는지 먼저 밝힌다.
   const lines: string[] = []
-  if (slots.product) {
+  if (product) {
     lines.push(
       advice
-        ? `${slots.product.label} 기준으로, 위키에 적힌 제약부터 짚어 드립니다.`
-        : `${slots.product.label} 기준입니다.`,
+        ? `${product.label} 기준으로, 위키에 적힌 제약부터 짚어 드립니다.`
+        : `${product.label} 기준입니다.`,
     )
   }
 
@@ -1100,7 +1175,13 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
    * 절차를 물었으면 **문서 하나의 해당 소제목을 순서대로** 보여 준다. 여러 문서에서
    * 두 줄씩 긁어 모으면 "프로세스를 설명해 달라"는 질문에 조각만 돌아간다.
    */
-  const sequence = wantsSequence(query) ? hits.map((h) => ({ hit: h, found: usableSequence(h.doc, search) })).find((x) => x.found) : undefined
+  // 코드로 가리킨 문서가 있으면 그 문서의 절차만 — 다른 문서 절차가 잡혀 가리킨 문서가 근거에서 빠지지 않게
+  const sequence = wantsSequence(query)
+    ? hits
+        .filter((h) => !named.length || named.includes(h.doc))
+        .map((h) => ({ hit: h, found: usableSequence(h.doc, search) }))
+        .find((x) => x.found)
+    : undefined
 
   if (sequence?.found) {
     const { hit, found } = { hit: sequence.hit, found: sequence.found }
@@ -1110,9 +1191,9 @@ export function answer(query: string, history: ChatTurn[] = [], intentAsked = fa
     for (const s of found.lines) lines.push(`· ${s.split(' — ').slice(0, 2).join(' — ')}`)
   } else {
     // 2순위는 1순위에 견줄 만큼 맞을 때만 붙인다 — 점수가 한참 처지는 문서의 문장은 답을 흐린다
-    for (const hit of hits.slice(0, 2)) {
+    for (const hit of hits.slice(0, Math.max(2, named.length))) {
       if (used.length > 0 && hit.score < used[0].score * SECOND_SOURCE_RATIO && !namedInQuery(hit.doc, query)) continue
-      const sentences = usableSentences(hit.doc, search, 2)
+      const sentences = named.includes(hit.doc) ? namedDocLines(hit.doc, search, 2) : usableSentences(hit.doc, search, 2)
       if (sentences.length === 0) continue
       used.push(hit)
       lines.push(`**${hit.doc.title}** (${hit.doc.code})`)
@@ -1311,12 +1392,15 @@ function withRefine(reply: AssistantReply, query: string, turns: ChatTurn[], ask
   if (reply.intent || reply.report || reply.reportFailed || reply.cancelled) return reply
   const deliverable = Boolean(detectDeliverable(query))
   const slots = readSlots(turns)
-  if (deliverable && !slots.product && !asked.product)
+  // 코드로 가리킨 상품 전용 문서가 상품을 정했다 — 상품도, 세부 상품도 되묻지 않는다(그 문서가 답할 범위다)
+  const namedProduct = productOf(namedScope(docsNamedByCode(query)))
+  const product = namedProduct ?? slots.product
+  if (deliverable && !product && !asked.product)
     return { ...reply, intent: { kind: 'product-qa', question: INTENT_PRODUCT_RETRY_QUESTION, retry: query } }
   // 상품을 몰라 PPM 전용 줄을 뺀 답 — PPM 담당자가 못 받은 줄은 상품을 고르면 다시 맞춰 준다(대화당 한 번)
-  if (reply.scopeTrimmed && !slots.product && !asked.product)
+  if (reply.scopeTrimmed && !product && !asked.product)
     return { ...reply, intent: { kind: 'product-qa', question: INTENT_PRODUCT_RETRY_QUESTION, retry: query } }
-  if ((deliverable || wantsAdvice(query)) && slots.product?.scope === 'PPM' && !slots.ppmDetail && !asked.detail)
+  if (!namedProduct && (deliverable || wantsAdvice(query)) && slots.product?.scope === 'PPM' && !slots.ppmDetail && !asked.detail)
     return { ...reply, intent: { kind: 'ppm-detail', question: PPM_DETAIL_QUESTION, retry: query } }
   return reply
 }
