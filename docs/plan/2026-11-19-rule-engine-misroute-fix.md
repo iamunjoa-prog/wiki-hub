@@ -3,6 +3,7 @@
 작성 `chatbot-planner` · 2026-11-19
 근거: `docs/plan/2026-11-19-first-visit-question-templates.md` 8절 결함 1·4. 결함 2·3은 dev-front 가 커밋 `76b4a87` 에서 고쳤다. 이 문서는 그 커밋 위에서 남은 결함과 PM 데스크가 덧붙인 (a)(b)(c)를 다룬다.
 **이 문서는 설계만 한다.** 코드와 `server/assistant-prompt.md` 는 고치지 않았다. 바꿀 규약 문장은 제안만 한다(6절).
+규약 반영됨(11-19) — 6절 ①②③ 을 `server/assistant-prompt.md` 55·90·165행에 반영했다.
 
 ---
 
