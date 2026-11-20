@@ -13,7 +13,7 @@ import { LocalHubOnboarding } from './LocalHubOnboarding'
 /** 휴대폰 폭(760px 이하)에서 사이드바를 서랍으로 연다 — 버튼은 각 화면의 TopBar 에 있어 상태를 셸에서 나눠 준다 */
 const DrawerContext = createContext<{ open: boolean; setOpen: (v: boolean) => void }>({ open: false, setOpen: () => {} })
 
-function Chevron({ open }: { open: boolean }) {
+export function Chevron({ open }: { open: boolean }) {
   return (
     <svg
       className={`chev${open ? ' open' : ''}`}

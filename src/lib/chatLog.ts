@@ -1,4 +1,4 @@
-import type { Engine, ReportType } from '../types'
+import type { Engine, ReportType, WikiDoc } from '../types'
 
 /**
  * 챗봇 대화 기록 조회 — 서버 계약은 server/chatLog.ts·api/chatlog.ts (PR #95).
@@ -257,6 +257,10 @@ export function formatMs(ms: number): string {
   if (s < 60) return `${s.toFixed(1)}초`
   return `${Math.floor(s / 60)}분 ${Math.floor(s % 60)}초`
 }
+
+/** 기록의 근거 경로 → 위키 문서. 없으면 위키에 없는 경로다(지어낸 근거를 찾는 데 쓴다) */
+export const wikiDocOf = (docs: WikiDoc[], p: string) =>
+  docs.find((d) => d.path === p.replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^지식\//, ''))
 
 export const MODE_LABEL: Record<ChatLogMode, string> = { qa: '일반', report: '리포트', 'report-unavailable': '리포트 안내' }
 export const STATUS_LABEL: Record<ChatLogStatusCode, string> = { ok: '성공', fail: '실패', cancelled: '멈춤' }

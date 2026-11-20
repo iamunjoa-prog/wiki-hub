@@ -124,6 +124,7 @@ a { color: inherit; text-decoration: none; }
 .tag.wait { background: var(--surface-wait); }
 .tag.ok { border-color: var(--ok); color: var(--ok); }
 .tag.no { border-color: var(--danger); color: var(--danger); }
+.tag.warn { border-color: var(--warn-text); color: var(--warn-text); background: var(--warn-bg); }
 
 .field {
   width: 100%;
@@ -1546,3 +1547,94 @@ body.resizing-x { cursor: col-resize; user-select: none; }
   .drawer-backdrop { display: block; position: fixed; inset: 0; z-index: 45; background: rgba(0, 0, 0, 0.3); }
 }
 @media (max-width: 600px) { .account-form .form-grid { grid-template-columns: 1fr; } }
+
+/* ---------- 대화 기록 (관리자) ---------- */
+
+/* 대시보드보다 낮은 띠 — 큰 숫자만 줄인다. 한도 70%를 넘은 칸은 경고색 */
+.kpi-grid.compact .kpi { gap: 4px; padding: 10px 12px; }
+.kpi-grid.compact .kpi b { font-size: 20px; }
+.kpi-grid.compact .kpi .sub { font-size: 12px; min-height: 1em; word-break: keep-all; }
+.kpi.warn { background: var(--warn-bg); }
+.kpi.warn b, .kpi.warn .sub { color: var(--warn-text); }
+
+.chatlog-hint { margin: 12px; }
+.chatlog-usage { margin: 0 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.chatlog-note { font: 12px/1.5 var(--mono); word-break: keep-all; }
+.chatlog-filters { padding: 0 12px; }
+.chatlog-filters-rest { display: contents; }
+.chatlog-more-toggle { display: none; }
+.chatlog-field { display: inline-flex; align-items: center; gap: 6px; }
+.chatlog-field .field { width: auto; padding: 4px 8px; font-size: 13px; }
+.chatlog-count { padding: 0 12px 8px; font: 12px var(--mono); border-bottom: 1px solid var(--border); }
+
+/* 질문 한 줄 — 부가 칸은 줄어들지 않고, 질문 앞부분만 말줄임 */
+.chatlog-row { cursor: pointer; font-size: 13px; }
+.chatlog-row:hover { background: var(--surface-subtle); }
+.chatlog-row > :not(.grow), .chatlog-row .c-meta > * { flex: none; white-space: nowrap; }
+.chatlog-row .c-meta { display: contents; }
+.chatlog-row .c-user { display: inline-flex; align-items: center; gap: 4px; max-width: 9em; overflow: hidden; text-overflow: ellipsis; }
+.chatlog-row .c-path { max-width: 16em; overflow: hidden; text-overflow: ellipsis; color: var(--text-2); }
+.chatlog-row .c-result { order: 1; }
+.chatlog-row .c-src { order: 2; }
+.chatlog-row .c-ms { order: 3; color: var(--muted); }
+.chatlog-row .c-chev { order: 4; color: var(--muted); display: inline-flex; }
+.chatlog-row .c-at { color: var(--muted); }
+.chatlog-item { border-bottom: 1px solid var(--rowsep); }
+.chatlog-item .chatlog-row { border-bottom: 0; }
+.chatlog-item.open > .chatlog-row { background: var(--surface-subtle); }
+
+.chatlog-detail { padding: 4px 12px 14px 12px; background: var(--surface-subtle); display: flex; flex-direction: column; gap: 10px; font-size: 13.5px; }
+.chatlog-detail dl { margin: 0; display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 8px 12px; }
+.chatlog-detail dt { font: 600 12px var(--mono); color: var(--muted); padding-top: 2px; }
+.chatlog-detail dd { margin: 0; min-width: 0; color: var(--text); }
+.chatlog-pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.chatlog-answer { display: flex; flex-direction: column; gap: 4px; }
+.chatlog-cut { align-self: flex-end; font-size: 12px; }
+.chatlog-ghost { border: 1px solid var(--border); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--muted); cursor: default; overflow-wrap: anywhere; }
+.chatlog-report { display: flex; flex-direction: column; gap: 6px; }
+.chatlog-report ul { margin: 0; padding-left: 18px; }
+.chatlog-report a { text-decoration: underline; }
+.chatlog-attempts { border-collapse: collapse; font-size: 12.5px; }
+.chatlog-attempts th, .chatlog-attempts td { text-align: left; padding: 3px 12px 3px 0; white-space: nowrap; }
+.chatlog-attempts th { font-weight: 600; color: var(--muted); }
+.chatlog-attempt-list { display: none; margin: 0; padding-left: 18px; font-size: 13px; }
+.chatlog-judge { margin-top: 6px; font: 12px var(--mono); color: var(--text-2); }
+.chatlog-judge.strong { font-weight: 700; color: var(--text); }
+.chatlog-detail .form-actions { flex-wrap: wrap; }
+.chatlog-del { margin-left: auto; color: var(--danger); }
+.chatlog-more { display: flex; justify-content: center; padding: 14px; }
+
+/* 같은 대화 — 챗봇 창 말풍선 모양으로 다시 그린다. 들어온 질문은 왼쪽 강조선 */
+.chatlog-chat .modal-body { overflow: auto; min-height: 0; }
+.chatlog-chat-log { display: flex; flex-direction: column; gap: 10px; }
+.chatlog-chat-turn { display: flex; flex-direction: column; gap: 6px; }
+.chatlog-chat .msg.user { white-space: pre-wrap; }
+.chatlog-chat .msg.user.focus { box-shadow: inset 2px 0 0 var(--accent); }
+.modal.chatlog-delete { max-width: calc(100vw - 32px); }
+
+@media (max-width: 760px) {
+  .kpi-grid.compact { grid-template-columns: repeat(2, 1fr); }
+  .kpi-grid.compact .kpi:nth-child(2) { border-right: 0; }
+  .kpi-grid.compact .kpi:nth-child(-n + 2) { border-bottom: 1px solid var(--border); }
+  /* 기간 칩만 늘 보이고 나머지 조건은 접는다 */
+  .chatlog-more-toggle { display: inline-flex; }
+  .chatlog-filters-rest { display: none; }
+  .chatlog-filters-rest.open { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+  /* 목록 줄은 3줄로 쌓는다 — 모드·시각·이름·결과 / 질문 / 엔진 경로·근거·시간 */
+  .chatlog-row { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto auto; grid-template-areas: 'mode at user result chev' 'q q q q q' 'meta meta meta meta meta'; gap: 4px 8px; align-items: center; }
+  .chatlog-row .c-mode { grid-area: mode; }
+  .chatlog-row .c-at { grid-area: at; }
+  .chatlog-row .c-user { grid-area: user; max-width: none; }
+  .chatlog-row .c-result { grid-area: result; }
+  .chatlog-row .c-chev { grid-area: chev; }
+  .chatlog-row .grow.c-q { grid-area: q; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .chatlog-row .c-meta { grid-area: meta; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; color: var(--muted); }
+  .chatlog-row .c-path { max-width: 100%; white-space: normal; color: var(--muted); }
+  .chatlog-detail dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .chatlog-detail dd { margin-bottom: 8px; }
+  .chatlog-attempts { display: none; }
+  .chatlog-attempt-list { display: block; }
+  /* 같은 대화 창은 화면을 꽉 채운다 */
+  .modal-back.report-wide-back:has(.chatlog-chat) { padding: 0; }
+  .modal.report-wide.chatlog-chat { width: 100vw; height: 100vh; max-height: 100vh; border-radius: 0; border: 0; }
+}

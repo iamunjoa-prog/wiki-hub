@@ -29,7 +29,8 @@ function Inline({ line }: { line: string }) {
   )
 }
 
-function RichText({ text }: { text: string }) {
+/** 챗봇 답 본문 — 대화 기록 화면도 같은 모양으로 그린다 */
+export function RichText({ text }: { text: string }) {
   // 빈 줄로만 문단을 나눈다 — 줄마다 문단을 만들면 문단 안 줄바꿈과 문단 사이가 구분되지 않는다
   const paras = text
     .replace(/\r\n?/g, '\n')
