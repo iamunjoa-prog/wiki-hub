@@ -389,7 +389,8 @@ function useDockResize() {
 function chatLogNotice(status: ReturnType<typeof useApp>['chatLog']): string | null {
   if (!status?.enabled) return null
   const days = status.retentionDays
-  if (status.mine) return `대화 내용은 챗봇을 고치는 데 쓰려고 ${days}일 동안 저장돼요. 관리자와 본인만 볼 수 있어요.`
+  // 계정은 팀 단위로 나눠 쓴다 — 같은 팀 계정을 쓰는 팀원도 내 대화 기록에서 본다
+  if (status.mine) return `대화 내용은 챗봇을 고치는 데 쓰려고 ${days}일 동안 저장돼요. 관리자와 같은 팀 계정을 쓰는 팀원이 볼 수 있어요.`
   if (status.where === 'local') return `이 PC의 대화는 챗봇을 고치는 데 쓰려고 ${days}일 동안 저장돼요. 관리자만 볼 수 있어요.`
   return null
 }
