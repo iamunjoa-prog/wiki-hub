@@ -1612,6 +1612,19 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .chatlog-chat .msg.user.focus { box-shadow: inset 2px 0 0 var(--accent); }
 .modal.chatlog-delete { max-width: calc(100vw - 32px); }
 
+/* ---------- 내 대화 기록 ---------- */
+
+.mychat-day { padding: 0 12px 4px; display: flex; flex-direction: column; gap: 8px; max-width: var(--w-doc); }
+.mychat-day > .label { padding-top: 6px; }
+.mychat-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; line-height: 1.7; }
+.mychat-top { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.mychat-top .btn { margin-left: auto; }
+.mychat-clamp { overflow: hidden; }
+.mychat-toggle { align-self: flex-start; font-size: 12.5px; color: var(--text-2); }
+.mychat-clamp-wrap { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mychat-report { display: flex; flex-direction: column; gap: 4px; }
+.mychat-cut { font-size: 12.5px; }
+
 @media (max-width: 760px) {
   .kpi-grid.compact { grid-template-columns: repeat(2, 1fr); }
   .kpi-grid.compact .kpi:nth-child(2) { border-right: 0; }
