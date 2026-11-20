@@ -384,8 +384,19 @@ function useDockResize() {
   return { width, dragging, startDrag: () => setDragging(true), onKeyDown }
 }
 
+/** 저장 고지 한 줄 — 웹 주소 허브 로그인(N-1)과 저장이 켜진 관리자 PC(N-2)만. 상태를 모르면 보이지 않는다 */
+function chatLogNotice(status: ReturnType<typeof useApp>['chatLog']): string | null {
+  if (!status?.enabled) return null
+  const days = status.retentionDays
+  if (status.mine) return `대화 내용은 챗봇을 고치는 데 쓰려고 ${days}일 동안 저장돼요. 관리자와 본인만 볼 수 있어요.`
+  if (status.where === 'local') return `이 PC의 대화는 챗봇을 고치는 데 쓰려고 ${days}일 동안 저장돼요. 관리자만 볼 수 있어요.`
+  return null
+}
+
 export function AssistantDock() {
-  const { assistant, closeDock, ask } = useApp()
+  const { assistant, closeDock, ask, chatLog } = useApp()
+  const navigate = useNavigate()
+  const notice = chatLogNotice(chatLog)
   const [input, setInput] = useState('')
   const { width, dragging, startDrag, onKeyDown } = useDockResize()
   const logRef = useRef<HTMLDivElement>(null)
@@ -415,6 +426,20 @@ export function AssistantDock() {
       />
       <div className="dock-head">
         <span className="t">무엇이든 물어보세요</span>
+        {chatLog?.mine && (
+          <button
+            type="button"
+            className="dock-history"
+            title={`최근 ${chatLog.retentionDays}일 동안 물어본 질문과 답을 다시 봐요`}
+            onClick={() => {
+              navigate('/my-chat-log')
+              // 휴대폰 폭에서는 창이 본문을 거의 다 덮는다 — 기록을 읽을 수 있게 닫는다
+              if (window.innerWidth <= 760) closeDock()
+            }}
+          >
+            지난 대화
+          </button>
+        )}
         <button onClick={closeDock} aria-label="어시스턴트 닫기">
           ▸
         </button>
@@ -466,11 +491,17 @@ export function AssistantDock() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="질문 입력…"
             aria-label="어시스턴트에게 질문"
+            aria-describedby={notice ? 'dock-notice' : undefined}
           />
           <button className="btn accent" disabled={!input.trim()}>
             ↩
           </button>
         </form>
+        {notice && (
+          <p id="dock-notice" className="dock-notice">
+            {notice}
+          </p>
+        )}
       </div>
     </aside>
   )

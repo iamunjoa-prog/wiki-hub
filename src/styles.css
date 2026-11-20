@@ -769,6 +769,10 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 }
 .dock-head .t { font: 600 14px var(--mono); color: var(--accent); }
 .dock-head button { margin-left: auto; border: 0; background: none; color: var(--muted); font: 14.5px var(--mono); }
+/* 지난 대화 — 닫기 바로 왼쪽의 회색 글자 버튼. 닫기는 이 버튼 뒤에 붙는다 */
+.dock-head .dock-history { padding: 0; font: 12px var(--mono); }
+.dock-head .dock-history:hover { color: var(--text); }
+.dock-head .dock-history + button { margin-left: 0; }
 .dock-scope { padding: 9px 12px; font: 11.5px/1.5 var(--mono); color: var(--muted); border-bottom: 1px solid var(--border); }
 .dock-quick { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .dock-quick .label { font: 11.5px var(--mono); color: var(--muted); }
@@ -781,6 +785,8 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .dock-foot .composer { display: flex; gap: 6px; }
 .dock-foot .composer input { flex: 1; }
+/* 대화 저장 고지 — 닫을 수 없고 자르지 않는다(잘리면 고지가 아니다) */
+.dock-notice { margin: 0; font: 11.5px/1.5 var(--mono); color: var(--muted); word-break: keep-all; }
 
 .msg { max-width: 92%; font-size: 14.5px; line-height: 1.7; }
 .msg.user { align-self: flex-end; max-width: 84%; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); padding: 7px 9px; font-family: var(--mono); font-size: 14px; }
