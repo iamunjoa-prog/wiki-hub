@@ -1,12 +1,12 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
+import { readRedis, redis as redisCall, storeConnected as redisConnected, type Env, type RedisCommand } from './redisStore.js'
 
 /**
  * 허브 전용 계정 — 사내 메일 계정은 클라우드 PC에서만 쓸 수 있어, 일반 PC에서 쓰는 허브는 계정을 따로 둔다.
  * 관리자가 계정을 발급하고(초기 비밀번호), 담당자는 첫 로그인 때 비밀번호를 바꾼다.
  *
- * 저장은 Upstash Redis(Vercel Marketplace에서 연결) 한 곳. 연결하면 Vercel이 넣어 주는
- * KV_REST_API_URL / KV_REST_API_TOKEN (또는 UPSTASH_REDIS_REST_URL / _TOKEN) 을 그대로 읽는다.
+ * 저장은 Upstash Redis(Vercel Marketplace에서 연결) 한 곳 — 연결 코드(server/redisStore.ts)는 대화 기록과 함께 쓴다.
  */
 
 export type AccountRole = 'member' | 'admin'
@@ -28,14 +28,6 @@ export type PublicAccount = Omit<Account, 'passwordHash'>
 
 export const toPublic = ({ passwordHash: _hash, ...rest }: Account): PublicAccount => rest
 
-type Env = Record<string, string | undefined>
-
-function readRedis(env: Env) {
-  const url = (env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL)?.trim()
-  const token = (env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN)?.trim()
-  return url && token ? { url: url.replace(/\/$/, ''), token } : null
-}
-
 /** 계정 기능을 켤지 — 세션 서명 키와 저장소가 모두 있어야 한다. 하나라도 없으면 지금처럼 데모 계정으로 돈다 */
 export function accountsEnabled(env: Env = process.env): boolean {
   return missingSettings(env).length === 0
@@ -49,18 +41,9 @@ export function missingSettings(env: Env = process.env): string[] {
   return missing
 }
 
-async function redis<T = unknown>(command: (string | number)[], env: Env = process.env): Promise<T> {
-  const conf = readRedis(env)
-  if (!conf) throw new Error('계정 저장소(Upstash Redis)가 연결되지 않았습니다')
-  const res = await fetch(conf.url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${conf.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(command),
-  })
-  const data = (await res.json().catch(() => ({}))) as { result?: T; error?: string }
-  if (!res.ok || data.error) throw new Error(`계정 저장소 오류 — ${data.error ?? res.status}`)
-  return data.result as T
-}
+// 오류 문구는 로그인 화면에 그대로 보이므로 지금 문구("계정 저장소 …")를 지킨다
+const redis = <T = unknown>(command: RedisCommand, env: Env = process.env): Promise<T> =>
+  redisCall<T>(command, env, { label: '계정 저장소' })
 
 const KEY_IDS = 'hub:accounts'
 const keyOf = (loginId: string) => `hub:account:${loginId}`
@@ -149,7 +132,7 @@ export async function clearFailures(loginId: string): Promise<void> {
 /* ── 호출 횟수 제한 ─────────────────────────────────────── */
 
 /** 저장소가 연결됐는지 — 호출 횟수 제한은 저장소가 있을 때만 건다(server/guard.ts) */
-export const storeConnected = (env: Env = process.env) => Boolean(readRedis(env))
+export const storeConnected = redisConnected
 
 /** 키의 횟수를 하나 올리고 올린 뒤 값을 돌려준다. 처음 올릴 때 창 길이만큼 만료를 건다 */
 export async function countHit(key: string, windowSeconds: number): Promise<number> {
