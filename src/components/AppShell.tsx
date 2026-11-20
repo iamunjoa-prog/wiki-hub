@@ -353,8 +353,11 @@ function useSidebarResize() {
 }
 
 function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
-  const { session, setRole, proposals, promotions, systemRequests } = useApp()
+  const { session, setRole, proposals, promotions, systemRequests, chatLog } = useApp()
   const { user: account, signOut } = useAuth()
+  // 대화 기록 메뉴는 저장 상태로만 고른다 — 내 PC용 허브는 데모 버튼으로 관리자가 돼도 기록을 읽을 API 가 없다
+  const showMyChatLog = chatLog?.mine === true
+  const showChatLog = account?.role === 'admin' && chatLog?.enabled === true
   const pendingCount =
     (proposals ?? []).filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
@@ -405,6 +408,12 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
           내 요청 현황
         </NavLink>
 
+        {showMyChatLog && (
+          <NavLink to="/my-chat-log" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+            내 대화 기록
+          </NavLink>
+        )}
+
         {session.role === 'admin' && (
           <NavLink to="/approvals" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
             승인 관리
@@ -415,6 +424,12 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
         {account?.role === 'admin' && (
           <NavLink to="/accounts" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
             계정 관리
+          </NavLink>
+        )}
+
+        {showChatLog && (
+          <NavLink to="/chat-log" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+            대화 기록
           </NavLink>
         )}
       </nav>
