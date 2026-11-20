@@ -101,6 +101,22 @@ export interface AskInput {
   history: ChatTurn[]
   /** 사용자가 칩으로 고른 모드 — 자동 판정(detectReportIntent)보다 우선한다. 그 질문 한 번에만 적용된다 */
   modeOverride?: 'qa' | 'report'
+  /** 대화 기록(server/chatLog.ts)이 묶음으로 쓰는 화면 대화 ID — 형식이 틀리면 없는 것으로 본다. 답에는 쓰지 않는다 */
+  chatId?: string
+  /** 같은 질문의 엔진 넘기기 시도들이 함께 쓰는 턴 ID */
+  turnId?: string
+  /** 다시 묻기 경로(예: 「짧게 답 받기」) — 기록 참고값. 직접 다시 친 질문과 가르는 데만 쓰고 답에는 쓰지 않는다 */
+  via?: string
+}
+
+/** 대화·턴 ID 형식 — 화면의 crypto.randomUUID()·말풍선 ID 가 들어가는 범위 */
+const LOG_ID_RE = /^[a-zA-Z0-9-]{8,64}$/
+const readLogId = (v: unknown): string | undefined => (typeof v === 'string' && LOG_ID_RE.test(v) ? v : undefined)
+const MAX_VIA = 40
+/** 한 줄 짧은 값만 — 길거나 비면 없는 것으로 본다 */
+const readVia = (v: unknown): string | undefined => {
+  const s = typeof v === 'string' ? v.replace(/[\r\n\t]+/g, ' ').trim() : ''
+  return s && s.length <= MAX_VIA ? s : undefined
 }
 
 /**
@@ -141,7 +157,17 @@ export function parseAskInput(raw: unknown): AskInput {
     history.unshift(role === 'assistant' ? { role, text, ...parseTurnExtras(t) } : { role, text })
   }
   const modeOverride = r.modeOverride === 'qa' || r.modeOverride === 'report' ? r.modeOverride : undefined
-  return { query, history, ...(modeOverride ? { modeOverride } : {}) }
+  const chatId = readLogId(r.chatId)
+  const turnId = readLogId(r.turnId)
+  const via = readVia(r.via)
+  return {
+    query,
+    history,
+    ...(modeOverride ? { modeOverride } : {}),
+    ...(chatId ? { chatId } : {}),
+    ...(turnId ? { turnId } : {}),
+    ...(via ? { via } : {}),
+  }
 }
 
 const MAX_TURN_PATHS = 5

@@ -80,6 +80,19 @@ export function readPrivateTermsFile(env: Record<string, string | undefined> = p
   return env.HUB_PRIVATE_TERMS_FILE?.trim() || undefined
 }
 
+/** 대화 기록 보관 일수 — 바꿔도 이미 저장된 기록의 만료는 그대로다(server/chatLog.ts). 1~365, 기본 90 */
+export function readChatLogDays(env: Record<string, string | undefined> = process.env): number {
+  const n = Number(env.HUB_CHATLOG_DAYS?.trim())
+  return Number.isInteger(n) && n >= 1 && n <= 365 ? n : 90
+}
+
+/** 대화 기록 하루 저장 상한 — 넘으면 내용 없이 건수만 센다. 같은 저장소의 로그인 기능을 지키려는 값이다. 기본 500 */
+export function readChatLogDailyCap(env: Record<string, string | undefined> = process.env): number {
+  const raw = env.HUB_CHATLOG_DAILY_CAP?.trim()
+  const n = Number(raw)
+  return raw && Number.isInteger(n) && n >= 0 ? n : 500
+}
+
 /**
  * 실행 스크립트(scripts/setup.ps1 · start-hub.command)가 휴대용 허브 실행 준비물(node)과 챗봇 연결 프로그램(tools)을 까는 사용자 폴더.
  * 관리자 권한 없이 쓸 수 있는 자리라 Windows는 LOCALAPPDATA, Mac은 홈 아래 숨김 폴더다

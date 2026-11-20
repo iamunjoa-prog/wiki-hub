@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { guardApi, RATE_ASK } from '../server/guard.js'
 import { readGeminiFallbackModel, readGeminiKey, readGeminiModel } from '../server/env.js'
+import { recordChatTurn, type ChatTurnOutcome } from '../server/chatLog.js'
 import { askGemini, geminiErrorBody } from '../server/gemini.js'
 import {
   buildDocsBlock,
@@ -11,6 +12,7 @@ import {
   qaResponse,
   reportUnavailable,
   type AskInput,
+  type ReportIntent,
 } from '../server/knowledge.js'
 
 /**
@@ -37,12 +39,37 @@ export function GET(): Response {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const startedAt = Date.now()
   // 다른 사이트의 페이지가 이 함수를 불러 API 키를 쓰지 못하게 — 출처·형식·크기·로그인·호출 횟수를 입구에서 본다
   const guard = await guardApi(request, { paid: true, maxBytes: MAX_ASK_BYTES, rate: RATE_ASK })
   if (!guard.ok) return guard.response
 
+  /**
+   * 대화 기록 — 응답을 만든 뒤 저장을 최대 1초 기다리고 돌려준다(D6, Vercel 은 응답 뒤 함수를 멈출 수 있다).
+   * 저장 실패는 응답에 드러나지 않는다. 계정 기능이 꺼진 데모 배포면 누가 물었는지 몰라 저장하지 않는다
+   */
+  const logged = async (response: Response, input: AskInput, intent: ReportIntent['mode'], outcome: ChatTurnOutcome) => {
+    await recordChatTurn({
+      where: 'deploy',
+      loginId: guard.account?.loginId ?? null,
+      input,
+      intent,
+      engine: 'gemini',
+      model: null,
+      startedAt,
+      outcome,
+    })
+    return response
+  }
+
   const apiKey = readGeminiKey()
-  if (!apiKey) return error(503, 'GEMINI_API_KEY가 설정되지 않았습니다')
+  if (!apiKey) {
+    const response = error(503, 'GEMINI_API_KEY가 설정되지 않았습니다')
+    const input = tryParseAskInput(guard.body)
+    if (!input) return response
+    const intent = detectReportIntent(input.query, input.history, input.modeOverride).mode
+    return logged(response, input, intent, { status: 'fail', errorCode: 'config', mode: intent === 'report' ? 'report' : 'qa' })
+  }
 
   let input: AskInput
   try {
@@ -55,15 +82,18 @@ export async function POST(request: Request): Promise<Response> {
   const intent = detectReportIntent(input.query, input.history, input.modeOverride)
   if (intent.mode === 'report') {
     console.info('[api/ask] 리포트성 질문 — Gemini 를 부르지 않고 로컬 허브 안내로 답함')
-    return Response.json(reportUnavailable())
+    const body = reportUnavailable()
+    return logged(Response.json(body), input, intent.mode, { status: 'ok', response: body })
   }
 
   // 문서·프롬프트가 배포 번들에 빠지면 Gemini 호출이 파일 없음으로 죽는다. 그때 "응답 실패"가
   // 아니라 무엇이 빠졌는지 알려 준다 → vercel.json 의 includeFiles 설정 문제다.
-  if (!existsSync(PROMPT_FILE))
-    return error(500, '배포에 server/assistant-prompt.md 가 없습니다 — vercel.json 의 includeFiles를 확인해 주세요')
-  if (!existsSync(KNOWLEDGE_DIR))
-    return error(500, '배포에 지식 문서 폴더가 없습니다 — vercel.json 의 includeFiles를 확인해 주세요')
+  const missing = !existsSync(PROMPT_FILE)
+    ? '배포에 server/assistant-prompt.md 가 없습니다 — vercel.json 의 includeFiles를 확인해 주세요'
+    : !existsSync(KNOWLEDGE_DIR)
+      ? '배포에 지식 문서 폴더가 없습니다 — vercel.json 의 includeFiles를 확인해 주세요'
+      : null
+  if (missing) return logged(error(500, missing), input, intent.mode, { status: 'fail', errorCode: 'config', mode: 'qa' })
 
   try {
     const reply = await askGemini(input, {
@@ -74,10 +104,25 @@ export async function POST(request: Request): Promise<Response> {
       promptFile: PROMPT_FILE,
     })
     // 판단 요청(중간 지대)이면 짧은 답에 로컬 허브 안내 한 줄(notice)을 붙인다
-    return Response.json(qaResponse(reply, intent, false))
+    const body = qaResponse(reply, intent, false)
+    return logged(Response.json(body), input, intent.mode, { status: 'ok', response: body })
   } catch (err) {
     console.error('[api/ask] gemini', err)
     // 원문 API 오류는 위 로그와 server/gemini.ts 로그에만 — 화면에는 분류된 문장과 code 를 준다
-    return Response.json(geminiErrorBody(err), { status: 502 })
+    const body = geminiErrorBody(err)
+    return logged(Response.json(body, { status: 502 }), input, intent.mode, {
+      status: 'fail',
+      errorCode: body.code ?? 'unknown',
+      mode: 'qa',
+    })
+  }
+}
+
+/** 키 없음(503)도 기록하려고 본문을 한 번 읽어 본다 — 형식이 틀리면 기록하지 않고 응답은 지금처럼 503 이다 */
+function tryParseAskInput(body: unknown): AskInput | null {
+  try {
+    return parseAskInput(body)
+  } catch {
+    return null
   }
 }

@@ -1,7 +1,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { hostname, tmpdir } from 'node:os'
 import { Readable } from 'node:stream'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -52,6 +52,14 @@ import {
 } from './systemsFile.js'
 import { askGemini, editGemini, geminiErrorBody } from './gemini.js'
 import {
+  chatLogConfig,
+  chatLogStoreConnected,
+  DEPLOY_ONLY_TEXT,
+  recordChatTurn,
+  type ChatLogEngine,
+  type ChatTurnOutcome,
+} from './chatLog.js'
+import {
   type AskInput,
   type AskResponse,
   buildAskRequest,
@@ -78,6 +86,7 @@ import {
   type CliReply,
   type EditInput,
   type EditReply,
+  type ReportIntent,
   type ReportReply,
   type ReportType,
   type WebSearchOff,
@@ -366,6 +375,12 @@ async function codexJson(prompt: string, schema: object, timeoutMs?: number, sig
 
 /** .env.local 값을 합친 환경 — configureServer 에서 채운다. 편성표 시트 주소(HUB_*_SHEET_URL)를 여기서 찾는다 */
 let hubEnv: Record<string, string | undefined> = process.env
+
+/**
+ * 로컬 허브 대화 기록의 사용자 — 로컬에는 로그인이 없어 PC 이름으로 남긴다(D1 나, 관리자 PC 에만 Redis 설정을 둔다).
+ * 계정 아이디와 겹치지 않게 local: 을 붙인다
+ */
+const LOCAL_LOGIN_ID = `local:${hostname().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').slice(0, 60) || 'pc'}`
 
 /** 편성표는 원본 시트에서 실시간으로 받아 와 CLI가 도구로 열어볼 수 없으므로, 질문한 기간만 프롬프트에 직접 넣는다 */
 const scheduleNote = async (input: AskInput): Promise<string> =>
@@ -839,12 +854,34 @@ export function cliBridge(): Plugin {
           if (!res.writableEnded) ctrl.abort()
         })
         let reporting = false
+        // 대화 기록 — 응답을 먼저 끝내고 저장은 기다리지 않는다. Redis 설정이 없는 PC(실무자 PC 기본)는 아무것도 하지 않는다(D1)
+        const startedAt = Date.now()
+        let turn: { input: AskInput; engine: ChatLogEngine; intent: ReportIntent } | null = null
+        // 엔진을 부르기 전에 난 오류(키 없음·CLI 미설치)는 설정 문제로 분류한다
+        let calling = false
+        const record = (outcome: ChatTurnOutcome) => {
+          if (!turn) return
+          void recordChatTurn(
+            {
+              where: 'local',
+              loginId: LOCAL_LOGIN_ID,
+              input: turn.input,
+              intent: turn.intent.mode,
+              engine: turn.engine,
+              model: turn.engine === 'claude' ? (cliModels.claude ?? null) : turn.engine === 'codex' ? (cliModels.codex ?? null) : null,
+              startedAt,
+              outcome,
+            },
+            hubEnv,
+          )
+        }
         try {
           const raw = JSON.parse(body) as { engine?: Engine | 'gemini' }
           const engine = raw.engine ?? 'claude'
           const input = parseAskInput(raw)
           // 배포 api/ask.ts 와 같은 판정 — 칩으로 고른 modeOverride 가 우선한다
           const intent = detectReportIntent(input.query, input.history, input.modeOverride)
+          if (engine === 'gemini' || engine in ASK) turn = { input, engine, intent }
           const started = Date.now()
           const secs = () => ((Date.now() - started) / 1000).toFixed(1)
           let response: AskResponse
@@ -852,10 +889,13 @@ export function cliBridge(): Plugin {
             // 리포트는 로컬 CLI 에서만 만든다(Q7) — Gemini 를 부르지 않고 안내로 답한다
             if (intent.mode === 'report') {
               log.info(`[cli-bridge] gemini 리포트성 질문 — Gemini 를 부르지 않고 로컬 허브 CLI 안내로 답함`)
-              res.end(JSON.stringify(reportUnavailable()))
+              const unavailable = reportUnavailable()
+              res.end(JSON.stringify(unavailable))
+              record({ status: 'ok', response: unavailable })
               return
             }
             if (!geminiKey) throw new Error('GEMINI_API_KEY가 설정되지 않았습니다 (.env.local)')
+            calling = true
             const reply = await askGemini(input, {
               apiKey: geminiKey,
               model: geminiModel,
@@ -868,6 +908,7 @@ export function cliBridge(): Plugin {
           } else {
             if (!(engine in ASK)) throw new Error(`알 수 없는 엔진: ${engine}`)
             if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
+            calling = true
             if (intent.mode === 'report') {
               reporting = true
               const { reply, refused, hookMissing } = await REPORT[engine](input, intent.type, ctrl.signal)
@@ -894,9 +935,12 @@ export function cliBridge(): Plugin {
             )
           }
           res.end(JSON.stringify(response))
+          record({ status: 'ok', response })
         } catch (err) {
+          const triedMode = reporting ? 'report' : 'qa'
           if (err instanceof CliCancelledError) {
             log.info(`[cli-bridge] ${reporting ? 'report ' : ''}${err.message}`)
+            record({ status: 'cancelled', mode: triedMode })
             return
           }
           log.error(`[cli-bridge] ${reporting ? 'report ' : ''}${(err as Error).message}`)
@@ -904,12 +948,46 @@ export function cliBridge(): Plugin {
             // 화면이 "리포트가 {N}분 안에 끝나지 않았습니다"와 짧은 답 받기 칩을 고른다
             res.statusCode = 504
             res.end(JSON.stringify({ error: err.message, code: 'timeout', mode: 'report', timeoutMs: err.timeoutMs }))
+            record({ status: 'fail', errorCode: 'timeout', mode: 'report' })
             return
           }
           res.statusCode = 502
           // 배포 api/ask.ts 와 같은 형태 — Gemini 오류면 분류 code 를 함께 준다
-          res.end(JSON.stringify(reporting ? { ...geminiErrorBody(err), mode: 'report' } : geminiErrorBody(err)))
+          const failed = geminiErrorBody(err)
+          res.end(JSON.stringify(reporting ? { ...failed, mode: 'report' } : failed))
+          const errorCode = !calling ? 'config' : (failed.code ?? (err instanceof CliTimeoutError ? 'timeout' : 'cli'))
+          record({ status: 'fail', errorCode, mode: triedMode })
         }
+      })
+
+      // 대화 기록 — 로컬에는 로그인이 없어 저장 여부(view=status)만 알려 준다. 목록·사용량·삭제는 배포 api/chatlog.ts 에서만
+      server.middlewares.use('/api/chatlog', async (req, res) => {
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        if (req.method === 'GET') {
+          if (blockedRead(req, res)) return
+          const view = new URL(req.url ?? '/', 'http://localhost').searchParams.get('view')
+          if (view === 'status') {
+            // 로컬은 로그인이 없어 본인 기록을 볼 수 없다(mine:false) — 저장 여부(enabled)만 고지에 쓴다
+            res.end(
+              JSON.stringify({ enabled: chatLogStoreConnected(hubEnv), retentionDays: chatLogConfig(hubEnv).days, where: 'local', mine: false }),
+            )
+            return
+          }
+        } else if (req.method === 'DELETE') {
+          if (writeOriginProblem(headerOf(req, 'origin'), headerOf(req, 'referer'), isLocalHub)) {
+            req.resume()
+            sendRejection(res, { status: 403, error: '허용되지 않은 요청입니다' })
+            return
+          }
+          req.resume()
+        } else {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        res.statusCode = 404
+        res.end(JSON.stringify({ error: DEPLOY_ONLY_TEXT, code: 'deploy-only' }))
       })
 
       // 공개 규칙 검사 — 새 문서 제출 전 화면이 부른다. 아무것도 저장하지 않는다 (배포 api/publicCheck.ts 와 같은 응답)
