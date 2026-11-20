@@ -32,6 +32,7 @@ import {
   type PpmDetail,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
+import { fetchChatLogStatus, makeChatId, type ChatLogStatus } from '../lib/chatLog'
 import { fetchProposals } from '../lib/proposeEdit'
 import { requestPublicCheck } from '../lib/publicCheck'
 import {
@@ -117,6 +118,8 @@ interface AppState {
    */
   systemsStorage: 'shared' | 'local' | 'memory'
   assistant: AssistantState
+  /** 대화 기록 저장 상태 — 앱이 열릴 때 한 번 묻는다. 확인 전 undefined, 묻다가 실패하면 null(메뉴·고지 모두 숨김) */
+  chatLog: ChatLogStatus | null | undefined
   toast: string | null
 
   setRole: (role: Role) => void
@@ -286,6 +289,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     fetchSystemsState().then((state) => state && setRemote(state))
   }, [])
 
+  const [chatLog, setChatLog] = useState<ChatLogStatus | null | undefined>(undefined)
+  useEffect(() => {
+    fetchChatLogStatus().then(setChatLog)
+  }, [])
+  /**
+   * 대화 기록의 "같은 대화" 묶음. 대화는 메모리에만 있어 새로고침하면 사라지므로 아이디도 새로 만든다(기획서 1절).
+   * 대화를 비우는 동작이 생기면 그때 이 값도 새로 만든다
+   */
+  const chatIdRef = useRef(makeChatId())
+
   // 코드에 있는 시스템 + 승인돼 올라온 시스템. 접속 주소는 코드가 아니라 저장소에서 온다.
   const systems = useMemo<SystemEntry[]>(
     () => [
@@ -366,7 +379,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // 이번 질문 전까지의 대화를 이력으로 넘긴다 — 기획 상담은 여러 턴에 걸쳐 조건을 모은다
     const history = messagesRef.current.map((m) => ({ role: m.role, text: m.text }))
-    setMessages((prev) => [...prev, makeMessage('user', said, opts.via ? { via: opts.via } : undefined)])
+    // 사용자 말풍선 id 가 그 질문의 turnId 다 — 엔진을 넘겨 다시 시도해도 같은 값이 실린다
+    const userMsg = makeMessage('user', said, opts.via ? { via: opts.via } : undefined)
+    setMessages((prev) => [...prev, userMsg])
     setPending(true)
     const reportLikely = usableEngines[0] !== undefined && usableEngines[0] !== 'gemini' && mayBeReport(q, modeOverride)
     setPendingReport(reportLikely)
@@ -382,7 +397,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       intentAskedRef.current,
       nextAskedRef.current,
       { product: productRefineAskedRef.current, detail: detailAskedRef.current },
-      { modeOverride, signal: ctrl.signal },
+      { modeOverride, signal: ctrl.signal, chatId: chatIdRef.current, turnId: userMsg.id, via: opts.via },
     ).then((reply) => {
       if (abortRef.current === ctrl) abortRef.current = null
       setPending(false)
@@ -854,6 +869,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       engine,
       usableEngines,
     },
+    chatLog,
     toast,
     setRole: setRoleState,
     showToast,
