@@ -484,6 +484,16 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* ---------- dashboard ---------- */
 
 .dash-wrap { max-width: 1440px; margin: 0 auto; }
+/* 업무 시작 카드 — 첫 화면에서 바로 누를 일. 독을 열어 좁아지면 2열, 더 좁으면 1열 */
+.task-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 6px 12px; }
+.task-head h2 { margin: 0; }
+.task-first { margin-left: auto; font-size: 13.5px; color: var(--text-2); word-break: keep-all; }
+.task-first a { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; }
+.task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+.link-card.task-card { text-align: left; align-items: flex-start; justify-content: flex-start; background: var(--surface); word-break: keep-all; }
+.task-card:focus-visible { border-color: var(--line); color: var(--text); box-shadow: var(--shadow-hover); }
+.task-card .mono { font-size: 12px; }
+.task-grid + .kpi-grid { margin-top: 14px; }
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .kpi { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--border); text-align: left; background: none; border-top: 0; border-bottom: 0; border-left: 0; }
 .kpi:last-child { border-right: 0; }
@@ -778,6 +788,47 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 /* 세 바로가기는 모두 같은 무게로 둔다 — 하나만 강조하면 기본값으로 골라 둔 것처럼 보인다 */
 
 .dock-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+/* 빈칸 채워 질문하기 — 입력창 바로 위에 두어 여기서 만든 문장이 그 자리로 보내진다는 관계가 보이게 */
+.dock-template {
+  flex: none;
+  max-height: 50%;
+  overflow: auto;
+  border-top: 1px solid var(--border);
+  background: var(--surface-subtle);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.tpl-head { display: flex; align-items: center; gap: 8px; }
+.tpl-head .btn { margin-left: auto; }
+.tpl-field { display: flex; flex-direction: column; gap: 6px; }
+.tpl-field > .label { font: 11.5px var(--mono); color: var(--muted); }
+/* 13자 값도 버튼 안에서는 한 줄 — 줄바꿈은 버튼과 버튼 사이에서만 */
+.dock-template .suggest button { white-space: nowrap; }
+.dock-template .suggest button.on { border-color: var(--accent); color: var(--accent); }
+/* 보낼 말풍선과 같은 글자 크기로 미리 보인다 */
+.tpl-sentence { margin: 0; font-size: 14.5px; line-height: 1.9; word-break: keep-all; overflow-wrap: anywhere; }
+.tpl-slot {
+  display: inline-block;
+  white-space: nowrap;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  line-height: 1.6;
+  color: var(--text);
+}
+.tpl-slot.empty { border-style: dashed; color: var(--text-2); }
+.tpl-slot.on { border-color: var(--accent); color: var(--accent); }
+.tpl-slot:disabled { background: var(--surface-disabled); color: var(--muted); cursor: not-allowed; }
+.tpl-preview { display: flex; flex-direction: column; font-size: 12.5px; }
+.tpl-actions { display: flex; justify-content: flex-end; gap: 6px; }
+/* 이 문서로 질문 — 빈칸 패널과 같은 자리·같은 결. 칩은 보내는 문장 그대로라 줄임표 없이 칩 안에서 줄바꿈한다 */
+.docask-doc { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; color: var(--text); word-break: keep-all; }
+.dock-docask .suggest button { white-space: normal; word-break: keep-all; }
+.docask-hint { font: 11.5px/1.5 var(--mono); word-break: keep-all; }
 .dock-foot { border-top: 1px solid var(--border); padding: 10px; background: var(--surface); display: flex; flex-direction: column; gap: 8px; }
 .dock-foot .composer { display: flex; gap: 6px; }
 .dock-foot .composer input { flex: 1; }
@@ -789,9 +840,25 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .msg-text { word-break: keep-all; overflow-wrap: anywhere; }
 .msg-text p { margin: 0; }
 .msg-text p + p { margin-top: 11px; }
-.sources { display: flex; gap: 4px; flex-wrap: wrap; }
-.sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
-.sources button:hover { border-color: var(--text); color: var(--text); }
+/* 리포트 카드 안 근거 버튼 — 답 아래 근거 묶음은 .msg-sources 로 옮겼고 이 모양은 카드에만 남는다 */
+.report-refs .sources { display: flex; gap: 4px; flex-wrap: wrap; }
+.report-refs .sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
+.report-refs .sources button:hover { border-color: var(--text); color: var(--text); }
+/* 이 답의 근거 — 답 본문 바로 밑. 답변 줄과 같은 무게면 부가 정보로 읽혀 구분선과 진한 제목으로 띄운다 */
+.msg-sources { border-top: 1px solid var(--border); padding-top: 7px; display: flex; flex-direction: column; gap: 5px; }
+.msg-sources .label { font: 11.5px var(--mono); color: var(--muted); }
+/* 근거 1건이면 라벨과 문서를 한 줄에 */
+.msg-sources.one { flex-direction: row; align-items: center; flex-wrap: wrap; column-gap: 8px; }
+.msg-sources.one .source-row { flex: 1 1 200px; }
+.source-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+/* 긴 제목은 줄바꿈되고 열기는 줄 밖으로 밀리지 않는다 */
+.source-title { flex: 0 1 auto; min-width: 0; padding: 0; border: 0; background: none; text-align: left; font: 600 13px/1.45 var(--sans); color: var(--text); word-break: keep-all; overflow-wrap: anywhere; }
+button.source-title:hover { color: var(--accent); }
+.source-row .tag { flex: none; }
+.source-open { flex: none; margin-left: auto; }
+span.source-open { font: 11.5px var(--mono); }
+.msg-sources.none { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; }
+.msg-sources.none .muted { font: 11.5px var(--mono); }
 
 .campaign-card {
   border: 1px solid var(--accent);

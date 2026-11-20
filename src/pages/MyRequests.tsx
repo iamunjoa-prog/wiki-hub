@@ -90,7 +90,7 @@ export function MyRequests() {
                 <div className="box" />
                 제출한 시스템 등록 요청이 없습니다
                 <button className="btn sm" onClick={() => navigate('/systems')}>
-                  시스템 화면에서 등록하기
+                  시스템 바로가기 화면에서 등록하기
                 </button>
               </div>
             )}

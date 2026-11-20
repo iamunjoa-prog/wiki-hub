@@ -41,7 +41,7 @@ export const scheduleNav: SchedulePlatform[] = [
       },
       { label: '영화/시리즈', path: '/sheets/btv/movie', soon: '개발중' },
       { label: 'TV 방송', path: '/sheets/btv/tv', soon: '개발중' },
-      { label: '캠페인 (ACS)', path: '/sheets/campaign' },
+      { label: '캠페인 신청 캘린더', path: '/sheets/campaign' },
     ],
   },
   {

@@ -93,11 +93,11 @@ export function SearchResults() {
         <div className="ask-assistant">
           <div className="txt">
             {hits.length === 0
-              ? '검색으로 찾지 못했나요? 어시스턴트가 문서 전체를 근거로 정리해 드립니다'
-              : `원하는 답이 없나요? 문서 ${docs.length}건을 근거로 어시스턴트가 정리해 드립니다`}
+              ? '검색으로 찾지 못했나요? 챗봇이 문서 전체를 근거로 정리해 드립니다'
+              : `원하는 답이 없나요? 문서 ${docs.length}건을 근거로 챗봇이 정리해 드립니다`}
           </div>
           <button className="btn accent sm" onClick={() => ask(query)}>
-            어시스턴트에게 묻기
+            챗봇에게 묻기
           </button>
         </div>
 
