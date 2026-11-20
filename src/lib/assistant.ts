@@ -1090,6 +1090,11 @@ export interface AskOptions {
   modeOverride?: 'qa' | 'report'
   /** 화면이 요청을 끊는 신호 — 끊으면 서버가 CLI 를 정리한다 */
   signal?: AbortSignal
+  /** 대화 기록 묶음 — 같은 대화(chatId)·같은 질문(turnId). 엔진을 넘겨 다시 시도해도 같은 turnId 를 쓴다 */
+  chatId?: string
+  turnId?: string
+  /** 칩으로 다시 물은 경로(참고값) — 직접 친 질문이면 없다 */
+  via?: string
 }
 
 async function askEngine(
@@ -1105,7 +1110,7 @@ async function askEngine(
   const cancel = () => ctrl.abort()
   opts.signal?.addEventListener('abort', cancel)
   try {
-    return await requestEngine(query, engine, history, intentAsked, ctrl.signal, opts.modeOverride)
+    return await requestEngine(query, engine, history, intentAsked, ctrl.signal, opts)
   } catch (err) {
     if (opts.signal?.aborted) throw new CancelledError('사용자가 요청을 끊었습니다')
     if (ctrl.signal.aborted) {
@@ -1153,12 +1158,23 @@ async function requestEngine(
   history: ChatTurn[],
   intentAsked: boolean,
   signal: AbortSignal,
-  modeOverride?: 'qa' | 'report',
+  opts: AskOptions,
 ): Promise<AssistantReply> {
+  const { modeOverride, chatId, turnId } = opts
+  // 서버 규칙(40자)을 넘으면 서버가 버린다 — 앞부분만 보낸다
+  const via = opts.via?.slice(0, 40)
   const res = await fetch('/api/ask', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, engine, history: recentHistory(history), ...(modeOverride ? { modeOverride } : {}) }),
+    body: JSON.stringify({
+      query,
+      engine,
+      history: recentHistory(history),
+      ...(modeOverride ? { modeOverride } : {}),
+      ...(chatId ? { chatId } : {}),
+      ...(turnId ? { turnId } : {}),
+      ...(via ? { via } : {}),
+    }),
     signal,
   })
   if (!res.ok) {

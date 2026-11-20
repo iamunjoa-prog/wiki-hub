@@ -7,8 +7,10 @@ import { BigBannerSchedule } from './pages/BigBannerSchedule'
 import { BtvSchedule } from './pages/BtvSchedule'
 import { CampaignApp } from './pages/CampaignApp'
 import { CampaignHandoff } from './pages/CampaignHandoff'
+import { ChatLog } from './pages/ChatLog'
 import { Dashboard } from './pages/Dashboard'
 import { JiraSchedule } from './pages/JiraSchedule'
+import { MyChatLog } from './pages/MyChatLog'
 import { MyRequests } from './pages/MyRequests'
 import { NewDoc } from './pages/NewDoc'
 import { ProposeEdit } from './pages/ProposeEdit'
@@ -48,6 +50,8 @@ export default function App() {
         <Route path="/requests" element={<MyRequests />} />
         <Route path="/approvals" element={<Approvals />} />
         <Route path="/accounts" element={<Accounts />} />
+        <Route path="/my-chat-log" element={<MyChatLog />} />
+        <Route path="/chat-log" element={<ChatLog />} />
         <Route path="/handoff" element={<CampaignHandoff />} />
       </Route>
     </Routes>
