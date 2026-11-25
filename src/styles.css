@@ -602,7 +602,52 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 
 /* ---------- dashboard ---------- */
 
-.dash-wrap { max-width: 1440px; margin: 0 auto; }
+.dash-wrap { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-4); }
+.dash-wrap > .dash-cols { margin-top: 0; }
+
+/* 홈 인사 줄 — 날짜 · 오늘의 큐, 오른쪽에 엔진 상태 한 줄 */
+.dash-greet { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); }
+.dash-greet h1 { margin: 0; font: 800 26px/1.25 var(--mono); word-break: keep-all; }
+.dash-greet h1 .muted { font-weight: 600; }
+.dash-engine { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font: 600 13px var(--mono); color: var(--text-2); }
+.dash-engine:hover { color: var(--text); }
+
+/* 묻기 바 — Enter 는 검색, [묻기]는 큐 어시스턴트에게. 이 화면의 빨간 버튼은 [묻기] 하나 */
+.ask-bar { display: flex; align-items: center; gap: var(--sp-3); height: 56px; padding: 0 8px 0 16px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
+.ask-bar:focus-within { border-color: var(--text); }
+.ask-bar input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: 16px var(--sans); color: var(--text); }
+.ask-bar-hint { flex: none; font: 500 12px var(--mono); color: var(--muted); }
+.btn.ask-bar-btn { flex: none; height: 40px; padding: 0 18px; border-radius: var(--radius-pill); background: var(--onair); border-color: var(--onair); color: var(--on-dark); font-size: 14px; }
+.btn.ask-bar-btn:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.ask-bar-chips { margin-top: calc(var(--sp-2) - var(--sp-4)); }
+
+/* 카테고리 타일 3개 — 왼쪽 띠 + 이름 + 2단 바로가기 */
+.cat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
+.cat-tile { display: flex; flex-direction: column; border: 1px solid var(--border); border-left: 4px solid var(--bar, var(--line)); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.cat-tile-head { display: flex; align-items: center; gap: var(--sp-2); padding: 12px 14px 8px; color: var(--bar, var(--text)); }
+.cat-tile-head b { font: 700 16px var(--mono); color: var(--text); }
+.cat-tile-head:hover b { text-decoration: underline; text-underline-offset: 3px; }
+.cat-tile-count { margin-left: auto; font: 600 13px var(--mono); color: var(--text-2); }
+.cat-tile-body { display: flex; flex-direction: column; padding: 0 14px 12px; font-size: 14px; }
+.cat-tile-body a { display: flex; align-items: center; gap: var(--sp-2); padding: 5px 0; color: var(--text); border-top: 1px solid var(--rowsep); }
+.cat-tile-body a:first-child { border-top: 0; }
+.cat-tile-body a:hover { color: var(--bar, var(--text)); }
+.cat-tile-body a .tc { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.cat-tile-body > .muted { padding: 5px 0; font-size: 13.5px; }
+.cat-tile.is-empty { background: var(--surface-subtle); }
+.cat-tile.is-empty .cat-tile-head b { color: var(--text-2); }
+.dash-queue .kpi b .lamp { vertical-align: 6px; }
+
+/* 최근 갱신 문서 행 — 왼쪽 카테고리 띠 + 타임코드 + 최신성 램프 */
+.row.dash-doc { box-shadow: inset 3px 0 0 var(--bar, transparent); }
+.dash-doc-code { flex: none; width: 76px; font-size: 12px; font-weight: 700; color: var(--bar, var(--text-2)); overflow: hidden; text-overflow: ellipsis; }
+.dash-doc .lamp-label { width: 72px; flex: none; }
+@container (max-width: 720px) {
+  .cat-tiles { grid-template-columns: minmax(0, 1fr); }
+  .dash-doc-by, .ask-bar-hint { display: none; }
+  .dash-greet h1 { font-size: 22px; }
+  .dash-engine { margin-left: 0; }
+}
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .kpi { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--border); text-align: left; background: none; border-top: 0; border-bottom: 0; border-left: 0; }
 .kpi:last-child { border-right: 0; }
