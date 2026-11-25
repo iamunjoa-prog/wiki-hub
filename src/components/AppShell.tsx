@@ -356,17 +356,17 @@ function useSidebarResize() {
   return { width, dragging, startDrag: () => setDragging(true), onKeyDown }
 }
 
-/** 상단바 검색 입력 — 사이드바 고정 줄의 [검색]도 같은 입력으로 포커스를 옮긴다 */
+/** 상단바 검색 입력 — 검색 입구는 이 입력 하나다 (sidebar-top-menu-review 4) */
 const SEARCH_INPUT_ID = 'hub-search'
 
 function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
-  const { session, setRole, proposals, promotions, systemRequests, chatLog, openDock } = useApp()
+  const { session, setRole, proposals, promotions, systemRequests, chatLog } = useApp()
   const { user: account, signOut } = useAuth()
-  const drawer = useContext(DrawerContext)
   // 대화 기록 메뉴는 저장 상태로만 고른다 — 내 PC용 허브는 데모 버튼으로 관리자가 돼도 기록을 읽을 API 가 없다
   const showMyChatLog = chatLog?.mine === true
   const showChatLog = account?.role === 'admin' && chatLog?.enabled === true
   const isAdmin = session.role === 'admin'
+  const showAccounts = account?.role === 'admin'
   const pendingCount =
     (proposals ?? []).filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
@@ -377,12 +377,6 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
     systemRequests.filter((r) => r.status === 'pending' && r.requestedBy === session.name).length
   const { width, dragging, startDrag, onKeyDown } = useSidebarResize()
   const navOn = ({ isActive }: { isActive: boolean }) => `nav-item${isActive ? ' on' : ''}`
-
-  const focusSearch = () => {
-    // 휴대폰 폭에서는 서랍이 검색창을 덮는다 — 닫은 뒤 포커스를 옮긴다
-    drawer.setOpen(false)
-    requestAnimationFrame(() => document.getElementById(SEARCH_INPUT_ID)?.focus())
-  }
 
   return (
     <aside className={`sidebar${drawerOpen ? ' drawer-open' : ''}`} style={{ width }} id="app-sidebar">
@@ -404,38 +398,26 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
         <b className="brand-cue">CUE</b>
         <span className="brand-name">플랫폼 담당 지식 허브</span>
       </div>
-      {/* 자주 쓰는 4개는 메뉴를 펼쳐도 밀리지 않게 스크롤 밖에 둔다 (identity-redesign 3-1) */}
+      {/* 가는 곳만 스크롤 밖에 둔다 — 검색·묻기는 상단바(휴대폰 폭 묻기는 FAB)가 맡는다. 역할은 줄을 더할 뿐 자리를 바꾸지 않는다 (sidebar-top-menu-review 4-1) */}
       <div className="nav-fixed">
-        <button type="button" className="nav-item nav-search" onClick={focusSearch}>
-          <Icon name="search" />
-          검색
-          <span className="kbd">{detectOs() === 'mac' ? '⌘K' : 'Ctrl K'}</span>
-        </button>
         <NavLink to="/" end className={navOn}>
           <Icon name="home" />
           홈
         </NavLink>
-        <button type="button" className="nav-item" onClick={openDock}>
-          <Icon name="ask" />
-          묻기
-          <span className="nav-hint">큐 어시스턴트</span>
-        </button>
-        {/* 관리자는 처리할 일이 먼저다 — 대시보드 요청 칸과 같이 승인 대기로 보낸다. 본인 요청은 '내 기록'에 둔다 */}
-        {isAdmin ? (
+        <NavLink to="/requests" className={navOn}>
+          <Icon name="inbox" />
+          내 요청
+          {myPendingCount > 0 && (
+            <span className="count tc" title={`대기 중 ${myPendingCount}건`}>
+              {myPendingCount}
+            </span>
+          )}
+        </NavLink>
+        {isAdmin && (
           <NavLink to="/approvals" className={navOn}>
-            <Icon name="inbox" />
-            승인 대기
+            <Icon name="check-badge" />
+            승인 관리
             {pendingCount > 0 && <span className="count tc">{pendingCount}</span>}
-          </NavLink>
-        ) : (
-          <NavLink to="/requests" className={navOn}>
-            <Icon name="inbox" />
-            내 요청
-            {myPendingCount > 0 && (
-              <span className="count tc" title={`대기 중 ${myPendingCount}건`}>
-                {myPendingCount}
-              </span>
-            )}
           </NavLink>
         )}
       </div>
@@ -457,33 +439,21 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
           시스템 바로가기
         </NavLink>
 
-        {(showMyChatLog || isAdmin) && (
+        {showMyChatLog && (
           <>
             <div className="label nav-section">내 기록</div>
-            {isAdmin && (
-              <NavLink to="/requests" className={navOn}>
-                <Icon name="inbox" />
-                내 요청
-              </NavLink>
-            )}
-            {showMyChatLog && (
-              <NavLink to="/my-chat-log" className={navOn}>
-                <Icon name="history" />
-                내 대화 기록
-              </NavLink>
-            )}
+            <NavLink to="/my-chat-log" className={navOn}>
+              <Icon name="history" />
+              내 대화 기록
+            </NavLink>
           </>
         )}
 
-        {isAdmin && (
+        {/* 데모 관리자는 로그인 계정이 없어 줄이 0개일 수 있다 — 빈 묶음 제목은 그리지 않는다 */}
+        {isAdmin && (showAccounts || showChatLog) && (
           <>
             <div className="label nav-section">관리</div>
-            <NavLink to="/approvals" className={navOn}>
-              <Icon name="check-badge" />
-              승인 관리
-              <span className="count tc">{pendingCount}</span>
-            </NavLink>
-            {account?.role === 'admin' && (
+            {showAccounts && (
               <NavLink to="/accounts" className={navOn}>
                 <Icon name="users" />
                 계정 관리

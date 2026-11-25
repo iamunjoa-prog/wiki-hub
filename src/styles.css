@@ -227,7 +227,6 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   --cat-prog: #e8b23c;
 }
 .sidebar .label { color: var(--console-muted); }
-.sidebar .kbd { font: 600 11.5px var(--code); color: var(--console-muted); }
 .sidebar .icon { flex: none; color: var(--console-muted); }
 .sidebar .nav-item.on .icon, .sidebar .nav-item:hover .icon { color: inherit; }
 .sidebar.narrow { width: var(--w-sidebar-doc); }
@@ -273,11 +272,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .brand-cue { font: 800 15px var(--code); letter-spacing: 0.08em; color: var(--console-strong); }
 .brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11.5px var(--mono); color: var(--console-muted); }
 
-/* 고정 줄 — 검색·홈·묻기·내 요청. 아래 메뉴를 펼쳐도 첫 화면에 남는다 */
+/* 고정 줄 — 홈·내 요청·승인 관리(관리자). 아래 메뉴를 펼쳐도 첫 화면에 남는다 */
 .nav-fixed { flex: none; display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) 10px; border-bottom: 1px solid var(--console-line); }
-.nav-search { border: 1px solid var(--console-line); margin-bottom: 4px; }
-.nav-search .kbd { margin-left: auto; }
-.nav-hint { margin-left: auto; font: 500 11.5px var(--mono); color: var(--console-muted); }
 
 /* 문서가 많은 카테고리를 펼치면 목록이 화면보다 길어진다.
    nav가 직접 스크롤하지 않으면 로고·푸터가 눌리면서 메뉴 전체가 위로 밀린다. */
