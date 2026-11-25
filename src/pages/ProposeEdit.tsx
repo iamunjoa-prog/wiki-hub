@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkCjkFriendly from 'remark-cjk-friendly'
@@ -8,6 +8,7 @@ import { EngineToggle } from '../components/AssistantDock'
 import { DiffView, diffStats } from '../components/DiffView'
 import { ENGINE_LABEL, requestAiEdit, type AiEditResult } from '../lib/assistant'
 import { brokenAnchorMessage, brokenAnchors, editWarnings, maskLeaks } from '../lib/docEdit'
+import { draftTimeLabel, loadDraft, planRestore, removeDraft, saveDraft, type DraftRestore, type EditDraft } from '../lib/draft'
 import { requestDocEdit, type EditProposalResult } from '../lib/proposeEdit'
 import { hitLines, requestPublicCheck } from '../lib/publicCheck'
 import { useApp } from '../store/AppStore'
@@ -161,6 +162,90 @@ function AiEditBox({
   )
 }
 
+/** 다시 열 때 임시 저장한 수정을 어떻게 할지 묻는다 — 문구는 requests-doc-edit.md 4-1 */
+function DraftRestorePanel({
+  restore,
+  docVersion,
+  onContinue,
+  onDiscard,
+  onMerge,
+}: {
+  restore: { draft: EditDraft; plan: DraftRestore }
+  docVersion: number
+  onContinue: (body: string) => void
+  onDiscard: () => void
+  onMerge: () => void
+}) {
+  const { draft, plan } = restore
+  const when = draftTimeLabel(draft.savedAt)
+  const titles = plan.kind === 'empty' ? [] : plan.titles
+  const titleNote = titles.length > 0 ? ` (${titles.map((t) => `「${t}」`).join(', ')})` : ''
+  const from = `임시 저장한 수정은 v${draft.baseVersion} 기준인데 문서가 v${docVersion}로 바뀌었`
+
+  let message: string
+  if (plan.kind === 'same') message = `${when ? `${when}에 ` : ''}임시 저장한 수정이 있습니다${titleNote}.`
+  else if (plan.kind === 'rebased')
+    message = `${from}습니다. 내가 고친 장은 바뀌지 않아 최신 문서 위에 다시 얹었습니다.`
+  else if (draft.baseVersion === null)
+    message =
+      '임시 저장한 수정이 어느 버전 기준인지 알 수 없습니다. 그 사이 문서가 바뀌었다면 그대로 제출할 때 바뀐 내용을 되돌리게 됩니다.'
+  else message = `${from}고, 내가 고친 장도 바뀌었습니다. 그대로 제출하면 그 사이 바뀐 내용을 되돌리게 됩니다.`
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="label strong">임시 저장한 수정</span>
+      </div>
+      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div className={`banner${plan.kind === 'conflict' ? ' warn' : ''}`} role="status">
+          <b>{message}</b>
+          {plan.kind === 'rebased' && titles.length > 0 && <span>다시 얹은 장: {titles.map((t) => `「${t}」`).join(', ')}</span>}
+          <span>
+            {when ? `${when} 임시 저장 · ` : ''}이 PC의 이 브라우저에만 있고, 아직 제출하지 않았습니다.
+          </span>
+          {plan.kind === 'conflict' && (
+            <span>
+              [나란히 보며 합치기]를 누르면 최신 문서로 시작하고, 옆에 내 임시 저장본을 띄워 둡니다. 필요한 부분만 복사해 옮겨 주세요.
+            </span>
+          )}
+        </div>
+        <div className="form-actions">
+          {plan.kind === 'same' && (
+            <>
+              <button className="btn primary" onClick={() => onContinue(draft.body)}>
+                이어서 고치기
+              </button>
+              <button className="btn" onClick={onDiscard}>
+                버리고 새로 고치기
+              </button>
+            </>
+          )}
+          {plan.kind === 'rebased' && (
+            <>
+              <button className="btn primary" onClick={() => onContinue(plan.body)}>
+                이어서 고치기
+              </button>
+              <button className="btn" onClick={onDiscard}>
+                버리기
+              </button>
+            </>
+          )}
+          {plan.kind === 'conflict' && (
+            <>
+              <button className="btn primary" onClick={onMerge}>
+                나란히 보며 합치기
+              </button>
+              <button className="btn" onClick={onDiscard}>
+                버리기
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function ProposeEdit() {
   const { docId } = useParams()
   const navigate = useNavigate()
@@ -168,7 +253,14 @@ export function ProposeEdit() {
   const doc = docs.find((d) => d.id === docId)
   const [beforeAi, setBeforeAi] = useState<string | null>(null)
 
-  const draftKey = `wikihub.draft.${docId}`
+  // 초안은 계정별로 둔다 — 로그인 없는 데모에서는 데모 계정 아이디를 쓴다
+  const accountId = session.loginId ?? session.userId
+  /** 다시 열 때 고를 때까지 편집 칸을 열지 않는다 — 옛 초안이 묻지 않고 열리면 그 사이 바뀐 내용을 되돌린다 */
+  const [restore, setRestore] = useState<{ draft: EditDraft; plan: DraftRestore } | null>(null)
+  /** [나란히 보며 합치기] 때 옆에 두는 옛 초안 — 읽기 전용 */
+  const [mergeRef, setMergeRef] = useState<EditDraft | null>(null)
+  const [copied, setCopied] = useState(false)
+  const loadedFor = useRef<string | null>(null)
   const [step, setStep] = useState<1 | 2>(1)
   const [tab, setTab] = useState<'edit' | 'preview'>('edit')
   const [body, setBody] = useState('')
@@ -193,18 +285,31 @@ export function ProposeEdit() {
   }, [doc, docs, body, step])
 
   useEffect(() => {
-    if (!doc) return
-    setBody(localStorage.getItem(draftKey) ?? doc.body)
-  }, [doc, draftKey])
+    if (!doc || !docId) return
+    // 문서 목록이 다시 그려져도 고른 결과를 되묻지 않게 계정·문서·버전마다 한 번만 읽는다
+    const loadKey = `${accountId}.${docId}@${doc.version}`
+    if (loadedFor.current === loadKey) return
+    loadedFor.current = loadKey
+    setBody(doc.body)
+    setRestore(null)
+    setMergeRef(null)
+    const draft = loadDraft(accountId, docId)
+    if (!draft) return
+    const plan = planRestore(draft, doc.version, doc.body)
+    if (plan.kind === 'empty') removeDraft(accountId, docId)
+    else setRestore({ draft, plan })
+  }, [doc, docId, accountId])
 
   useEffect(() => {
-    if (!doc || !body || body === doc.body) return
+    if (!doc || !docId || restore || !body || body === doc.body) return
     const t = setTimeout(() => {
-      localStorage.setItem(draftKey, body)
-      setSavedAt(new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
+      // 고르고 난 뒤의 편집은 늘 지금 화면의 문서 기준이다
+      const now = new Date()
+      saveDraft(accountId, docId, { baseVersion: doc.version, baseBody: doc.body, body, savedAt: now.toISOString() })
+      setSavedAt(now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     }, 2000)
     return () => clearTimeout(t)
-  }, [body, doc, draftKey])
+  }, [body, doc, docId, accountId, restore])
 
   if (!doc) {
     return (
@@ -230,7 +335,7 @@ export function ProposeEdit() {
     try {
       const res = await requestDocEdit(doc, body, reason.trim(), session.name)
       // 초안은 PR 이 실제로 만들어진 뒤에만 지운다 — 실패하면 긴 수정이 그대로 남아야 한다
-      localStorage.removeItem(draftKey)
+      removeDraft(accountId, docId!)
       setResult(res)
     } catch (err) {
       setSubmitError({ message: (err as Error).message, status: (err as { status?: number }).status })
@@ -287,7 +392,26 @@ export function ProposeEdit() {
           </span>
         </div>
 
-        {step === 1 ? (
+        {step === 1 && restore ? (
+          <DraftRestorePanel
+            restore={restore}
+            docVersion={doc.version}
+            onContinue={(next) => {
+              setBody(next)
+              setRestore(null)
+            }}
+            onDiscard={() => {
+              removeDraft(accountId, doc.id)
+              setBody(doc.body)
+              setRestore(null)
+            }}
+            onMerge={() => {
+              setMergeRef(restore.draft)
+              setBody(doc.body)
+              setRestore(null)
+            }}
+          />
+        ) : step === 1 ? (
           <div className="panel">
             <div className="panel-head">
               <button
@@ -303,7 +427,9 @@ export function ProposeEdit() {
                 미리보기
               </button>
               <span className="mono muted" style={{ marginLeft: 'auto', fontSize: 10.5 }}>
-                {savedAt ? `자동 임시저장 · ${savedAt}` : '변경 시 자동 임시저장'}
+                {savedAt
+                  ? `임시 저장됨 · ${savedAt} · 이 PC의 이 브라우저에만 있습니다. 아직 제출하지 않았습니다.`
+                  : '고치면 이 브라우저에 자동으로 임시 저장합니다'}
               </span>
             </div>
 
@@ -323,19 +449,64 @@ export function ProposeEdit() {
                 }}
                 onReview={() => setStep(2)}
               />
-              {tab === 'edit' ? (
-                <textarea
-                  className="field"
-                  style={{ minHeight: 380 }}
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  aria-label="마크다운 편집"
-                />
-              ) : (
-                <div className="md" style={{ minHeight: 380 }}>
-                  <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}>{body}</ReactMarkdown>
+              {mergeRef && (
+                <div className="banner warn" role="status" style={{ marginBottom: 10 }}>
+                  <b>최신 문서(v{doc.version})로 시작했습니다.</b>
+                  <span>
+                    오른쪽 임시 저장본에서 내가 고친 부분을 복사해 왼쪽에 옮겨 주세요. 오른쪽은 고칠 수 없고, 아직 제출하지
+                    않았습니다.
+                  </span>
                 </div>
               )}
+              <div style={mergeRef ? { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 } : undefined}>
+                {tab === 'edit' ? (
+                  <textarea
+                    className="field"
+                    style={{ minHeight: 380 }}
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    aria-label="마크다운 편집"
+                  />
+                ) : (
+                  <div className="md" style={{ minHeight: 380 }}>
+                    <ReactMarkdown remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}>{body}</ReactMarkdown>
+                  </div>
+                )}
+                {mergeRef && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span className="label strong">
+                        내 임시 저장본{mergeRef.baseVersion !== null ? ` (v${mergeRef.baseVersion} 기준)` : ''} · 읽기 전용
+                      </span>
+                      <button
+                        className="btn sm"
+                        style={{ marginLeft: 'auto' }}
+                        onClick={() => {
+                          navigator.clipboard
+                            ?.writeText(mergeRef.body)
+                            .then(() => {
+                              setCopied(true)
+                              setTimeout(() => setCopied(false), 1500)
+                            })
+                            .catch(() => setCopied(false))
+                        }}
+                      >
+                        {copied ? '복사됨' : '전체 복사'}
+                      </button>
+                      <button className="btn sm" onClick={() => setMergeRef(null)}>
+                        닫기
+                      </button>
+                    </div>
+                    <textarea
+                      className="field"
+                      style={{ minHeight: 350, flex: 1 }}
+                      value={mergeRef.body}
+                      readOnly
+                      aria-label="내 임시 저장본 (읽기 전용)"
+                    />
+                  </div>
+                )}
+              </div>
 
               <div className="form-actions" style={{ marginTop: 14 }}>
                 <button className="btn primary" disabled={!stats.changed} onClick={() => setStep(2)}>
