@@ -16,5 +16,8 @@
       "maxDuration": 60
     }
   },
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/api/docVersion", "destination": "/api/proposeEdit?op=docVersion" },
+    { "source": "/((?!api/).*)", "destination": "/index.html" }
+  ]
 }

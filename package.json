@@ -5,10 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
+    "build": "node scripts/check-api-count.mjs && tsc -b && tsc -p tsconfig.server.json && vite build",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "preview": "vite preview",
-    "check:anchors": "node scripts/check-anchors.mjs"
+    "check:anchors": "node scripts/check-anchors.mjs",
+    "check:api-count": "node scripts/check-api-count.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.22.0",

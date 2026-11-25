@@ -1,6 +1,6 @@
-import { guardApi, RATE_PR } from '../server/guard.js'
+import { guardApi, RATE_DOC_VERSION, RATE_PR } from '../server/guard.js'
 import { readGithubToken } from '../server/env.js'
-import { createEditPR, EditError, editErrorBody, parseEditDocInput, PublicLeakError } from '../server/github.js'
+import { createEditPR, docVersionReply, EditError, editErrorBody, parseEditDocInput, PublicLeakError } from '../server/github.js'
 import { MAX_PR_BYTES } from '../server/knowledge.js'
 import { hitCounts } from '../server/publicCheck.js'
 
@@ -41,4 +41,21 @@ export async function POST(request: Request): Promise<Response> {
     console.error('[api/proposeEdit]', err)
     return error(502, (err as Error).message)
   }
+}
+
+/**
+ * GET /api/docVersion — 편집 진입 때 main 의 최신 버전·본문. 화면 번들이 머지 뒤 재배포 전이라 낡았어도 제출 409 를 미리 막는다.
+ * Vercel 무료 계정 함수 12개 제한 때문에 따로 두지 않고 여기서 받는다 — vercel.json rewrites 가 이 함수로 보낸다.
+ * 로컬 허브에서는 server/cliBridge.ts 의 /api/docVersion 중계가 같은 함수로 같은 응답을 만든다.
+ */
+export async function GET(request: Request): Promise<Response> {
+  // 읽기지만 GitHub 토큰을 쓴다 — 운영에서 계정 기능이 꺼지면 닫고, 다른 사이트가 부르지 못하게 하고, 횟수를 센다
+  const guard = await guardApi(request, { paid: true, rate: RATE_DOC_VERSION })
+  if (!guard.ok) return guard.response
+
+  const reply = await docVersionReply(new URL(request.url, 'http://localhost').searchParams.get('path'), {
+    token: readGithubToken(),
+    onError: (message) => console.error('[api/docVersion]', message),
+  })
+  return Response.json(reply.body, { status: reply.status, headers: { 'Cache-Control': 'no-store' } })
 }

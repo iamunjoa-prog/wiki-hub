@@ -1227,7 +1227,7 @@ export function cliBridge(): Plugin {
         }
       })
 
-      // 편집 진입 때 main 의 최신 버전·본문 — 배포 api/docVersion.ts 와 같은 함수로 같은 응답을 만든다
+      // 편집 진입 때 main 의 최신 버전·본문 — 배포 api/proposeEdit.ts 의 GET(vercel.json rewrites)과 같은 함수로 같은 응답을 만든다
       server.middlewares.use('/api/docVersion', async (req, res) => {
         if (req.method !== 'GET') {
           res.statusCode = 405
