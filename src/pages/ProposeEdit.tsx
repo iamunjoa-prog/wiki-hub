@@ -319,7 +319,7 @@ export function ProposeEdit() {
     const t = setTimeout(() => {
       // 고르고 난 뒤의 편집은 늘 지금 화면의 문서 기준이다
       const now = new Date()
-      saveDraft(accountId, docId, { baseVersion: doc.version, baseBody: doc.body, body, savedAt: now.toISOString() })
+      saveDraft(accountId, docId, { baseVersion: doc.version, baseBody: doc.body, body, reason, savedAt: now.toISOString() })
       setSavedAt(now.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }))
     }, 2000)
     return () => clearTimeout(t)
