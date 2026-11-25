@@ -767,7 +767,7 @@ function knowledgeEditReply(query: string, kind: KnowledgeEditKind): AssistantRe
   const flow = docs.find((d) => d.code === 'HUB-02')
   const category = mentionedCategory(query)
   const newLine = '· 새 문서는 위키 문서 목록의 **+ 새 문서**에서 씁니다.'
-  const fixLine = '· 기존 문서는 그 문서 화면의 **✎ 수정 제안**에서 고칩니다.'
+  const fixLine = '· 기존 문서는 그 문서 화면의 **✎ 고치기**(또는 장 제목 옆 **✎ 이 장 고치기**)에서 고칩니다.'
   const lines = [
     '위키 문서는 대화로 바로 고칠 수 없고, 화면에서 제출합니다.',
     ...(kind === 'new' ? [newLine, fixLine] : [fixLine, newLine]),

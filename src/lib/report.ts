@@ -167,7 +167,7 @@ export const reflectStartText = (title: string) =>
 export const REFLECT_HOW_TEXT =
   '리포트 카드의 [위키에 반영 요청]을 누르면 새 문서 화면이 리포트 내용으로 채워져 열립니다. 제출하면 관리자가 승인(머지)한 뒤 다음 배포 때 위키에 보입니다.'
 export const REFLECT_FIX_TEXT = '말씀하신 고칠 점은 새 문서 화면에서 직접 고쳐 주세요. 리포트 내용을 자동으로 바꾸지는 않습니다.'
-export const REFLECT_EXISTING_TEXT = '리포트는 새 문서로만 올라갑니다. 기존 문서를 고치려면 그 문서의 [✎ 수정 제안]을 써 주세요.'
+export const REFLECT_EXISTING_TEXT = '리포트는 새 문서로만 올라갑니다. 기존 문서를 고치려면 그 문서의 [✎ 고치기]를 써 주세요.'
 
 /* ── 반영본 만들기 (6절) — 브라우저 안에서 규칙대로만 바꾼다 ── */
 
