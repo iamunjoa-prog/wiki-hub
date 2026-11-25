@@ -1,6 +1,6 @@
 import { Children, isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkCjkFriendly from 'remark-cjk-friendly'
@@ -9,7 +9,7 @@ import { TopBar } from '../components/AppShell'
 import { DocEditPanel, DraftBanner, PendingProposalsNote, useEditChecks } from '../components/DocEditPanel'
 import { SectionEditor } from '../components/SectionEditor'
 import { SubmitDoneDialog, SubmitEditDialog, type EditBase } from '../components/SubmitEditDialog'
-import { categories, categoryShort, docCommits, subcategories } from '../data/docs'
+import { docCommits } from '../data/docs'
 import type { AiEditResult } from '../lib/assistant'
 import { defaultEditReason, headingId, headingPlain, sectionAnchor, sectionChanges, sectionLabel, sectionTitleOf } from '../lib/docEdit'
 import {
@@ -525,15 +525,6 @@ function WikiDocPage() {
 
   const commits = docCommits[doc.id] ?? [{ version: doc.version, author: doc.updatedBy, at: doc.updatedAt, message: '문서 등록' }]
 
-  // 현재 위치 — 위키 문서 › 카테고리 › 서브메뉴. 각 칸은 그 목록으로 간다
-  const subs = subcategories[doc.category] ?? []
-  const sub = subs.length > 0 ? (subs.find((s) => s.id === doc.subcategory) ?? { id: '__unassigned__', label: '기타' }) : null
-  const crumbs = [
-    { label: '위키 문서', to: '/wiki' },
-    { label: categories.find((c) => c.id === doc.category)?.label ?? categoryShort[doc.category], to: `/wiki?category=${doc.category}` },
-    ...(sub ? [{ label: sub.label, to: `/wiki?category=${doc.category}&sub=${sub.id}` }] : []),
-  ]
-
   const tocLinks = (onPick?: () => void) =>
     headings.map((h, i) => {
       const id = headingId(h.text)
@@ -669,14 +660,6 @@ function WikiDocPage() {
             )}
             <div className="doc-head">
               <div className="doc-title">
-                <nav className="crumb" aria-label="현재 위치">
-                  {crumbs.map((c, i) => (
-                    <span key={c.to}>
-                      {i > 0 && <span className="crumb-sep">›</span>}
-                      <Link to={c.to}>{c.label}</Link>
-                    </span>
-                  ))}
-                </nav>
                 <h1>{doc.title}</h1>
                 <div className="doc-meta">
                   <span className="tag">{doc.code}</span>

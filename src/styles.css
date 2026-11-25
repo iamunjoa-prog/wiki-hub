@@ -524,10 +524,42 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   gap: 10px;
   height: var(--h-topbar);
   flex: none;
-  padding: 0 12px;
+  padding: 0 var(--sp-3);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
+/* 위치 · 검색(최대 560) · 오늘 · 묻기 (identity-redesign 3-2) */
+.topbar-crumb {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font: 600 13px var(--mono);
+  color: var(--text-2);
+}
+.topbar-crumb > span { display: inline-flex; align-items: center; min-width: 0; }
+.topbar-crumb > span.here { color: var(--text); overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+.topbar-crumb a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.search-input.topbar-search { flex: 0 1 560px; color: var(--muted); }
+.topbar-extra { flex: none; display: flex; align-items: center; gap: var(--sp-2); }
+.topbar-date { flex: none; font: 600 13px var(--mono); color: var(--text-2); }
+.topbar-date .tc { color: var(--text); }
+.topbar-date-tz { margin-left: 4px; font: 500 10.5px var(--code); color: var(--muted); }
+.btn.topbar-ask {
+  position: relative;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--onair);
+  border-color: var(--onair);
+  color: var(--on-dark);
+  padding: 6px 14px;
+}
+.btn.topbar-ask:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.topbar-ask.line { background: var(--surface); border-color: var(--line); color: var(--text); }
+.btn.topbar-ask.line:hover:not(:disabled) { background: var(--surface); border-color: var(--text); }
+.topbar-ask .fab-badge { top: -10px; right: -6px; }
 
 .search-input {
   flex: 1;
@@ -721,8 +753,6 @@ button.row:hover { background: var(--surface-subtle); }
 .doc-toc-inline-list a.on { color: var(--text); font-weight: 600; }
 
 /* 현재 위치 줄 — 편성/스케줄 경로 줄과 같은 라벨 글자. 각 칸은 해당 목록으로 가는 링크 */
-.crumb { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 6px; font: 600 12.5px var(--mono); letter-spacing: 0.04em; color: var(--text-2); word-break: keep-all; }
-.crumb a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .crumb-sep { margin: 0 6px; color: var(--muted); }
 
 .doc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
@@ -997,20 +1027,22 @@ textarea.field.edit-reference { min-height: 140px; font: 12.5px/1.6 var(--code);
   height: 46px;
   padding: 0 18px 0 16px;
   border: 0;
-  border-radius: 999px;
-  background: var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--onair);
   color: var(--on-dark);
   font: 600 14.5px var(--sans);
-  box-shadow: 0 6px 20px rgba(234, 0, 44, 0.3);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--onair) 30%, transparent);
   transition: transform 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
-.fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(234, 0, 44, 0.36); }
+.fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 8px 24px color-mix(in srgb, var(--onair) 36%, transparent); }
+/* 넓은 화면은 상단바 [묻기]를 쓴다 — 떠 있는 버튼은 휴대폰 폭에서만 */
+@media (min-width: 761px) { .fab { display: none; } }
 .fab-badge {
   position: absolute;
   right: 8px;
   top: -12px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--text);
   color: var(--on-dark);
   font: 600 11.5px var(--sans);
@@ -1828,6 +1860,12 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .drawer-backdrop { display: none; }
 @media (max-width: 760px) {
   .nav-burger { display: inline-flex; }
+  /* 휴대폰 폭: 메뉴·검색 한 줄 + 위치 한 줄. 날짜는 접고 묻기는 떠 있는 버튼이 맡는다 */
+  .topbar { flex-wrap: wrap; height: auto; min-height: var(--h-topbar); padding-top: 8px; padding-bottom: 6px; row-gap: 4px; }
+  .search-input.topbar-search { flex: 1 1 0; min-width: 0; }
+  .topbar-crumb { order: 10; flex-basis: 100%; font-size: 12px; }
+  .topbar-crumb:empty { display: none; }
+  .topbar-date, .btn.topbar-ask { display: none; }
   .sidebar {
     position: fixed;
     top: 0;

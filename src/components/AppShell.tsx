@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
@@ -533,12 +533,98 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
   )
 }
 
-export function TopBar({ children }: { children?: React.ReactNode }) {
+/* ---------- 상단바 ---------- */
+
+type Crumb = { label: string; to?: string }
+
+/** 화면 이름 — 사이드바 메뉴 이름과 같게 둔다 */
+const PAGE_LABEL: Record<string, string> = {
+  '/jira-schedule': 'Jira 스케줄 확인',
+  '/systems': '시스템 바로가기',
+  '/requests': '내 요청',
+  '/approvals': '승인 관리',
+  '/accounts': '계정 관리',
+  '/my-chat-log': '내 대화 기록',
+  '/chat-log': '대화 기록',
+  '/search': '검색 결과',
+  '/handoff': '프로모션 자동화',
+}
+
+/** 지금 위치(빵부스러기) — 문서 본문 안에 있던 것을 모든 화면의 상단바로 올렸다 (identity-redesign 3-2) */
+function useCrumbs(): Crumb[] {
+  const { docs } = useApp()
+  const { pathname } = useLocation()
+  const [params] = useSearchParams()
+  if (pathname === '/') return [{ label: '홈' }]
+  if (pathname.startsWith('/wiki')) {
+    const wiki: Crumb = { label: '위키', to: '/wiki' }
+    if (pathname === '/wiki/new') return [wiki, { label: '새 문서' }]
+    const docId = pathname.startsWith('/wiki/') ? pathname.split('/')[2] : null
+    const doc = docId ? docs.find((d) => d.id === docId) : undefined
+    const catId = doc?.category ?? params.get('category')
+    const cat = categories.find((c) => c.id === catId)
+    if (!cat) return [wiki]
+    const subs = subcategories[cat.id] ?? []
+    const subId = doc ? doc.subcategory : params.get('sub')
+    // 서브메뉴가 있는 카테고리인데 소속이 없는 문서는 사이드바처럼 '기타'로 보인다
+    const sub = doc
+      ? subs.length > 0
+        ? (subs.find((s) => s.id === subId) ?? { id: '__unassigned__', label: '기타' })
+        : null
+      : (subs.find((s) => s.id === subId) ?? null)
+    return [
+      wiki,
+      { label: cat.label, to: `/wiki?category=${cat.id}` },
+      ...(sub ? [{ label: sub.label, to: `/wiki?category=${cat.id}&sub=${sub.id}` }] : []),
+    ]
+  }
+  if (pathname.startsWith('/sheets')) {
+    const trail = scheduleTrail(pathname)
+    const root: Crumb = { label: '편성/스케줄', to: '/sheets' }
+    if (trail) return [root, ...trail.slice(1).map((label) => ({ label }))]
+    if (pathname === '/sheets/new') return [root, { label: '편성표 등록' }]
+    if (pathname === '/sheets/campaign') return [root, { label: '캠페인 신청 캘린더' }]
+    return [root]
+  }
+  const label = PAGE_LABEL[pathname]
+  return label ? [{ label }] : []
+}
+
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
+
+/** 오늘 날짜·요일(KST) — 편성 실무자는 날짜로 일한다. 자정을 넘겨도 맞게 1분마다 다시 잰다 */
+function TodayKst() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+  const kst = new Date(now + 9 * 60 * 60 * 1000)
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(kst.getUTCDate()).padStart(2, '0')
+  return (
+    <span className="topbar-date" title="오늘 (한국 시간)">
+      <span className="tc">
+        {mm}.{dd}
+      </span>{' '}
+      {WEEKDAY[kst.getUTCDay()]}
+      <span className="topbar-date-tz">KST</span>
+    </span>
+  )
+}
+
+/**
+ * 상단바 — 위치 · 검색 · 오늘 · 묻기.
+ * `ask="line"` 은 화면 안에 이미 빨간 묻기 버튼이 있을 때(홈 묻기 바) — 빨강 덩어리는 화면당 하나
+ */
+export function TopBar({ children, ask = 'onair' }: { children?: React.ReactNode; ask?: 'onair' | 'line' }) {
   const navigate = useNavigate()
   const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
   const drawer = useContext(DrawerContext)
+  const { assistant, openDock } = useApp()
+  const crumbs = useCrumbs()
 
   useEffect(() => {
     if (!location.pathname.startsWith('/search')) setQ('')
@@ -568,26 +654,42 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
           <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
+      <nav className="topbar-crumb" aria-label="현재 위치">
+        {crumbs.map((c, i) => (
+          <span key={`${i}-${c.label}`} className={i === crumbs.length - 1 ? 'here' : undefined}>
+            {i > 0 && <span className="crumb-sep">›</span>}
+            {c.to && i < crumbs.length - 1 ? <Link to={c.to}>{c.label}</Link> : c.label}
+          </span>
+        ))}
+      </nav>
       <form
-        className="search-input"
+        className="search-input topbar-search"
         onSubmit={(e) => {
           e.preventDefault()
           if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`)
         }}
       >
-        <span className="mono muted">⌕</span>
+        <Icon name="search" />
         <input
           ref={inputRef}
           id={SEARCH_INPUT_ID}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="지식 문서 검색"
-          aria-label="지식 문서 검색"
+          placeholder="문서·코드·구좌 검색"
+          aria-label="문서·코드·구좌 검색"
         />
         {/* 실무자 PC는 Windows다 — 맥이 아니면 Ctrl 로 보여 준다(단축키는 둘 다 받는다) */}
         <span className="kbd">{detectOs() === 'mac' ? '⌘K' : 'Ctrl K'}</span>
       </form>
-      {children}
+      {children && <div className="topbar-extra">{children}</div>}
+      <TodayKst />
+      {!assistant.open && (
+        <button type="button" className={`btn topbar-ask${ask === 'line' ? ' line' : ''}`} onClick={openDock} title="큐 어시스턴트에게 묻기 — 위키 문서를 근거로 답해요">
+          <Icon name="ask" />
+          묻기
+          {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
+        </button>
+      )}
     </div>
   )
 }
@@ -621,11 +723,10 @@ export function AppShell() {
         {assistant.open ? (
           <AssistantDock />
         ) : (
-          <button className="fab" onClick={openDock} title="무엇이든 물어보세요 — 편성·프로모션 챗봇">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
-            </svg>
-            챗봇
+          // 넓은 화면에서는 상단바 [묻기]로 옮겼다 — 휴대폰 폭(760px 이하)에서만 떠 있는 버튼을 남긴다
+          <button className="fab" onClick={openDock} title="큐 어시스턴트에게 묻기 — 위키 문서를 근거로 답해요">
+            <Icon name="ask" />
+            묻기
             {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
           </button>
         )}
