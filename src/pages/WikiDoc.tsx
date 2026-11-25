@@ -642,7 +642,7 @@ function WikiDocPage() {
               {!editing && (
                 // 지금 읽는 장을 열고 편집 모드로 — 페이지를 옮기지 않는다
                 <button className="btn sm primary" onClick={() => setEditParam(activeHeading ?? 'all', false)}>
-                  ✎ 수정 제안
+                  ✎ 고치기
                 </button>
               )}
             </div>
