@@ -470,7 +470,7 @@ export async function readDocVersion(docPath: string, opts: { token: string; env
 }
 
 /**
- * 버전 조회의 상태·본문 — 배포 api/docVersion.ts 와 로컬 중계가 이 한 함수로 같은 응답을 만든다.
+ * 버전 조회의 상태·본문 — 배포 api/proposeEdit.ts 의 GET 과 로컬 중계가 이 한 함수로 같은 응답을 만든다.
  * GitHub 원문 오류는 onError(로그)로만 넘기고 화면에는 분류된 문장과 code 를 준다
  */
 export async function docVersionReply(
