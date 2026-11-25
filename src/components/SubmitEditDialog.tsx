@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ChangeCardList, changeCount } from './ChangeCards'
 import { DiffView } from './DiffView'
 import { publicItems, type EditChecks } from './DocEditPanel'
 import { sectionLabel, type SectionChange } from '../lib/docEdit'
@@ -25,7 +26,7 @@ type Stale =
 const titleList = (titles: string[]) => titles.map((t) => `「${sectionLabel(t)}」`).join(', ')
 
 /**
- * 제출 확인 창 — 화면 가운데에 뜨고 페이지는 그대로다(doc-editing 2절 ③). 비교는 1차 허용안대로 장 단위 DiffView.
+ * 제출 확인 창 — 화면 가운데에 뜨고 페이지는 그대로다(doc-editing 2절 ③). 비교는 보이는 글 전/후 카드(바뀐 블록만), 마크다운 줄 비교는 [원문 비교(고급)].
  * 차단이 있으면 [제출]이 꺼진다. 409 는 같은 창 안에서 최신본에 다시 얹거나 겹친 장만 나란히 보여 준다
  */
 export function SubmitEditDialog({
@@ -71,6 +72,7 @@ export function SubmitEditDialog({
   const [stale, setStale] = useState<Stale | null>(null)
   const [showTheirs, setShowTheirs] = useState(false)
   const [diffMode, setDiffMode] = useState<'inline' | 'split'>('inline')
+  const [rawDiff, setRawDiff] = useState(false)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -240,19 +242,30 @@ export function SubmitEditDialog({
           )}
 
           <div className="form-actions">
-            <span className="label strong">바뀐 곳 {changes.length}</span>
-            <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setDiffMode((m) => (m === 'inline' ? 'split' : 'inline'))}>
-              {diffMode === 'inline' ? '좌우로 보기' : '한 줄로 보기'}
+            <span className="label strong">바뀐 곳 {changeCount(changes)}</span>
+            <span style={{ marginLeft: 'auto' }} />
+            {rawDiff && (
+              <button className="btn sm" onClick={() => setDiffMode((m) => (m === 'inline' ? 'split' : 'inline'))}>
+                {diffMode === 'inline' ? '좌우로 보기' : '한 줄로 보기'}
+              </button>
+            )}
+            <button className="btn sm" aria-pressed={rawDiff} onClick={() => setRawDiff((v) => !v)}>
+              {rawDiff ? '보이는 글로 비교' : '원문 비교(고급)'}
             </button>
           </div>
-          {changes.map((c) => (
-            <div key={`${c.kind}-${c.key}`} className="submit-change">
-              <span className="label">
-                「{sectionLabel(c.title)}」 · {kindLabel[c.kind]}
-              </span>
-              <DiffView before={c.before} after={c.after} leftLabel={`원본 v${base.version}`} rightLabel="내 수정" mode={diffMode} />
-            </div>
-          ))}
+          {/* 기본은 보이는 글 전/후 카드 — 마크다운 줄 비교는 고급으로 남긴다 */}
+          {rawDiff ? (
+            changes.map((c) => (
+              <div key={`${c.kind}-${c.key}`} className="submit-change">
+                <span className="label">
+                  「{sectionLabel(c.title)}」 · {kindLabel[c.kind]}
+                </span>
+                <DiffView before={c.before} after={c.after} leftLabel={`원본 v${base.version}`} rightLabel="내 수정" mode={diffMode} />
+              </div>
+            ))
+          ) : (
+            <ChangeCardList changes={changes} />
+          )}
 
           {blockItems.length > 0 && (
             <div className="banner danger" role="alert">

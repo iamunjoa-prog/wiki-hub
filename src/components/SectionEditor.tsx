@@ -1,11 +1,17 @@
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react'
+import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { EngineToggle } from './AssistantDock'
-import { DiffView, diffStats } from './DiffView'
+import { changeSummary } from './ChangeCards'
+import { DiffView } from './DiffView'
+import { EditIcon } from './EditIcons'
 import { requestAiEdit, type AiEditResult } from '../lib/assistant'
-import { sectionLabel } from '../lib/docEdit'
+import { changeCards } from '../lib/blocks'
+import { sectionAnchor, sectionLabel } from '../lib/docEdit'
 import { splitSections } from '../lib/draft'
 import { useApp } from '../store/AppStore'
 import type { WikiDoc } from '../types'
+
+// 블록 편집 면은 편집 모드에 들어갈 때만 불러온다 — 읽기만 하는 화면의 첫 로딩을 무겁게 하지 않게(doc-editing 7절 R3)
+const BlockSurface = lazy(() => import('./BlockEditor'))
 
 /** AI 가 돌려준 장 — 장 밖(다른 장·머리말)을 만들어 왔으면 받지 않는다(doc-editing 2절 ②, 1차 규칙) */
 function sameShape(before: string, after: string) {
@@ -20,18 +26,24 @@ function keepTrailing(before: string, after: string) {
   return after.replace(/\s+$/, '') + tail
 }
 
+export type AiSuggestion = AiEditResult
+
 /**
- * 장 하나만 AI 에게 보낸다. 결과는 바로 넣지 않고 그 장 안에 제안으로 보인다 — [받기]를 눌러야 편집 칸에 들어간다.
- * 서버 /api/edit 는 그대로 쓴다(장 원문을 본문 자리에 보낸다)
+ * 장 하나만 AI 에게 보낸다(/api/edit 의 section — 장 원문과 문서 장 제목 순서). 결과는 바로 넣지 않고 그 장 안에 제안으로 보인다 —
+ * [받기]를 눌러야 편집 칸에 들어간다
  */
 function SectionAi({
   doc,
+  docBody,
+  outline,
   title,
   text,
   onSuggest,
   onClose,
 }: {
   doc: WikiDoc
+  docBody: string
+  outline: string[]
   title: string
   text: string
   onSuggest: (result: AiEditResult) => void
@@ -48,10 +60,10 @@ function SectionAi({
     setBusy(true)
     setError(null)
     try {
-      const result = await requestAiEdit(doc, text, instruction.trim(), engines)
+      const result = await requestAiEdit(doc, docBody, instruction.trim(), engines, { body: text, title, anchor: sectionAnchor(title), outline })
       const next = keepTrailing(text, result.body)
-      if (!sameShape(text, next)) setError('AI가 이 장 밖까지 바꿔 와서 받지 않았어요. 이 장 밖은 고치지 않았어요. 부탁을 조금 바꿔 다시 해 주세요.')
-      else if (next === text) setError('바뀐 줄이 없는 결과가 나왔어요. 무엇을 무엇으로 바꿀지 한 번 더 알려 주세요.')
+      if (!sameShape(text, next)) setError('AI가 이 장 밖까지 바꿔 와서 받지 않았어요. 부탁을 이 장 안의 일로 좁혀 다시 해 주세요')
+      else if (next === text) setError('바뀐 곳이 없는 결과가 나왔어요. 무엇을 무엇으로 바꿀지 한 번 더 알려 주세요.')
       else {
         onSuggest({ ...result, body: next })
         setInstruction('')
@@ -109,64 +121,130 @@ function SectionAi({
   )
 }
 
-/** 장 편집 칸 — 1차는 장 원문 textarea + 바로 옆 결과 미리보기(doc-editing 6절 1-2) */
+/** 되돌리기 기록 — 0.8초 안에 이어 친 글자는 한 번으로 묶는다 */
+function useUndo(text: string) {
+  const stack = useRef<string[]>([])
+  const last = useRef(text)
+  const lastAt = useRef(0)
+  const skip = useRef(false)
+  const [depth, setDepth] = useState(0)
+  useEffect(() => {
+    if (text === last.current) return
+    if (skip.current) skip.current = false
+    else {
+      const now = Date.now()
+      if (now - lastAt.current > 800 || stack.current.length === 0) stack.current.push(last.current)
+      lastAt.current = now
+    }
+    last.current = text
+    setDepth(stack.current.length)
+  }, [text])
+  const pop = () => {
+    const prev = stack.current.pop()
+    setDepth(stack.current.length)
+    if (prev === undefined) return null
+    skip.current = true
+    lastAt.current = 0
+    return prev
+  }
+  return { canUndo: depth > 0, pop }
+}
+
+/**
+ * 장 편집 칸 — 기본은 보이는 모양 그대로 고치는 블록 편집(2차). 원문 보기(고급)면 1차의 장 원문 textarea + 바로 옆 결과 미리보기.
+ * 어느 쪽으로 고쳐도 장 원문 하나(text)만 바뀌므로 검사·바뀐 곳 목록·임시 저장이 같다
+ */
 export const SectionEditor = memo(function SectionEditor({
   doc,
+  docBody,
+  outline,
   slot,
   title,
   text,
   baseText,
-  preview,
+  preamble,
+  mode,
+  showMarks,
+  renderMd,
   onChange,
   onClose,
   onAccept,
+  onWholeRaw,
 }: {
   doc: WikiDoc
+  /** AI 에 함께 보내는 문서 전체 지금 본문 */
+  docBody: string
+  /** 문서 장 제목 순서 — AI 가 용어를 다른 장과 맞추는 데만 */
+  outline: string[]
   slot: number
   title: string
   text: string
-  /** 편집을 시작할 때의 이 장 — 되돌리기 기준 */
+  /** 편집을 시작할 때의 이 장 — 되돌리기·바뀐 곳 칠 기준. 새로 생긴 장이면 null */
   baseText: string | null
-  preview: ReactNode
+  preamble: boolean
+  mode: 'blocks' | 'raw'
+  showMarks: boolean
+  renderMd: (text: string, preamble: boolean) => ReactNode
   onChange: (slot: number, text: string) => void
   onClose: (slot: number) => void
   /** AI 제안을 받았을 때 — 사유가 비어 있으면 AI 요약으로 채운다 */
   onAccept: (slot: number, result: AiEditResult) => void
+  /** 원문 보기 안의 [문서 전체 원문] */
+  onWholeRaw: () => void
 }) {
   const [aiOpen, setAiOpen] = useState(false)
   const [suggestion, setSuggestion] = useState<AiEditResult | null>(null)
   const area = useRef<HTMLTextAreaElement>(null)
+  const undo = useUndo(text)
   // 열자마자 쓸 수 있게 하되 화면은 움직이지 않는다 — 읽던 자리에서 스크롤 0 (doc-editing 2절 ①)
-  useEffect(() => area.current?.focus({ preventScroll: true }), [])
+  useEffect(() => {
+    if (mode === 'raw') area.current?.focus({ preventScroll: true })
+  }, [mode])
   // 줄이 접혀도 다 보이게 글 높이만큼 늘린다 — 화면의 3/4 를 넘으면 칸 안에서 스크롤
   useEffect(() => {
     const el = area.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight + 2, Math.round(window.innerHeight * 0.75))}px`
-  }, [text])
-  const stats = suggestion ? diffStats(text, suggestion.body) : null
+  }, [text, mode])
+  const locked = suggestion !== null
+  const md = (t: string) => renderMd(t, false)
 
-  return (
-    <div className="sec-editor">
-      <div className="sec-toolbar">
-        <span className="label strong sec-toolbar-title">✎ 「{sectionLabel(title)}」 고치는 중</span>
-        <button className="btn sm" onClick={() => setAiOpen((v) => !v)} disabled={suggestion !== null}>
-          ✦ AI에게 부탁
+  const sectionTools = (
+    <>
+      <button className="btn sm" onMouseDown={(e) => e.preventDefault()} onClick={() => setAiOpen((v) => !v)} disabled={locked}>
+        <EditIcon name="sparkle" /> AI에게 부탁
+      </button>
+      <button
+        className="btn sm"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => {
+          const prev = undo.pop()
+          if (prev !== null) onChange(slot, prev)
+        }}
+        disabled={locked || !undo.canUndo}
+        title="방금 고친 것을 하나씩 되돌려요"
+      >
+        <EditIcon name="undo" /> 되돌리기
+      </button>
+      {baseText !== null && text !== baseText && (
+        <button className="btn sm" onClick={() => onChange(slot, baseText)} disabled={locked} title="이 장을 편집을 시작할 때로 돌려요">
+          이 장 원래대로
         </button>
-        {baseText !== null && text !== baseText && (
-          <button className="btn sm" onClick={() => onChange(slot, baseText)} disabled={suggestion !== null}>
-            ↶ 이 장 되돌리기
-          </button>
-        )}
-        <button className="btn sm" onClick={() => onClose(slot)} disabled={suggestion !== null}>
-          이 장 닫기
-        </button>
-      </div>
+      )}
+      <button className="btn sm" onClick={() => onClose(slot)} disabled={locked}>
+        이 장 닫기
+      </button>
+    </>
+  )
 
+  const aiBox = (
+    <>
       {aiOpen && !suggestion && (
         <SectionAi
           doc={doc}
+          docBody={docBody}
+          outline={outline}
           title={title}
           text={text}
           onSuggest={(r) => {
@@ -176,12 +254,11 @@ export const SectionEditor = memo(function SectionEditor({
           onClose={() => setAiOpen(false)}
         />
       )}
-
-      {suggestion && stats && (
-        <div className="sec-suggest">
+      {suggestion && (
+        <div className="sec-suggest" role="region" aria-label="AI 제안">
           <div className="form-actions">
             <span className="label strong">
-              AI 제안 · {suggestion.by} · 추가 {stats.added}줄 / 삭제 {stats.removed}줄
+              AI 제안 · {suggestion.by} · {changeSummary({ key: '', title, kind: 'changed', before: text, after: suggestion.body }, changeCards(text, suggestion.body, preamble))}
             </span>
             <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setSuggestion(null)}>
               버리기
@@ -196,26 +273,74 @@ export const SectionEditor = memo(function SectionEditor({
               받기
             </button>
           </div>
+          {suggestion.trimmed && <span className="muted">AI가 이 장 밖까지 고쳐 와서 이 장만 받았어요</span>}
           {suggestion.summary && <span className="muted">{suggestion.summary}</span>}
-          <DiffView before={text} after={suggestion.body} leftLabel="지금" rightLabel="AI 제안" mode="inline" />
+          <span className="muted">받기 전에는 고칠 수 없어요. 칠한 곳이 AI가 바꾼 곳이에요.</span>
         </div>
       )}
+    </>
+  )
 
-      <div className="sec-editor-grid">
-        <textarea
-          className="field sec-textarea"
-          value={text}
-          readOnly={suggestion !== null}
-          onChange={(e) => onChange(slot, e.target.value)}
-          aria-label={`「${sectionLabel(title)}」 장 원문`}
-          spellCheck={false}
-          ref={area}
-        />
-        <div className="md sec-preview" aria-label="미리보기">
-          <div className="label sec-preview-label">미리보기</div>
-          {preview}
+  if (mode === 'raw') {
+    return (
+      <div className="sec-editor">
+        <div className="sec-toolbar">
+          <span className="label strong sec-toolbar-title">✎ 「{sectionLabel(title)}」 원문 고치는 중</span>
+          <button className="btn sm" onClick={onWholeRaw}>
+            문서 전체 원문
+          </button>
+          {sectionTools}
+        </div>
+        {aiBox}
+        {suggestion && <DiffView before={text} after={suggestion.body} leftLabel="지금" rightLabel="AI 제안" mode="inline" />}
+        <div className="sec-editor-grid">
+          <textarea
+            className="field sec-textarea"
+            value={text}
+            readOnly={locked}
+            onChange={(e) => onChange(slot, e.target.value)}
+            aria-label={`「${sectionLabel(title)}」 장 원문`}
+            spellCheck={false}
+            ref={area}
+          />
+          <div className="md sec-preview" aria-label="미리보기">
+            <div className="label sec-preview-label">미리보기</div>
+            {renderMd(text, preamble)}
+          </div>
         </div>
       </div>
+    )
+  }
+
+  return (
+    <div className="sec-editor blocks">
+      <Suspense fallback={<span className="muted">편집 칸을 여는 중…</span>}>
+        {suggestion ? (
+          // AI 제안은 같은 칠 규칙으로 — 지금 글과 비교해 바뀐 곳만 칠한다. 받기 전에는 고칠 수 없다
+          <>
+            <div className="sec-toolbar">
+              <span className="label strong sec-toolbar-title">✎ 「{sectionLabel(title)}」 AI 제안 보는 중</span>
+              {sectionTools}
+            </div>
+            {aiBox}
+            <BlockSurface key="ai" text={suggestion.body} baseText={text} preamble={preamble} readOnly showMarks renderMd={md} label="AI 제안 (읽기 전용)" />
+          </>
+        ) : (
+          <BlockSurface
+            key="edit"
+            text={text}
+            baseText={baseText}
+            preamble={preamble}
+            showMarks={showMarks}
+            onChange={(t) => onChange(slot, t)}
+            renderMd={md}
+            tools={sectionTools}
+            label={`「${sectionLabel(title)}」 장 편집`}
+          >
+            {aiBox}
+          </BlockSurface>
+        )}
+      </Suspense>
     </div>
   )
 })

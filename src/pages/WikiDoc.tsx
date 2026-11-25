@@ -23,7 +23,7 @@ import {
   type DraftRestore,
   type EditDraft,
 } from '../lib/draft'
-import type { EditProposalResult } from '../lib/proposeEdit'
+import { fetchDocVersion, type DocVersion, type EditProposalResult } from '../lib/proposeEdit'
 import { useApp } from '../store/AppStore'
 
 interface Heading {
@@ -169,19 +169,54 @@ function WikiDocPage() {
   const editing = Boolean(doc) && editParam !== null
   // 초안은 계정별로 둔다 — 로그인 없는 데모에서는 데모 계정 아이디를 쓴다
   const accountId = session.loginId ?? session.userId
-  const docBase = useMemo<EditBase | null>(() => (doc ? { version: doc.version, body: normBody(doc.body) } : null), [doc])
+  /** 화면 묶음의 문서 — 편집하지 않을 때 보이는 본문 */
+  const bundleBase = useMemo<EditBase | null>(() => (doc ? { version: doc.version, body: normBody(doc.body) } : null), [doc])
+  /**
+   * main 의 최신 버전(/api/docVersion) — 편집에 들어가거나 임시 저장이 있을 때 한 번 묻는다(doc-editing 2-6).
+   * 화면 묶음보다 새것이면 그 본문을 편집·초안 복원 기준으로 쓴다. 못 읽으면 묻지 않고 묶음 본문으로
+   */
+  const remoteKey = doc ? `${doc.id}@${doc.version}` : ''
+  const [remote, setRemote] = useState<{ key: string; v: DocVersion | null } | null>(null)
+  const remoteReady = remote?.key === remoteKey
+  const hasDraft = useMemo(() => (doc ? loadDraft(accountId, doc.id) !== null : false), [doc, accountId])
+  const needRemote = Boolean(doc) && (editParam !== null || hasDraft)
+  useEffect(() => {
+    if (!doc || !needRemote || remote?.key === remoteKey) return
+    let alive = true
+    const done = (v: DocVersion | null) => alive && setRemote((r) => (r?.key === remoteKey ? r : { key: remoteKey, v }))
+    // 오래 걸리면 기다리지 않는다 — 제출 때 409 흐름이 뒤를 받친다
+    const t = setTimeout(() => done(null), 4000)
+    fetchDocVersion(doc.path).then(done)
+    return () => {
+      alive = false
+      clearTimeout(t)
+    }
+  }, [doc, needRemote, remote, remoteKey])
+  const docBase = useMemo<EditBase | null>(() => {
+    const v = remoteReady ? remote.v : null
+    // 로컬 지식 폴더가 main 보다 앞서 있으면(로컬 수정 중) 묶음 쪽을 둔다
+    return v && bundleBase && v.version >= bundleBase.version ? { version: v.version, body: v.body } : bundleBase
+  }, [remoteReady, remote, bundleBase])
   /** 409 뒤 서버가 준 최신본 — 배포 전까지는 화면 묶음 문서보다 새것을 기준으로 고친다 */
   const [baseOverride, setBaseOverride] = useState<EditBase | null>(null)
   const base = baseOverride ?? docBase
   /** 편집 칸 — 장마다 한 칸. 이어 붙이면(join '\n') 본문이다. null 이면 편집하지 않는 중 */
   const [parts, setParts] = useState<string[] | null>(null)
   const [open, setOpen] = useState<number[]>([])
-  const [raw, setRaw] = useState(false)
+  /** 원문 보기(고급) — 'sec' 는 연 장만 원문 칸, 'all' 은 문서 전체 원문 */
+  const [raw, setRaw] = useState<false | 'sec' | 'all'>(false)
+  const [showMarks, setShowMarks] = useState(true)
   const [reason, setReason] = useState('')
   const [reasonTouched, setReasonTouched] = useState(false)
   const [reference, setReference] = useState<{ label: string; text: string } | null>(null)
   /** 임시 저장이 있고 아직 고르지 않았다 — 고를 때까지 편집 칸을 초안으로 채우지 않는다 */
   const [draftInfo, setDraftInfo] = useState<{ draft: EditDraft; plan: Exclude<DraftRestore, { kind: 'empty' }> } | null>(null)
+  /** 임시 저장을 찾았고 아직 고르지 않았다 — 같은 렌더 안에서 편집 칸이 먼저 열리지 않게 바로 본다 */
+  const draftFound = useRef(false)
+  const pickDraft = useCallback((v: { draft: EditDraft; plan: Exclude<DraftRestore, { kind: 'empty' }> } | null) => {
+    draftFound.current = v !== null
+    setDraftInfo(v)
+  }, [])
   const [save, setSave] = useState<SaveState>({ state: 'idle' })
   const [submitOpen, setSubmitOpen] = useState(false)
   const [done, setDone] = useState<{ result: EditProposalResult; titles: string[] } | null>(null)
@@ -189,7 +224,7 @@ function WikiDocPage() {
   const [pendingSeen, setPendingSeen] = useState(false)
   const [flash, setFlash] = useState<number | null>(null)
 
-  const viewParts = useMemo(() => (docBase ? splitSections(docBase.body).map((s) => s.text) : []), [docBase])
+  const viewParts = useMemo(() => (bundleBase ? splitSections(bundleBase.body).map((s) => s.text) : []), [bundleBase])
   const slots = parts ?? viewParts
   const body = parts ? parts.join('\n') : (base?.body ?? '')
   const baseSections = useMemo(() => (base ? splitSections(base.body) : []), [base])
@@ -236,29 +271,31 @@ function WikiDocPage() {
   const readDraft = useCallback(() => {
     if (!doc) return
     const draft = loadDraft(accountId, doc.id)
-    if (!draft) return setDraftInfo(null)
+    if (!draft) return pickDraft(null)
     // 409 뒤 최신본(배포 전) 기준으로 저장한 초안 — 화면 문서보다 새 버전이라 그 기준 그대로 이어 고친다
-    const ahead = draft.baseVersion !== null && draft.baseBody !== null && draft.baseVersion > doc.version
+    const bs = docBase ?? { version: doc.version, body: doc.body }
+    const ahead = draft.baseVersion !== null && draft.baseBody !== null && draft.baseVersion > bs.version
     const plan: DraftRestore = ahead
       ? normBody(draft.body) === normBody(draft.baseBody!)
         ? { kind: 'empty' }
         : { kind: 'same', titles: (changedSections(draft.baseBody!, draft.body) ?? []).map((s) => s.title) }
-      : planRestore(draft, doc.version, doc.body)
+      : planRestore(draft, bs.version, bs.body)
     if (plan.kind === 'empty') {
       removeDraft(accountId, doc.id)
-      setDraftInfo(null)
-    } else setDraftInfo({ draft, plan })
-  }, [doc, accountId])
+      pickDraft(null)
+    } else pickDraft({ draft, plan })
+  }, [doc, accountId, docBase, pickDraft])
 
   const loadedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (!doc) return
+    // 최신 버전을 물어 보는 중이면 기다린다 — 초안 기준을 그 버전에 맞춘다
+    if (!doc || !docBase || (needRemote && !remoteReady)) return
     // 문서 목록이 다시 그려져도 고른 결과를 되묻지 않게 계정·문서·버전마다 한 번만 읽는다
-    const loadKey = `${accountId}.${doc.id}@${doc.version}`
+    const loadKey = `${accountId}.${doc.id}@${docBase.version}`
     if (loadedFor.current === loadKey) return
     loadedFor.current = loadKey
     readDraft()
-  }, [doc, accountId, readDraft])
+  }, [doc, docBase, accountId, readDraft, needRemote, remoteReady])
 
   const startSession = useCallback(
     (opts: { body?: string; base?: EditBase | null; reason?: string; reference?: { label: string; text: string } | null; anchor?: string | null; keys?: string[] } = {}) => {
@@ -295,9 +332,11 @@ function WikiDocPage() {
 
   // 편집 모드로 들어오면(주소에 ?edit=) 편집 칸을 연다. 임시 저장을 고르기 전에는 열지 않는다
   useEffect(() => {
-    if (!editing || parts !== null || draftInfo) return
+    if (!editing || parts !== null || draftInfo || draftFound.current || !remoteReady || !doc || !docBase) return
+    // 임시 저장을 아직 읽지 않았으면(최신 버전을 막 받음) 띠부터 — 고르기 전에는 편집 칸을 열지 않는다
+    if (loadedFor.current !== `${accountId}.${doc.id}@${docBase.version}`) return
     startSession({ anchor: editParam })
-  }, [editing, parts, draftInfo, editParam, startSession])
+  }, [editing, parts, draftInfo, editParam, startSession, remoteReady, accountId, doc, docBase])
 
   // 편집 모드에서 나가면(편집 끝내기·뒤로 가기) 바로 임시 저장하고 보기로 돌아간다
   useEffect(() => {
@@ -457,6 +496,13 @@ function WikiDocPage() {
     [reasonTouched],
   )
 
+  const outline = useMemo(() => slots.map(sectionTitleOf).filter(Boolean), [slots])
+  const renderMd = useCallback(
+    (text: string, preamble: boolean) => <SectionView text={text} components={md.body} preamble={preamble} />,
+    [md],
+  )
+  const onWholeRaw = useCallback(() => setRaw('all'), [])
+
   const checks = useEditChecks({ doc, docs, baseBody: base?.body ?? '', body, reason, changes, slotOfKey })
 
   if (!doc || !base) {
@@ -529,13 +575,13 @@ function WikiDocPage() {
     const bs = next.base ?? docBase!
     const first = (changedSections(bs.body, next.body) ?? [])[0]
     const anchor = editParam ?? (first ? sectionAnchor(first.title) : 'all')
-    setDraftInfo(null)
+    pickDraft(null)
     startSession({ body: next.body, base: next.base, reason: next.reference ? '' : draft.reason, reference: next.reference ?? null, anchor })
     if (!editing) setEditParam(anchor, false)
   }
 
   const pending = editing && proposals ? proposals.filter((p) => p.kind === 'edit' && p.status === 'pending' && p.docCode === doc.code) : []
-  const ahead = baseOverride && baseOverride.version > doc.version ? baseOverride.version : null
+  const ahead = editing && parts && base.version > doc.version ? base.version : null
   const saveLabel =
     save.state === 'pending'
       ? '저장 중…'
@@ -557,8 +603,11 @@ function WikiDocPage() {
             </b>
             <span className={`mono edit-bar-save${save.state === 'failed' ? ' err' : ''}`}>{saveLabel}</span>
             <span className="edit-bar-gap" />
-            <button className="btn sm" onClick={() => setRaw((v) => !v)}>
-              {raw ? '장으로 나눠 보기' : '원문 보기(고급)'}
+            <button className="btn sm" aria-pressed={!showMarks} onClick={() => setShowMarks((v) => !v)}>
+              {showMarks ? '바뀐 곳 표시 끄기' : '바뀐 곳 표시 켜기'}
+            </button>
+            <button className="btn sm" onClick={() => setRaw((v) => (v ? false : 'sec'))}>
+              {raw ? '보기 모양으로' : '원문 보기(고급)'}
             </button>
             <button className="btn sm edit-bar-submit" disabled={changes.length === 0} onClick={() => setSubmitOpen(true)}>
               제출하기
@@ -578,7 +627,7 @@ function WikiDocPage() {
               </div>
             )}
             {ahead && (
-              <div className="edit-bar-note">ⓘ 승인된 새 버전(v{ahead})이 아직 화면에 반영 전이에요. 고칠 때는 v{ahead}로 고쳐요</div>
+              <div className="edit-bar-note">ⓘ 승인된 새 버전(v{ahead})으로 고쳐요 — 화면의 문서에는 아직 반영 전이에요</div>
             )}
           </div>
         )}
@@ -588,10 +637,10 @@ function WikiDocPage() {
               <DraftBanner
                 draft={draftInfo.draft}
                 plan={draftInfo.plan}
-                docVersion={doc.version}
+                docVersion={docBase!.version}
                 onContinue={() => {
                   const { draft, plan } = draftInfo
-                  const ahead = draft.baseVersion !== null && draft.baseBody !== null && draft.baseVersion > doc.version
+                  const ahead = draft.baseVersion !== null && draft.baseBody !== null && draft.baseVersion > docBase!.version
                   if (plan.kind === 'rebased') continueDraft({ body: plan.body, base: null })
                   else continueDraft({ body: draft.body, base: ahead ? { version: draft.baseVersion!, body: normBody(draft.baseBody!) } : null })
                 }}
@@ -607,7 +656,7 @@ function WikiDocPage() {
                 }
                 onDiscard={() => {
                   removeDraft(accountId, doc.id)
-                  setDraftInfo(null)
+                  pickDraft(null)
                 }}
               />
             )}
@@ -671,11 +720,16 @@ function WikiDocPage() {
               </details>
             )}
 
-            {editing && parts && raw ? (
+            {editing && parts && raw === 'all' ? (
               <div className="raw-editor">
-                <span className="muted" style={{ fontSize: 12.5 }}>
-                  문서 전체 원문이에요. 여기서 고친 것도 같은 검사·같은 「바뀐 곳」 목록에 들어가요.
-                </span>
+                <div className="form-actions">
+                  <span className="muted" style={{ fontSize: 12.5 }}>
+                    문서 전체 원문이에요. 여기서 고친 것도 같은 검사·같은 「바뀐 곳」 목록에 들어가요.
+                  </span>
+                  <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setRaw('sec')}>
+                    장으로 나눠 보기
+                  </button>
+                </div>
                 <textarea
                   className="field raw-textarea"
                   value={body}
@@ -688,12 +742,13 @@ function WikiDocPage() {
                 />
               </div>
             ) : (
-              <div className="md doc-md">
+              <div className={`md doc-md${showMarks ? '' : ' marks-off'}`}>
                 {slots.map((text, i) => {
                   const title = sectionTitleOf(text)
                   const preamble = i === 0 && !title
                   const isOpen = Boolean(parts) && open.includes(i)
-                  const baseText = baseByKey.get(keys[i]) ?? null
+                  // 장 제목을 고쳐 key 가 달라졌어도 장 수가 같으면 같은 자리의 장을 기준으로 칠한다
+                  const baseText = baseByKey.get(keys[i]) ?? (parts && baseSections.length === slots.length ? baseSections[i].text : null)
                   const changed = Boolean(parts) && baseText !== text
                   return (
                     <section
@@ -704,14 +759,20 @@ function WikiDocPage() {
                       {isOpen ? (
                         <SectionEditor
                           doc={doc}
+                          docBody={body}
+                          outline={outline}
                           slot={i}
                           title={title}
                           text={text}
                           baseText={baseText}
-                          preview={<SectionView text={text} components={md.body} preamble={preamble} />}
+                          preamble={preamble}
+                          mode={raw ? 'raw' : 'blocks'}
+                          showMarks={showMarks}
+                          renderMd={renderMd}
                           onChange={onChangeSlot}
                           onClose={onCloseSlot}
                           onAccept={onAccept}
+                          onWholeRaw={onWholeRaw}
                         />
                       ) : (
                         <>
@@ -813,7 +874,7 @@ function WikiDocPage() {
             lastSaved.current = null
             setDone({ result, titles: changes.map((c) => c.title) })
             endSession()
-            setDraftInfo(null)
+            pickDraft(null)
             setSearchParams({}, { replace: true })
             void refreshProposals()
           }}
