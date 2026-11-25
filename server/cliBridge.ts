@@ -24,6 +24,7 @@ import {
 import {
   bodyHeaderProblem,
   LOCAL_HUB_ORIGINS,
+  localHubOrigins,
   readOriginProblem,
   rejectionBody,
   TOO_LARGE,
@@ -35,6 +36,7 @@ import { hubVersionStatus } from './hubVersion.js'
 import {
   createDocPR,
   createEditPR,
+  docVersionReply,
   EditError,
   editErrorBody,
   listProposalPrs,
@@ -70,6 +72,7 @@ import {
   checkReportReply,
   detectReportIntent,
   EDIT_SCHEMA,
+  finishEditReply,
   checkAskReply,
   MAX_ASK_BYTES,
   MAX_EDIT_BYTES,
@@ -82,6 +85,8 @@ import {
   REPORT_SCHEMA,
   reportResponse,
   reportUnavailable,
+  SectionOutsideError,
+  sectionOutsideBody,
   todayLine,
   type CliReply,
   type EditInput,
@@ -549,16 +554,21 @@ const REPORT: Record<Engine, (input: AskInput, type: ReportType, signal: AbortSi
   codex: reportCodex,
 }
 
+// 장 단위(section)는 장과 목차만으로 고친다 — 다른 문서를 열러 다니면 20초~1분 목표를 넘긴다
 const editClaude = async (input: EditInput) =>
   checkEditReply(
     await claudeJson(
       buildEditRequest(input),
       [
         '--system-prompt-file', EDIT_PROMPT_FILE,
-        '--append-system-prompt', '작업 디렉터리가 위키 문서 폴더다. 다른 문서를 참고해야 하면 Grep·Glob·Read로 찾아 읽어라.',
+        '--append-system-prompt',
+        input.section
+          ? '도구를 쓰지 말고 아래 장과 목차만 보고 고쳐라.'
+          : '작업 디렉터리가 위키 문서 폴더다. 다른 문서를 참고해야 하면 Grep·Glob·Read로 찾아 읽어라.',
       ],
       EDIT_SCHEMA,
       EDIT_TIMEOUT_MS.claude,
+      input.section ? { tools: '' } : {},
     ),
   )
 
@@ -598,7 +608,9 @@ async function askJiraSchedule(baseUrl: string, projectKey: string): Promise<Jir
 
 /* ── 요청 입구 — 배포 api/ 와 같은 판정 함수(server/guard.ts)를 쓴다 ── */
 
-const isLocalHub = (url: URL) => LOCAL_HUB_ORIGINS.includes(url.origin)
+/** 허브가 뜬 포트의 출처만 — configureServer 에서 실제 포트로 바꾼다(guard.ts localHubOrigins) */
+let hubOrigins = LOCAL_HUB_ORIGINS
+const isLocalHub = (url: URL) => hubOrigins.includes(url.origin)
 
 const headerOf = (req: IncomingMessage, name: string): string | undefined => {
   const v = req.headers[name]
@@ -654,6 +666,8 @@ export function cliBridge(): Plugin {
     apply: 'serve',
     configureServer(server) {
       const log = server.config.logger
+      // strictPort 라 설정 포트가 곧 뜬 포트다 — `--port` 로 바꿔 띄운 검증 서버도 우회 없이 자기 화면만 받는다
+      hubOrigins = localHubOrigins(server.config.server.port ?? 5173)
       // CLI가 없거나 실패할 때 쓰는 Gemini API 키 — 허브 폴더의 .env.local 에서 읽는다 (브라우저로는 보내지 않음)
       const env = loadEnv(server.config.mode, server.config.root, '')
       hubEnv = { ...process.env, ...env }
@@ -1049,10 +1063,18 @@ export function cliBridge(): Plugin {
             if (!installed[engine]) throw new Error(`${engine} CLI가 설치되어 있지 않습니다`)
             reply = await EDIT[engine](input)
           }
-          log.info(`[cli-bridge] edit ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.code} · ${input.instruction}`)
-          res.end(JSON.stringify(reply))
+          // 배포 api/edit.ts 와 같은 마무리 — section 이면 그 장만, 장 밖을 고를 수 없으면 422
+          const out = finishEditReply(input, reply)
+          const where = input.section ? ` · 장 「${input.section.title || '머리말'}」${out.section?.trimmed ? ' (장 밖 잘라 냄)' : ''}` : ''
+          log.info(`[cli-bridge] edit ${engine} ${((Date.now() - started) / 1000).toFixed(1)}s · ${input.code}${where} · ${input.instruction}`)
+          res.end(JSON.stringify(out))
         } catch (err) {
           log.error(`[cli-bridge] edit ${(err as Error).message}`)
+          if (err instanceof SectionOutsideError) {
+            res.statusCode = err.status
+            res.end(JSON.stringify(sectionOutsideBody(err)))
+            return
+          }
           res.statusCode = 502
           res.end(JSON.stringify(geminiErrorBody(err)))
         }
@@ -1203,6 +1225,26 @@ export function cliBridge(): Plugin {
           res.statusCode = 502
           res.end(JSON.stringify({ error: (err as Error).message }))
         }
+      })
+
+      // 편집 진입 때 main 의 최신 버전·본문 — 배포 api/docVersion.ts 와 같은 함수로 같은 응답을 만든다
+      server.middlewares.use('/api/docVersion', async (req, res) => {
+        if (req.method !== 'GET') {
+          res.statusCode = 405
+          res.end()
+          return
+        }
+        if (blockedRead(req, res)) return
+        res.setHeader('Content-Type', 'application/json; charset=utf-8')
+        res.setHeader('Cache-Control', 'no-store')
+        const path = new URL(req.url ?? '/', 'http://localhost').searchParams.get('path')
+        const reply = await docVersionReply(path, {
+          token: githubToken,
+          env: hubEnv,
+          onError: (message) => log.error(`[cli-bridge] docVersion ${message}`),
+        })
+        res.statusCode = reply.status
+        res.end(JSON.stringify(reply.body))
       })
     },
   }

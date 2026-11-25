@@ -215,18 +215,41 @@ export function buildAskRequest({ query, history }: AskInput): string {
   ].join('\n\n')
 }
 
-/** 수정 제안 화면의 "AI로 수정" — 문서 본문과 요청을 받아 고친 본문 전체를 돌려준다 */
+/** 수정 제안 화면의 "AI로 수정" — 문서 본문과 요청을 받아 고친 본문 전체를 돌려준다. section 이 있으면 그 장만 */
 export interface EditInput {
   title: string
   code: string
   path: string
   body: string
   instruction: string
+  /** 장 단위 수정(doc-editing 2-5) — 있으면 엔진에는 이 장과 목차만 보내고, 돌려줄 때도 이 장만 돌려준다 */
+  section?: EditSection
+}
+
+export interface EditSection {
+  /** 장 제목(`## ` 뒤 글자). 머리말은 '' — 장 원문 첫 줄에서 뽑는다 */
+  title: string
+  /** 화면이 보낸 장 앵커(`h-…`·`intro`) — 응답에 그대로 돌려줄 뿐 판단에는 쓰지 않는다 */
+  anchor: string
+  /** 그 장 원문 — `## ` 제목 줄부터 다음 장 앞까지 */
+  body: string
+  /** 문서의 장 제목 순서(머리말 제외) — 엔진이 앞뒤 문맥과 용어를 맞추는 데만 쓴다 */
+  outline: string[]
 }
 
 export interface EditReply {
   body: string
   summary: string
+}
+
+/** /api/edit 응답 — section 입력이면 body 는 그 장만이고 section 칸이 붙는다 */
+export interface EditResponse extends EditReply {
+  section?: {
+    title: string
+    anchor: string
+    /** 엔진이 장 밖(다른 장)까지 써 와서 서버가 그 장만 잘라 냈으면 true */
+    trimmed: boolean
+  }
 }
 
 export const EDIT_SCHEMA = {
@@ -241,6 +264,48 @@ export const EDIT_SCHEMA = {
 
 const MAX_EDIT_BODY = 200_000
 const MAX_INSTRUCTION = 2000
+const MAX_OUTLINE = 100
+const MAX_OUTLINE_TITLE = 200
+
+/**
+ * 본문을 `## ` 장으로 가른다. 코드 블록 안의 `## ` 는 장이 아니다 — src/lib/draft.ts splitSections 와 같은 규칙이어야
+ * 화면이 나눈 장과 서버가 자른 장이 어긋나지 않는다. 첫 조각은 머리말(title '')이고 비어 있으면 뺀다
+ */
+export function splitH2(body: string): { title: string; text: string }[] {
+  const out: { title: string; lines: string[] }[] = [{ title: '', lines: [] }]
+  let fence: string | null = null
+  for (const line of body.replace(/\r\n?/g, '\n').split('\n')) {
+    const f = /^\s*(```|~~~)/.exec(line)
+    if (f) fence = fence === null ? f[1] : fence === f[1] ? null : fence
+    if (fence === null && !f && /^##\s/.test(line)) out.push({ title: line.replace(/^##\s+/, '').trim(), lines: [] })
+    out[out.length - 1].lines.push(line)
+  }
+  return out.filter((s, i) => i > 0 || s.lines.length > 0).map(({ title, lines }) => ({ title, text: lines.join('\n') }))
+}
+
+const oneLine = (v: string) => v.replace(/[\r\n]+/g, ' ').trim()
+
+function parseEditSection(raw: unknown, docBody: string): EditSection | undefined {
+  if (raw === undefined || raw === null) return undefined
+  if (typeof raw !== 'object' || Array.isArray(raw)) throw new Error('고칠 장(section) 형식이 올바르지 않습니다')
+  const r = raw as Record<string, unknown>
+  const body = typeof r.body === 'string' ? r.body.replace(/\r\n?/g, '\n') : ''
+  if (!body.trim()) throw new Error('고칠 장 본문이 비어 있습니다')
+  if (body.length > MAX_EDIT_BODY) throw new Error('장이 너무 커서 AI로 수정할 수 없습니다')
+  const parts = splitH2(body).filter((p) => p.title || p.text.trim())
+  // 장 둘 이상을 보내면 "그 장 밖은 바꾸지 않는다"를 지킬 기준이 없다
+  if (parts.length !== 1) throw new Error('장 하나만 보내 주세요')
+  const title = parts[0].title
+  if (typeof r.title === 'string' && oneLine(r.title) !== title) throw new Error('장 제목이 장 본문 첫 줄과 맞지 않습니다')
+  // 목차는 화면이 주면 그대로, 없으면 함께 온 문서 전체 본문에서 뽑는다
+  const given = Array.isArray(r.outline) ? r.outline.filter((t): t is string => typeof t === 'string') : null
+  const outline = (given ?? splitH2(docBody).map((p) => p.title))
+    .map(oneLine)
+    .filter(Boolean)
+    .slice(0, MAX_OUTLINE)
+    .map((t) => t.slice(0, MAX_OUTLINE_TITLE))
+  return { title, anchor: typeof r.anchor === 'string' ? oneLine(r.anchor).slice(0, MAX_OUTLINE_TITLE) : '', body, outline }
+}
 
 /** 요청 본문을 검증한다. 잘못되면 사용자에게 보여줄 메시지로 throw 한다. */
 export function parseEditInput(raw: unknown): EditInput {
@@ -256,14 +321,26 @@ export function parseEditInput(raw: unknown): EditInput {
   if (!input.instruction) throw new Error('수정 요청이 비어 있습니다')
   if (input.instruction.length > MAX_INSTRUCTION) throw new Error(`수정 요청은 ${MAX_INSTRUCTION}자 이내로 입력해 주세요`)
   if (input.body.length > MAX_EDIT_BODY) throw new Error('문서가 너무 커서 AI로 수정할 수 없습니다')
+  const section = parseEditSection(r.section, input.body)
+  if (section) input.section = section
   return input
 }
 
+/** 엔진에 보낼 요청 — section 이면 문서 본문 대신 그 장과 목차만 실어 짧고 빠르게 */
 export function buildEditRequest(input: EditInput): string {
+  const head = `## 수정할 문서\n\n- 제목: ${input.title}\n- 문서 코드: ${input.code}\n- 경로: ${input.path}`
+  const ask = `## 수정 요청\n\n${input.instruction}`
+  const s = input.section
+  if (!s) return [head, `<document>\n${input.body}\n</document>`, ask].join('\n\n')
+  const toc = s.outline.length
+    ? s.outline.map((t) => `- ${t}${t === s.title ? '  ← 지금 고칠 장' : ''}`).join('\n')
+    : '- (목차 없음)'
   return [
-    `## 수정할 문서\n\n- 제목: ${input.title}\n- 문서 코드: ${input.code}\n- 경로: ${input.path}`,
-    `<document>\n${input.body}\n</document>`,
-    `## 수정 요청\n\n${input.instruction}`,
+    head,
+    `## 문서 목차 (참고용 — 용어와 이름을 다른 장과 맞추는 데만 쓴다)\n\n${toc}`,
+    `## 고칠 장: ${s.title || '머리말'}\n\n이번에는 문서 전체가 아니라 아래 <section> 의 장 하나만 받았다. \`body\` 에는 이 장만 돌려준다. 장 제목 줄은 그대로 두고, 다른 장의 제목이나 내용을 새로 쓰지 않는다.`,
+    `<section>\n${s.body}\n</section>`,
+    ask,
   ].join('\n\n')
 }
 
@@ -271,6 +348,46 @@ export function checkEditReply(out: unknown): EditReply {
   const o = (out ?? {}) as Partial<EditReply>
   if (typeof o.body !== 'string' || !o.body.trim()) throw new Error('AI가 수정한 본문을 돌려주지 않았습니다')
   return { body: o.body.replace(/\r\n?/g, '\n'), summary: typeof o.summary === 'string' ? o.summary.trim() : '' }
+}
+
+/** 엔진이 장 밖을 바꿔 와 그 장만 골라낼 수도 없었다 — 화면은 받지 않고 다시 부탁하게 한다 */
+export class SectionOutsideError extends Error {
+  readonly status = 422
+  readonly code = 'outside'
+  constructor() {
+    super('AI가 이 장 밖까지 바꿔 와서 받지 않았습니다')
+    this.name = 'SectionOutsideError'
+  }
+}
+
+/** 장 밖 거절 응답 본문 — 배포 api/edit.ts 와 로컬 중계가 같은 칸으로 내보낸다 */
+export const sectionOutsideBody = (err: SectionOutsideError) => ({ error: err.message, code: err.code })
+
+/**
+ * 엔진 답을 응답으로 — section 이면 그 장만 남긴다(장 밖은 서버에서도 바꾸지 않는다).
+ * 다른 장이 딸려 오면 제목이 같은 장만 잘라 내고, 고를 수 없으면 SectionOutsideError. 장 끝 빈 줄은 원문대로 둔다(다음 장과의 간격)
+ */
+export function finishEditReply(input: EditInput, reply: EditReply): EditResponse {
+  const s = input.section
+  if (!s) return reply
+  const parts = splitH2(reply.body).filter((p) => p.title || p.text.trim())
+  let text: string | undefined
+  if (s.title) {
+    text = parts.find((p) => p.title === s.title)?.text
+    // 제목 줄만 빼먹고 장 내용만 돌려준 경우 — 원래 제목 줄을 다시 붙인다
+    if (text === undefined && parts.length === 1 && !parts[0].title)
+      text = `${s.body.split('\n', 1)[0]}\n${parts[0].text.replace(/^\n+/, '')}`
+  } else {
+    // 머리말은 제목이 없다 — 첫 `## ` 앞 조각만 머리말이다
+    text = parts.find((p) => !p.title)?.text
+  }
+  if (text === undefined || !text.trim()) throw new SectionOutsideError()
+  const tail = /\s*$/.exec(s.body)?.[0] ?? ''
+  return {
+    body: text.replace(/\s+$/, '') + tail,
+    summary: reply.summary,
+    section: { title: s.title, anchor: s.anchor, trimmed: parts.length > 1 },
+  }
 }
 
 function listDocs(dir: string): string[] {

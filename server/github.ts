@@ -321,14 +321,20 @@ export interface EditDocResult {
   version: number
 }
 
+/** `지식/` 기준 문서 경로 — 저장소 경로에 그대로 붙으므로 폴더 밖(`..`)·절대 경로를 막는다 */
+export function checkDocPath(raw: string): string {
+  const docPath = raw.trim()
+  if (!docPath || !docPath.endsWith('.md') || docPath.startsWith('/') || docPath.includes('\\') || docPath.split('/').includes('..'))
+    throw new EditError(400, '문서 경로가 올바르지 않습니다')
+  return docPath
+}
+
 export function parseEditDocInput(raw: unknown): EditDocInput {
   const r = (raw ?? {}) as Record<string, unknown>
   const str = (v: unknown) => (typeof v === 'string' ? v : '')
   const oneLine = (v: unknown) => str(v).replace(/[\r\n]+/g, ' ').trim()
 
-  const docPath = str(r.docPath).trim()
-  if (!docPath || !docPath.endsWith('.md') || docPath.startsWith('/') || docPath.includes('\\') || docPath.split('/').includes('..'))
-    throw new EditError(400, '문서 경로가 올바르지 않습니다')
+  const docPath = checkDocPath(str(r.docPath))
   const code = str(r.code).trim()
   if (!/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(code)) throw new EditError(400, '문서 코드가 올바르지 않습니다')
   const title = oneLine(r.title)
@@ -421,6 +427,73 @@ function todayKst(): string {
   return new Date(Date.now() + 9 * 3_600_000).toISOString().slice(0, 10)
 }
 
+/** 저장소의 문서 파일 하나 — 수정 PR(blob SHA 필요)과 버전 조회가 같은 읽기·검사를 쓴다 */
+async function readDocFile(
+  repo: string,
+  token: string,
+  path: string,
+  ref: string,
+): Promise<{ file: { sha: string }; current: ReturnType<typeof splitFrontmatter> }> {
+  let file: { sha: string; content?: string; encoding?: string }
+  try {
+    file = (await gh(`/repos/${repo}/contents/${encodePath(path)}?ref=${encodeURIComponent(ref)}`, token)) as typeof file
+  } catch (err) {
+    if (err instanceof GitHubApiError && err.status === 404) throw new EditError(404, `그 문서를 저장소에서 찾지 못했습니다 (${path})`)
+    throw err
+  }
+  if (!file.sha || file.encoding !== 'base64' || typeof file.content !== 'string')
+    throw new Error(`저장소의 ${path} 를 읽지 못했습니다 (문서가 아니거나 너무 큽니다)`)
+
+  const current = splitFrontmatter(Buffer.from(file.content, 'base64').toString('utf8'))
+  if (!current.fm) throw new Error(`저장소의 ${path} 에 프론트매터가 없습니다`)
+  return { file, current }
+}
+
+// ── 편집 진입 시 최신 버전 조회 (doc-editing 2-6) ──────────────────────────────
+
+/** GET /api/docVersion 응답 — 화면이 편집을 시작할 때 baseVersion 과 본문을 main 기준으로 맞춘다 */
+export interface DocVersion {
+  /** `지식/` 를 뺀 상대 경로 — 요청한 값 그대로 */
+  path: string
+  version: number
+  /** 프론트매터를 뺀 본문 — 화면 번들(knowledgeDocs.ts)과 같은 규칙으로 가른다 */
+  body: string
+}
+
+/** 화면이 실패 종류로 안내를 고른다 — 어느 경우든 화면은 들고 있던 번들 본문·버전으로 계속 편집할 수 있다 */
+export type DocVersionErrorCode = 'bad-path' | 'not-found' | 'no-token' | 'github'
+
+export async function readDocVersion(docPath: string, opts: { token: string; env?: Record<string, string | undefined> }): Promise<DocVersion> {
+  const path = checkDocPath(docPath)
+  const { current } = await readDocFile(readGithubRepo(opts.env), opts.token, `지식/${path}`, 'main')
+  return { path, version: Number(current.values.version) || 1, body: current.body }
+}
+
+/**
+ * 버전 조회의 상태·본문 — 배포 api/docVersion.ts 와 로컬 중계가 이 한 함수로 같은 응답을 만든다.
+ * GitHub 원문 오류는 onError(로그)로만 넘기고 화면에는 분류된 문장과 code 를 준다
+ */
+export async function docVersionReply(
+  docPath: string | null,
+  opts: { token?: string; env?: Record<string, string | undefined>; onError?: (message: string) => void },
+): Promise<{ status: number; body: DocVersion | { error: string; code: DocVersionErrorCode } }> {
+  const fail = (status: number, code: DocVersionErrorCode, error: string) => ({ status, body: { error, code } })
+  // 경로부터 본다 — 토큰이 없어도 잘못된 요청은 잘못됐다고 알려 준다
+  try {
+    checkDocPath(docPath ?? '')
+  } catch (err) {
+    return fail(400, 'bad-path', (err as Error).message)
+  }
+  if (!opts.token) return fail(503, 'no-token', 'GITHUB_TOKEN이 설정되지 않아 최신 버전을 확인할 수 없습니다')
+  try {
+    return { status: 200, body: await readDocVersion(docPath ?? '', { token: opts.token, env: opts.env }) }
+  } catch (err) {
+    if (err instanceof EditError && err.status === 404) return fail(404, 'not-found', err.message)
+    opts.onError?.((err as Error).message)
+    return fail(502, 'github', '저장소에서 최신 버전을 읽지 못했습니다')
+  }
+}
+
 export async function createEditPR(
   input: EditDocInput,
   opts: { token: string; env?: Record<string, string | undefined> },
@@ -431,19 +504,7 @@ export async function createEditPR(
 
   // main 의 한 커밋에 고정해 읽는다 — 읽는 사이에 main 이 움직여도 blob SHA 와 브랜치 기준이 어긋나지 않는다
   const sha = await baseSha(repo, token)
-
-  let file: { sha: string; content?: string; encoding?: string }
-  try {
-    file = (await gh(`/repos/${repo}/contents/${encodePath(path)}?ref=${sha}`, token)) as typeof file
-  } catch (err) {
-    if (err instanceof GitHubApiError && err.status === 404) throw new EditError(404, `그 문서를 저장소에서 찾지 못했습니다 (${path})`)
-    throw err
-  }
-  if (!file.sha || file.encoding !== 'base64' || typeof file.content !== 'string')
-    throw new Error(`저장소의 ${path} 를 읽지 못했습니다 (문서가 아니거나 너무 큽니다)`)
-
-  const current = splitFrontmatter(Buffer.from(file.content, 'base64').toString('utf8'))
-  if (!current.fm) throw new Error(`저장소의 ${path} 에 프론트매터가 없습니다`)
+  const { file, current } = await readDocFile(repo, token, path, sha)
   if (current.values.code !== input.code)
     throw new EditError(400, `문서 코드가 맞지 않습니다 (저장소: ${current.values.code ?? '없음'}, 요청: ${input.code})`)
 
