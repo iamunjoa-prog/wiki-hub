@@ -210,16 +210,26 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* 최소 폭을 두지 않는다 — 창이 좁아도 페이지 전체가 가로로 밀리지 않고, 넘치는 내용은 각 화면의 .content 안에서 처리한다 */
 .shell { display: flex; height: 100%; }
 
+/* 사이드바 = 송출실 콘솔. 본문은 흰 종이로 두고 사이드바만 진한 남색 (identity-redesign 2-2) */
 .sidebar {
   width: var(--w-sidebar);
   flex: none;
   position: relative;
-  border-right: 1px solid var(--border);
-  background: var(--surface-subtle);
+  border-right: 1px solid var(--console-line);
+  background: var(--console);
+  color: var(--console-text);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* 남색 위에서는 카테고리 진한 색이 묻힌다 — 콘솔 안에서만 밝은 쪽(설계안 다크 값)을 쓴다 */
+  --cat-guide: #4cc3da;
+  --cat-promo: #e56da8;
+  --cat-prog: #e8b23c;
 }
+.sidebar .label { color: var(--console-muted); }
+.sidebar .kbd { font: 600 11.5px var(--code); color: var(--console-muted); }
+.sidebar .icon { flex: none; color: var(--console-muted); }
+.sidebar .nav-item.on .icon, .sidebar .nav-item:hover .icon { color: inherit; }
 .sidebar.narrow { width: var(--w-sidebar-doc); }
 /* 오른쪽 경계를 끌어 너비 조절 — 선은 1px이지만 잡는 영역은 7px로 넉넉하게 */
 .sidebar-resizer {
@@ -255,10 +265,19 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   gap: 7px;
   height: var(--h-topbar);
   padding: 0 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--console-line);
   font: 600 14px var(--mono);
+  min-width: 0;
 }
-.brand .dot { width: 8px; height: 8px; background: var(--text); }
+.colorbar-mark { flex: none; }
+.brand-cue { font: 800 15px var(--code); letter-spacing: 0.08em; color: var(--console-strong); }
+.brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11.5px var(--mono); color: var(--console-muted); }
+
+/* 고정 줄 — 검색·홈·묻기·내 요청. 아래 메뉴를 펼쳐도 첫 화면에 남는다 */
+.nav-fixed { flex: none; display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) 10px; border-bottom: 1px solid var(--console-line); }
+.nav-search { border: 1px solid var(--console-line); margin-bottom: 4px; }
+.nav-search .kbd { margin-left: auto; }
+.nav-hint { margin-left: auto; font: 500 11.5px var(--mono); color: var(--console-muted); }
 
 /* 문서가 많은 카테고리를 펼치면 목록이 화면보다 길어진다.
    nav가 직접 스크롤하지 않으면 로고·푸터가 눌리면서 메뉴 전체가 위로 밀린다. */
@@ -276,8 +295,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  font: 600 14px var(--mono);
-  color: var(--text-3);
+  font: 500 14px var(--mono);
+  color: var(--console-text);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -285,25 +304,49 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   width: 100%;
 }
 /* 1단 메뉴 묶음 제목 — 첫 묶음은 위 여백 없이 */
-.nav-section { padding: 12px 8px 4px; }
+.nav-section { padding: 14px 8px 4px; font: 700 11.5px/1.2 var(--mono); letter-spacing: 0.06em; }
 .nav-section:first-child { padding-top: 4px; }
-.nav-item:hover { color: var(--text); }
+.nav-section-row { display: flex; align-items: center; }
+.nav-section-link { margin-left: auto; font: 500 12px var(--mono); letter-spacing: 0; color: var(--console-muted); }
+.nav-section-link:hover, .nav-section-link.on, .nav-section-link.trail { color: var(--console-strong); }
+.nav-item:hover { color: var(--console-strong); background: var(--console-2); }
+/* 선택 = 콘솔 바탕 + 왼쪽 3px 막대. 막대 색은 그 메뉴의 카테고리 색, 카테고리가 없으면 ON AIR 빨강 */
 .nav-item.on {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: inset 2px 0 0 var(--text);
+  background: var(--console-2);
+  color: var(--console-strong);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--bar, var(--onair));
 }
-.nav-item .count { margin-left: auto; color: var(--text); }
+.nav-item .count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--console-line);
+  color: var(--console-strong);
+  font-size: 11.5px;
+  line-height: 18px;
+  text-align: center;
+}
 /* 현재 위치의 상위 메뉴: 배경 없이 글자만 진하게 */
-.nav-item.trail { color: var(--text); }
+.nav-item.trail { color: var(--console-strong); }
 .nav-item.sub {
   font-weight: 400;
   font-size: 13.5px;
-  color: var(--text-2);
+  color: var(--console-text);
 }
-.nav-item.sub:hover { background: var(--hover-tint); color: var(--text); }
-.nav-item.sub.trail { font-weight: 600; color: var(--text); }
+.nav-item.sub.trail { font-weight: 600; color: var(--console-strong); }
 .nav-item.sub.on { font-weight: 600; }
+
+/* 위키 카테고리 — 앞에 8px 사각 점. 색만으로 구분하지 않게 이름이 늘 같이 붙는다 */
+.nav-cat[data-cat='guide'] { --bar: var(--cat-guide); }
+.nav-cat[data-cat='promotion'] { --bar: var(--cat-promo); }
+.nav-cat[data-cat='programming'] { --bar: var(--cat-prog); }
+.nav-cats { display: flex; flex-direction: column; gap: 1px; }
+.nav-item.cat { font-weight: 600; }
+.cat-dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 8px; background: var(--bar, var(--status-off)); vertical-align: 1px; }
+.nav-item.cat.no-toggle { padding-left: 22px; }
+.nav-item.cat.no-toggle .cat-dot { margin-right: 2px; }
 
 /* 하위 메뉴: 들여쓰기 + 세로 가이드선 */
 .nav-children {
@@ -312,7 +355,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   gap: 1px;
   margin: 2px 0 4px 14px;
   padding-left: 6px;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--console-line);
 }
 /* 2·3단은 부모 화살표 아래에 가이드선이 오도록 조금만 들인다 — 단마다 크게 쌓이면 문서 제목이 9~10자에서 잘린다 */
 .nav-children.depth2,
@@ -328,10 +371,10 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   height: 30px;
   border: 0;
   background: none;
-  color: var(--muted);
+  color: var(--console-muted);
   border-radius: var(--radius-sm);
 }
-.nav-toggle:hover { color: var(--text); }
+.nav-toggle:hover { color: var(--console-strong); }
 .nav-label {
   flex: 1;
   min-width: 0;
@@ -342,7 +385,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   font: inherit;
   color: inherit;
 }
-.nav-count { padding-right: 8px; font-size: 12px; color: var(--text-2); }
+.nav-count { padding-right: 8px; font-size: 12px; color: var(--console-muted); }
 .chev { transition: transform 0.15s; }
 .chev.open { transform: rotate(90deg); }
 
@@ -436,23 +479,23 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   overflow-wrap: anywhere;
   line-height: 1.4;
 }
-.nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
+.nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--console-muted); }
 
 /* 아직 화면이 없는 편성 메뉴 — 눌러도 되는 메뉴와 구분되게 상태를 옆에 붙인다 */
 .nav-soon {
   flex: none;
   margin-left: auto;
   padding: 1px 5px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--muted);
+  border-radius: var(--radius-pill);
+  background: var(--console-line);
+  color: var(--console-muted);
   font-size: 10.5px;
   letter-spacing: -0.01em;
 }
 
 /* 문서가 아직 없는 위키 카테고리·서브메뉴 — 펼칠 수 없고 맨 아래로 내린다 */
-.nav-item.sub.nav-unready { cursor: default; color: var(--muted); }
-.nav-item.sub.nav-unready:hover { background: none; color: var(--muted); }
+.nav-item.nav-unready { cursor: default; color: var(--console-muted); }
+.nav-item.nav-unready:hover { background: none; color: var(--console-muted); }
 
 /* 편성/스케줄 자리표시 화면 */
 .schedule-soon { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -463,13 +506,15 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   flex: none;
   margin-top: auto;
   padding: 10px 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--console-line);
   font: 12.5px var(--mono);
-  color: var(--muted);
+  color: var(--console-muted);
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.sidebar-foot .btn { background: none; border-color: var(--console-line); color: var(--console-text); }
+.sidebar-foot .btn:hover:not(:disabled) { border-color: var(--console-muted); color: var(--console-strong); }
 
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 

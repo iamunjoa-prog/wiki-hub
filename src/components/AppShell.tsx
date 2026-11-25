@@ -8,6 +8,7 @@ import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
 import { HubUpdateNotice } from './HubUpdateNotice'
+import { ColorBarMark, Icon } from './Icon'
 import { LocalHubOnboarding } from './LocalHubOnboarding'
 
 /** 휴대폰 폭(760px 이하)에서 사이드바를 서랍으로 연다 — 버튼은 각 화면의 TopBar 에 있어 상태를 셸에서 나눠 준다 */
@@ -235,6 +236,7 @@ function ScheduleTree() {
   return (
     <div className="nav-group">
       <NavLink to="/sheets" end className={`nav-item${rootOn ? ' on' : inSchedule ? ' trail' : ''}`}>
+        <Icon name="grid-time" />
         편성/스케줄
       </NavLink>
       <div className="nav-children">
@@ -396,31 +398,38 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
         }}
         onKeyDown={onKeyDown}
       />
+      {/* 정식 이름은 그대로 두고 CUE 를 앞에 붙인다 — 방송 큐시트에서 온 표기, 상표 아님 (identity-redesign 1-3) */}
       <div className="brand">
-        <span className="dot" />
-        플랫폼 담당 지식 허브
+        <ColorBarMark />
+        <b className="brand-cue">CUE</b>
+        <span className="brand-name">플랫폼 담당 지식 허브</span>
       </div>
       {/* 자주 쓰는 4개는 메뉴를 펼쳐도 밀리지 않게 스크롤 밖에 둔다 (identity-redesign 3-1) */}
       <div className="nav-fixed">
         <button type="button" className="nav-item nav-search" onClick={focusSearch}>
+          <Icon name="search" />
           검색
           <span className="kbd">{detectOs() === 'mac' ? '⌘K' : 'Ctrl K'}</span>
         </button>
         <NavLink to="/" end className={navOn}>
+          <Icon name="home" />
           홈
         </NavLink>
         <button type="button" className="nav-item" onClick={openDock}>
+          <Icon name="ask" />
           묻기
           <span className="nav-hint">큐 어시스턴트</span>
         </button>
         {/* 관리자는 처리할 일이 먼저다 — 대시보드 요청 칸과 같이 승인 대기로 보낸다. 본인 요청은 '내 기록'에 둔다 */}
         {isAdmin ? (
           <NavLink to="/approvals" className={navOn}>
+            <Icon name="inbox" />
             승인 대기
             {pendingCount > 0 && <span className="count tc">{pendingCount}</span>}
           </NavLink>
         ) : (
           <NavLink to="/requests" className={navOn}>
+            <Icon name="inbox" />
             내 요청
             {myPendingCount > 0 && (
               <span className="count tc" title={`대기 중 ${myPendingCount}건`}>
@@ -438,11 +447,13 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
         <ScheduleTree />
 
         <NavLink to="/jira-schedule" className={navOn}>
+          <Icon name="calendar" />
           Jira 스케줄 확인
         </NavLink>
 
         {/* 위키의 '시스템 매뉴얼'과 헷갈리지 않게 접속 주소 화면이라는 것을 이름에 담는다 */}
         <NavLink to="/systems" className={navOn}>
+          <Icon name="link-out" />
           시스템 바로가기
         </NavLink>
 
@@ -451,11 +462,13 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
             <div className="label nav-section">내 기록</div>
             {isAdmin && (
               <NavLink to="/requests" className={navOn}>
+                <Icon name="inbox" />
                 내 요청
               </NavLink>
             )}
             {showMyChatLog && (
               <NavLink to="/my-chat-log" className={navOn}>
+                <Icon name="history" />
                 내 대화 기록
               </NavLink>
             )}
@@ -466,16 +479,19 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
           <>
             <div className="label nav-section">관리</div>
             <NavLink to="/approvals" className={navOn}>
+              <Icon name="check-badge" />
               승인 관리
               <span className="count tc">{pendingCount}</span>
             </NavLink>
             {account?.role === 'admin' && (
               <NavLink to="/accounts" className={navOn}>
+                <Icon name="users" />
                 계정 관리
               </NavLink>
             )}
             {showChatLog && (
               <NavLink to="/chat-log" className={navOn}>
+                <Icon name="history" />
                 대화 기록
               </NavLink>
             )}
