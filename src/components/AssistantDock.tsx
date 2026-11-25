@@ -10,9 +10,10 @@ import {
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
+import { headingId } from '../lib/docEdit'
 import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine, PromotionBrief } from '../types'
+import type { ChatMessage, Engine, PromotionBrief, SourceRef } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 import { ReportCard } from './ReportCard'
 
@@ -126,6 +127,16 @@ function BriefCard({ brief }: { brief: PromotionBrief }) {
   )
 }
 
+/**
+ * 근거 문서 주소 — 소제목(anchor)이 있으면 그 장으로 바로 보낸다.
+ * anchor 는 본문 제목 id(`h-…`) 또는 소제목 글자로 온다. 글자면 문서 화면과 같은 규칙으로 id 를 만든다
+ */
+export function sourceHref(s: Pick<SourceRef, 'docId' | 'anchor'>): string {
+  const a = s.anchor?.trim()
+  if (!a) return `/wiki/${s.docId}`
+  return `/wiki/${s.docId}#${encodeURIComponent(a.startsWith('h-') ? a : headingId(a))}`
+}
+
 function Message({ msg }: { msg: ChatMessage }) {
   const navigate = useNavigate()
   const { session, assistant, askAgain } = useApp()
@@ -161,7 +172,7 @@ function Message({ msg }: { msg: ChatMessage }) {
       {msg.sources && msg.sources.length > 0 && (
         <div className="sources">
           {msg.sources.map((s) => (
-            <button key={s.docId} onClick={() => navigate(`/wiki/${s.docId}`)}>
+            <button key={s.docId} onClick={() => navigate(sourceHref(s))}>
               {s.label}
             </button>
           ))}

@@ -405,6 +405,13 @@ function WikiDocPage() {
       const el = document.getElementById(hashId)
       if (el) {
         el.scrollIntoView({ block: 'start' })
+        // 근거 카드·문서 링크로 들어온 장은 2초 강조한다 — 편집 패널의 장 이동과 같은 표시
+        const slot = Number(el.closest('section.doc-sec')?.id.replace('sec-', ''))
+        if (Number.isInteger(slot)) {
+          setFlash(slot)
+          const t = setTimeout(() => setFlash((f) => (f === slot ? null : f)), 2000)
+          return () => clearTimeout(t)
+        }
         return
       }
     }
