@@ -4,7 +4,7 @@ import { readPrivateTermsFile } from './env.js'
 
 /**
  * 공개 규칙 검사 — 위키는 공개 저장소에 올라가므로 금액·비공개 이름·별표 2개 가림을 PR 전에 거른다.
- * 새 문서 제출(createDocPR 앞), /api/publicCheck, 리포트 후검사, 리포트 웹 검색 훅이 모두 이 규칙을 쓴다
+ * 새 문서 제출(createDocPR 앞)·수정 제안(createEditPR 앞), /api/publicCheck, 리포트 후검사, 리포트 웹 검색 훅이 모두 이 규칙을 쓴다
  * (docs/sections/requests-report.md 7절). 로컬 중계와 배포 함수가 함께 쓰므로 node 내장 모듈만 쓴다.
  */
 
@@ -29,8 +29,13 @@ export interface PublicCheckInput {
   body: string
   reason?: string
   via?: DocVia
-  /** 새 문서는 차단·경고를 나누고, 수정 제안은 모두 경고로만 돌려준다(requests-report.md 13절 R-A) */
+  /** 수정 제안도 새 문서처럼 이름·별표 2개는 차단, 금액은 늘 경고다(상용화 결정 D2 ②, requests-doc-edit.md S1) */
   target?: 'new' | 'edit'
+  /**
+   * 수정 제안의 main 제목·본문 — 주면 이미 있던 줄(같은 제목)에서 걸린 것은 빼고 새로 생기거나 바뀐 줄만 돌려준다.
+   * 고칠 수 없는 기존 표기로 제안이 막히지 않게 하는 화면(usePublicWarnings)과 같은 기준이다. 사유는 늘 검사한다
+   */
+  base?: { title?: string; body: string }
 }
 
 export interface PublicCheckResult {
@@ -193,7 +198,7 @@ function scanText(text: string, where: HitWhere, rules: Rules): Hit[] {
  * - 비공개 이름 목록 일치·별표 2개 가림은 새 문서에서 항상 차단
  * - 금액은 리포트에서 넘어온 반영(via:'report')일 때만 차단, 직접 작성한 새 문서는 경고
  * - 수치 경고는 리포트 반영에만 — 규격 문서의 픽셀·글자 수처럼 정당한 수치가 많다
- * - 수정 제안(target:'edit')은 모두 경고
+ * - 수정 제안(target:'edit')도 이름·별표 2개는 차단, 금액은 진입과 상관없이 경고(D2 ② — 쿠폰 금액 문서를 막지 않는다)
  * terms 를 넘기지 않으면(undefined) HUB_PRIVATE_TERMS_FILE 을 읽는다. null 이면 이름 검사를 하지 않는다
  */
 export function publicLeaks(
@@ -203,13 +208,23 @@ export function publicLeaks(
   const terms = opts.terms === undefined ? loadPrivateTerms(opts.env) : opts.terms
   const report = input.via === 'report'
   const rules: Rules = { terms, figures: report, skipExternalUrls: report }
-  const hits = [
-    ...scanText(input.title.replace(/[\r\n]+/g, ' '), 'title', rules),
-    ...scanText(input.body.replace(/\r\n?/g, '\n'), 'body', rules),
+  const title = input.title.replace(/[\r\n]+/g, ' ')
+  const body = input.body.replace(/\r\n?/g, '\n')
+  let hits = [
+    ...scanText(title, 'title', rules),
+    ...scanText(body, 'body', rules),
     ...(input.reason ? scanText(input.reason.replace(/\r\n?/g, '\n'), 'reason', rules) : []),
   ]
-  const blocking = (h: Hit) =>
-    input.target !== 'edit' && (h.kind === 'name' || h.kind === 'doubleStar' || (h.kind === 'amount' && report))
+  if (input.base) {
+    const before = new Set(input.base.body.replace(/\r\n?/g, '\n').split('\n').map((l) => l.trim()))
+    const lines = body.split('\n')
+    const sameTitle = input.base.title !== undefined && input.base.title.trim() === title.trim()
+    hits = hits.filter((h) =>
+      h.where === 'reason' ? true : h.where === 'title' ? !sameTitle : !before.has((lines[(h.line ?? 0) - 1] ?? '').trim()),
+    )
+  }
+  const edit = input.target === 'edit'
+  const blocking = (h: Hit) => h.kind === 'name' || h.kind === 'doubleStar' || (h.kind === 'amount' && report && !edit)
   return { blocks: hits.filter(blocking), warnings: hits.filter((h) => !blocking(h)), namesChecked: terms !== null }
 }
 

@@ -1,7 +1,8 @@
 import { guardApi, RATE_PR } from '../server/guard.js'
 import { readGithubToken } from '../server/env.js'
-import { createEditPR, EditError, editErrorBody, parseEditDocInput } from '../server/github.js'
+import { createEditPR, EditError, editErrorBody, parseEditDocInput, PublicLeakError } from '../server/github.js'
 import { MAX_PR_BYTES } from '../server/knowledge.js'
+import { hitCounts } from '../server/publicCheck.js'
 
 /**
  * 위키 문서의 "✎ 수정 제안" — GitHub API로 브랜치를 만들고 기존 파일을 고쳐 PR을 연다.
@@ -27,8 +28,14 @@ export async function POST(request: Request): Promise<Response> {
     const parsed = parseEditDocInput(guard.body)
     // 요청자는 화면이 보낸 이름이 아니라 로그인한 계정의 이름으로 남긴다
     const input = guard.account ? { ...parsed, requestedBy: guard.account.name } : parsed
+    // 배포본은 공유 드라이브의 이름 목록을 읽을 수 없어 별표 2개만 차단하고 금액은 경고한다(requests-report.md 13절 R-B)
     return Response.json(await createEditPR(input, { token }))
   } catch (err) {
+    if (err instanceof PublicLeakError) {
+      // 걸린 표기는 로그에 남기지 않는다 — 종류별 건수만
+      console.info(`[api/proposeEdit] 차단 · publicCheck block ${hitCounts(err.blocks)}`)
+      return Response.json({ error: err.message, code: err.code, blocks: err.blocks }, { status: 400 })
+    }
     // 409 는 최신 버전·본문(mainVersion·mainBody)을 함께 싣는다
     if (err instanceof EditError) return Response.json(editErrorBody(err), { status: err.status })
     console.error('[api/proposeEdit]', err)
