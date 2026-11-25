@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { schedulePlaceholders } from './data/scheduleNav'
 import { Accounts } from './pages/Accounts'
@@ -13,7 +13,6 @@ import { JiraSchedule } from './pages/JiraSchedule'
 import { MyChatLog } from './pages/MyChatLog'
 import { MyRequests } from './pages/MyRequests'
 import { NewDoc } from './pages/NewDoc'
-import { ProposeEdit } from './pages/ProposeEdit'
 import { ScheduleSoon } from './pages/ScheduleSoon'
 import { SearchResults } from './pages/SearchResults'
 import { SheetRegister } from './pages/SheetRegister'
@@ -21,6 +20,12 @@ import { Sheets } from './pages/Sheets'
 import { Systems } from './pages/Systems'
 import { WikiDoc } from './pages/WikiDoc'
 import { WikiIndex } from './pages/WikiIndex'
+
+/** 옛 수정 제안 주소 — 문서 보기 안 편집 모드로 넘겨준다. 북마크·내 요청의 [수정해서 다시 제안]이 깨지지 않게 */
+function ProposeRedirect() {
+  const { docId } = useParams()
+  return <Navigate to={`/wiki/${docId}?edit=all`} replace />
+}
 
 export default function App() {
   return (
@@ -30,7 +35,7 @@ export default function App() {
         <Route path="/wiki" element={<WikiIndex />} />
         <Route path="/wiki/new" element={<NewDoc />} />
         <Route path="/wiki/:docId" element={<WikiDoc />} />
-        <Route path="/wiki/:docId/propose" element={<ProposeEdit />} />
+        <Route path="/wiki/:docId/propose" element={<ProposeRedirect />} />
         <Route path="/search" element={<SearchResults />} />
         <Route path="/sheets" element={<Sheets />} />
         <Route path="/sheets/btv" element={<BtvSchedule />} />
