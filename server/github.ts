@@ -461,6 +461,14 @@ export async function createEditPR(
   const body = input.body.replace(/\r\n?/g, '\n').replace(/\s*$/, '')
   if (body === current.body.replace(/\s*$/, '')) throw new EditError(400, '저장소의 현재 본문과 같습니다. 변경 사항이 없습니다')
 
+  // 브랜치·커밋·PR 을 만들기 전에 검사한다 — PR 이 열리는 순간 공개되고, 화면 검사만으로는 요청을 직접 보내 우회할 수 있다.
+  // main 에 이미 있던 줄은 짚지 않는다(화면과 같은 기준) — 대조는 화면 번들이 아니라 방금 읽은 main 본문으로 한다
+  const check = publicLeaks(
+    { title: input.title, body, reason: input.reason, target: 'edit', base: { title: current.values.title, body: current.body } },
+    { env: opts.env },
+  )
+  if (check.blocks.length) throw new PublicLeakError(check.blocks)
+
   const bumped = bumpFrontmatter(current.fm, { updatedBy: input.requestedBy, today: todayKst() })
   let content = `---\n${bumped.fm}\n---\n${current.gap}${body}\n`
   if (current.crlf) content = content.replace(/\n/g, '\r\n')

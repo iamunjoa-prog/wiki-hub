@@ -1155,10 +1155,18 @@ export function cliBridge(): Plugin {
         }
         try {
           const input = parseEditDocInput(JSON.parse(body || '{}'))
-          const result = await createEditPR(input, { token: githubToken, env: { ...process.env, ...env } })
+          // .env.local 을 합친 환경 — 비공개 이름 목록(HUB_PRIVATE_TERMS_FILE)·저장소(GITHUB_REPO)를 여기서 찾는다
+          const result = await createEditPR(input, { token: githubToken, env: hubEnv })
           log.info(`[cli-bridge] proposeEdit ${input.code} · ${input.title} · ${input.requestedBy} · ${input.via} · PR #${result.prNumber}`)
           res.end(JSON.stringify(result))
         } catch (err) {
+          if (err instanceof PublicLeakError) {
+            // 걸린 표기는 로그에 남기지 않는다 — 종류별 건수만
+            log.info(`[cli-bridge] proposeEdit 차단 · publicCheck block ${hitCounts(err.blocks)}`)
+            res.statusCode = 400
+            res.end(JSON.stringify({ error: err.message, code: err.code, blocks: err.blocks }))
+            return
+          }
           log.error(`[cli-bridge] proposeEdit ${(err as Error).message}`)
           // 배포 api/proposeEdit.ts 와 같은 형태 — 409 는 mainVersion·mainBody 를 함께 싣는다
           res.statusCode = err instanceof SyntaxError ? 400 : err instanceof EditError ? err.status : 502
