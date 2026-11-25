@@ -1,62 +1,101 @@
 :root {
-  --text: #111;
-  --text-2: #555;
-  --muted: #999;
-  --border: #e5e5e5;
-  --rowsep: #f0f0f0;
-  --line: #d4d4d4;
+  /* 바탕·글자 — 아이덴티티 개편 2-1 (docs/ux/2026-11-25-identity-redesign.md). 이름은 그대로, 값만 바꿨다 */
+  --text: #141a24;
+  --text-2: #5a6372;
+  --muted: #6b7482; /* 설계값 #737c8a 는 흰 바탕 4.2:1 이라 4.5:1 을 넘게 한 단계 진하게 */
+  --border: #e3e6eb;
+  --rowsep: #eef0f3;
+  --line: #cbd0d8;
   --surface: #fff;
-  --surface-subtle: #fafafa;
-  --surface-sheet: #f7f7f7;
-  --accent: #ea002c;
-  --danger: #b03a2e;
-  --ok: #2f7d4f;
+  --surface-subtle: #f6f7f9;
+  --surface-sheet: #f1f3f6;
+  /* ON AIR 빨강 — 진행 중 램프·묻기 버튼에만. --accent 는 예전 이름이라 별칭으로 둔다 */
+  --onair: #d7262e;
+  --onair-soft: #fdecec;
+  --accent: var(--onair);
+  --danger: #b42318;
+  --ok: #1f7a4d;
   /* 값으로 박혀 있던 색을 모은 토큰 — 다크 모드는 이 블록만 바꾸면 되게 */
-  --text-body: #222; /* 위키 본문 글자 */
-  --text-3: #444; /* 사이드바 1단 메뉴 */
-  --text-soft: #777;
-  --text-strong: #000;
-  --on-dark: #fff; /* 진한 바탕(검정·빨강) 위 글자 */
-  --accent-hover: #c60026;
-  --accent-soft: #fff6f8;
-  --accent-line: #f3c4cd;
-  --surface-code: #f4f4f4;
-  --surface-stripe: #eaeaea;
-  --surface-wait: #f5f5f5;
-  --surface-disabled: #f0f0f0;
+  --text-body: #252c38; /* 위키 본문 글자 */
+  --text-3: #3a4250;
+  --text-soft: #6b7482;
+  --text-strong: #0b1018;
+  --on-dark: #fff; /* 진한 바탕(남색·빨강) 위 글자 */
+  --accent-hover: #b81e25;
+  --accent-soft: var(--onair-soft);
+  --accent-line: #f2c1c3;
+  --surface-code: #f2f4f7;
+  --surface-stripe: #e8ebef;
+  --surface-wait: #f3f4f6;
+  --surface-disabled: #eef0f3;
   --highlight: #fff2b8;
-  --hover-tint: rgba(0, 0, 0, 0.035);
-  --info: #3b6fd8; /* 토요일·후반 구간·타깃 */
+  --hover-tint: rgba(20, 26, 36, 0.04);
+  --info: #2e5bcc; /* 토요일·후반 구간·타깃 */
   --gold: #c8a300;
   --gold-text: #9a7d00;
   --warn: #e0a100;
-  --warn-text: #b7791f;
+  --warn-text: #9a6a00;
   --warn-bg: #fff8e6;
   --warn-ink: #5c4400;
   --ok-dot: #22a559;
-  --status-off: #c8c8c8;
+  --status-off: #9aa3b0;
   --danger-bg: #fbeeec;
   --diff-add: #eaf5ec;
   --diff-del: #f7ecea;
+
+  /* 사이드바 콘솔 — 라이트 모드에서도 사이드바만 진한 남색 (2-2) */
+  --console: #121826;
+  --console-2: #1c2436;
+  --console-line: #273047;
+  --console-text: #c5ccd8;
+  --console-strong: #fff;
+  --console-muted: #7f8aa0;
+
+  /* 카테고리 3색 — 방송 컬러바. 사각 점·띠로만 쓰고 늘 이름 글자를 같이 붙인다 (2-3) */
+  --cat-guide: #0b7489;
+  --cat-guide-bg: #e8f5f8;
+  --cat-guide-line: #b5dee7;
+  --cat-promo: #b0306f;
+  --cat-promo-bg: #fbeaf2;
+  --cat-promo-line: #edbcd3;
+  --cat-prog: #9a6700;
+  --cat-prog-bg: #fbf3e0;
+  --cat-prog-line: #e9d29a;
 
   --sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
   /* 제목·라벨용: 한글 굴림체 대체 방지를 위해 본문과 같은 산세리프 사용 */
   --mono: var(--sans);
   --code: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Malgun Gothic', monospace;
 
-  --radius: 8px;
-  --radius-sm: 5px;
-  --shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.07);
+  /* 간격 4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 (2-6) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+
+  --radius-xs: 2px; /* 태그·칩·램프 칸 — 편성표 칸처럼 각지게 */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-pill: 999px; /* 진행 중 램프·묻기 버튼에만 */
+  --shadow-hover: 0 4px 14px rgba(20, 26, 36, 0.08);
+  --shadow-dock: -8px 0 24px rgba(20, 26, 36, 0.06);
 
   --w-sidebar: 248px;
   --w-sidebar-doc: 248px;
-  --w-toc: 200px;
+  --w-toc: 240px; /* 문서 정보 카드를 같이 넣는다 */
   --w-doc: 820px; /* 위키 본문 최대 폭 — 넓은 창에서 한 줄이 한글 50자 안팎을 넘지 않게 */
   --w-rail: 44px;
   --w-dock: clamp(320px, 33vw, 560px); /* 초기값 — 실제 너비는 드래그로 바뀐다 */
   --w-detail: 320px;
-  --h-topbar: 44px;
+  --h-topbar: 48px;
 }
+
+/* 타임코드 — 문서 코드·버전·날짜·건수를 고정폭 숫자로 (2-5) */
+.tc { font-family: var(--code); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
 * { box-sizing: border-box; }
 
