@@ -315,7 +315,7 @@ export function NewDoc() {
                 {check.result.blocks.length > 0 && (
                   <div className="banner danger" role="alert">
                     <b>제출할 수 없습니다 — 공개 저장소에 올릴 수 없는 표현이 있습니다</b>
-                    {hitLines(check.result.blocks, true).map((line) => (
+                    {hitLines(check.result.blocks, true, { body }).map((line) => (
                       <span key={line}>· {line}</span>
                     ))}
                   </div>
@@ -323,7 +323,7 @@ export function NewDoc() {
                 {check.result.warnings.length > 0 && (
                   <div className="banner warn" role="status">
                     <b>제출은 할 수 있지만 확인해 주세요</b>
-                    {hitLines(check.result.warnings, false).map((line) => (
+                    {hitLines(check.result.warnings, false, { body }).map((line) => (
                       <span key={line}>· {line}</span>
                     ))}
                     {namesMissing && via !== 'report' && (

@@ -1,5 +1,5 @@
 import type { CategoryId, ProductScope, PublicHit, WikiDoc } from '../types'
-import type { DocVia } from './publicCheck'
+import { PublicLeakError, throwIfPublicLeak, type DocVia } from './publicCheck'
 
 export interface NewDocInput {
   category: CategoryId
@@ -21,13 +21,8 @@ export interface NewDocResult {
   path: string
 }
 
-/** 서버 검사에 막힌 제출(400 public-leak) — 아무것도 올라가지 않았다. 화면이 blocks 로 빨강 상자를 다시 그린다 */
-export class PublicLeakError extends Error {
-  constructor(readonly blocks: PublicHit[]) {
-    super('공개 저장소에 올릴 수 없는 표현이 있습니다')
-    this.name = 'PublicLeakError'
-  }
-}
+// 수정 제안도 같은 차단을 받으므로 publicCheck 에 두고 여기서는 이어서 내보낸다
+export { PublicLeakError }
 
 /**
  * 위키 문서 목록 "+ 새 문서" — 서버가 GitHub에 브랜치·PR을 만든다.
@@ -48,7 +43,7 @@ export async function requestNewDoc(input: NewDocInput, docs: WikiDoc[], request
     code?: string
     blocks?: PublicHit[]
   }
-  if (res.status === 400 && data.code === 'public-leak' && Array.isArray(data.blocks)) throw new PublicLeakError(data.blocks)
+  throwIfPublicLeak(res.status, data)
   if (!res.ok || !data.prUrl) throw new Error(data.error || `HTTP ${res.status}`)
   return { prUrl: data.prUrl, prNumber: data.prNumber ?? 0, code: data.code!, path: data.path! }
 }
