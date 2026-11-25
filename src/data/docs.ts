@@ -7,11 +7,12 @@ import { knowledgeDocs } from './knowledgeDocs'
  * 더 이상 '시스템'을 따로 두지 않는다 — `categoryShort`·`subcategories`에는 남겨 두어
  * CategoryId 타입과 과거 문서가 깨지지 않게 한다. 시스템 접속 주소·즐겨찾기는 별도로
  * /systems 화면(사이드바 '시스템 바로가기' 링크)에서 다룬다 — 이 위키 카테고리와는 다른 기능이다.
+ * 처음 온 사람이 허브 쓰는 법부터 보도록 이용 안내를 맨 앞에 둔다.
  */
 export const categories: Category[] = [
-  { id: 'programming', label: '편성' },
-  { id: 'promotion', label: '프로모션' },
   { id: 'guide', label: '이용 안내' },
+  { id: 'promotion', label: '프로모션' },
+  { id: 'programming', label: '편성' },
 ]
 
 export const categoryShort: Record<Category['id'], string> = {

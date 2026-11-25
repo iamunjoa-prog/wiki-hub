@@ -14,6 +14,7 @@ import type { CategoryId, ProductScope, PublicCheckResult } from '../types'
 /** 코드가 숫자로 안 끝나는 서브메뉴(ACS·CBS·Swing 등)는 다음 번호를 자동으로 못 매긴다 */
 const NO_AUTO_CODE = new Set(['system'])
 
+const DEFAULT_CATEGORY: CategoryId = 'promotion'
 const subsOf = (category: CategoryId) => subcategories[category].filter((s) => !NO_AUTO_CODE.has(s.id))
 
 /** 화면 이동 state 로 넘어온 미리 채움 — 새로고침 뒤에도 고치던 내용이 남도록 같은 리포트의 sessionStorage 값을 먼저 쓴다 */
@@ -46,11 +47,12 @@ export function NewDoc() {
   const { prefill, check: handedCheck } = usePrefill()
   const via = prefill?.via ?? 'form'
 
-  const initialCategory = prefill?.category ?? (params.get('category') as CategoryId | null) ?? categories[0].id
+  // 새 문서는 대부분 프로모션 문서라 메뉴 순서와 상관없이 프로모션을 기본으로 둔다
+  const initialCategory = prefill?.category ?? (params.get('category') as CategoryId | null) ?? DEFAULT_CATEGORY
   const initialSub = prefill?.subcategory ?? params.get('sub')
 
   const [category, setCategory] = useState<CategoryId>(
-    categories.some((c) => c.id === initialCategory) ? initialCategory : categories[0].id,
+    categories.some((c) => c.id === initialCategory) ? initialCategory : DEFAULT_CATEGORY,
   )
   const subs = useMemo(() => subsOf(category), [category])
   // 선택 칸은 첫 항목을 보여 주므로 값도 첫 항목으로 둔다 — 비워 두면 손대지 않고 낸 문서가 서브메뉴 없이 올라간다

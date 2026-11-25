@@ -328,8 +328,11 @@ export function searchDocs(input: string | SearchInput, pool: WikiDoc[] = docs):
     if (search.avoidCategory && search.avoidCategory.includes(doc.category)) score *= AVOIDED_TOP_CATEGORY_PENALTY
     if (score > 0) scored.push({ doc, score, excerpt: bestParagraph(doc.body, terms) })
   }
-  return scored.sort((a, b) => b.score - a.score)
+  // 동점이면 이용 안내를 뒤로 — 메뉴에서 이용 안내가 맨 앞이 되어도 근거가 안내 문서로 쏠리지 않게 한다(같은 메뉴 안은 목록 순서 유지)
+  return scored.sort((a, b) => b.score - a.score || tieRank(a.doc) - tieRank(b.doc))
 }
+
+const tieRank = (doc: WikiDoc) => (doc.category === 'guide' ? 1 : 0)
 
 /** 문서 본문에서 질의와 가장 관련 있는 문장 n개를 뽑는다 (추출 요약). */
 export function extractSentences(doc: WikiDoc, query: string | SearchInput, limit = 3): string[] {
