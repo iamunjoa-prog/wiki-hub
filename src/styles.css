@@ -711,6 +711,119 @@ textarea.field.sec-textarea { font: 13.5px/1.65 var(--code); min-height: 200px; 
 .raw-editor { display: flex; flex-direction: column; gap: 6px; }
 textarea.field.raw-textarea { min-height: 70vh; font: 13.5px/1.65 var(--code); }
 
+/* ---------- 블록 편집 면 (doc-editing 2차 — 마크다운을 숨긴 보이는 모양 편집) ---------- */
+.edit-icon { flex: none; vertical-align: -3px; margin-right: 3px; }
+.btn .edit-icon { margin-right: 4px; }
+.bk-surface { display: flex; flex-direction: column; gap: 10px; }
+.bk-toolbar { position: sticky; }
+.bk-tool-gap { flex: 1; }
+.bk-hint { flex-basis: 100%; font-size: 12.5px; color: var(--warn-text); }
+.bk-menu-wrap { position: relative; display: inline-flex; }
+.bk-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; display: flex; flex-direction: column; min-width: 132px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); box-shadow: var(--shadow-hover); }
+.bk-menu button { padding: 5px 8px; border: 0; border-radius: 4px; background: none; text-align: left; font-size: 13px; }
+.bk-menu button:hover { background: var(--hover-tint); }
+.bk-pop { position: absolute; top: calc(100% + 4px); left: 0; z-index: 6; display: flex; flex-direction: column; gap: 6px; width: min(420px, 100%); padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow-hover); font-size: 13px; }
+.bk-pop-list { display: flex; flex-direction: column; max-height: 220px; overflow-y: auto; }
+.bk-pop-item { display: flex; align-items: center; gap: 6px; padding: 5px 6px; border: 0; border-radius: 4px; background: none; text-align: left; }
+.bk-pop-item:hover { background: var(--hover-tint); }
+
+.bk-blocks { display: flex; flex-direction: column; }
+/* 블록 하나 — 변경 막대는 본문 왼쪽 여백(-14px)에, 카테고리 띠와 같은 세로선에 오지 않게 */
+.bk { position: relative; margin: 0 0 10px; padding: 2px 64px 2px 0; border-radius: var(--radius-sm); }
+.bk-surface.readonly .bk { padding-right: 0; }
+.bk.bk-changed, .bk.bk-new { background: var(--diff-add); box-shadow: 0 0 0 4px var(--diff-add); }
+.bk.bk-changed::before, .bk.bk-new::before { content: ''; position: absolute; left: -14px; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--ok); }
+.bk-newchip { position: absolute; right: 0; top: -8px; z-index: 1; padding: 0 6px; border: 1px solid var(--ok); border-radius: 4px; font: 11px var(--mono); color: var(--ok); background: var(--surface); }
+.bk-del { position: absolute; right: 0; top: 2px; padding: 1px 6px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font: 11.5px var(--mono); color: var(--text-2); opacity: 0; transition: opacity 0.12s; }
+.bk.bk-new > .bk-del { top: 14px; }
+.bk:hover > .bk-del, .bk:focus-within > .bk-del { opacity: 1; }
+.bk-del:hover { border-color: var(--danger); color: var(--danger); }
+@media (hover: none) { .bk-del { opacity: 1; } }
+
+/* 글 칸 — 줄바꿈·빈칸을 원문 그대로 지키려고 pre-wrap */
+.ib { min-height: 1.8em; padding: 1px 4px; margin: 0 -4px; border-radius: 4px; outline: none; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; cursor: text; }
+.ib:hover { background: var(--hover-tint); }
+.ib:focus { background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.bk-surface.readonly .ib { cursor: default; }
+.bk-surface.readonly .ib:hover { background: none; }
+.ib:empty::before { content: attr(data-placeholder); color: var(--muted); }
+.ib b { font-weight: 700; }
+.ib a { text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; cursor: text; }
+.ib a[data-code]::after { content: attr(data-code); display: inline-block; margin-left: 4px; padding: 0 4px; border: 1px solid var(--line); border-radius: 3px; font: 600 10.5px/1.5 var(--mono); color: var(--text-2); text-decoration: none; vertical-align: 1px; }
+.ib a.ext::after { content: '↗'; margin-left: 2px; font-size: 0.8em; color: var(--text-2); }
+.ib code { font-family: var(--code); font-size: 14.5px; background: var(--surface-code); padding: 1px 4px; }
+/* 바뀐 글자만 진하게 칠한다 */
+.ib mark.ib-chg { background: none; color: var(--ok); font-weight: 700; box-shadow: inset 0 -0.45em 0 var(--diff-add); }
+/* 가린 표기 — 잠긴 칩. 글자를 채울 수 없고 칩째로만 지운다 */
+.ib-mask { display: inline-flex; align-items: center; gap: 2px; margin: 0 1px; padding: 0 5px; border-radius: 4px; background: var(--surface-stripe); color: var(--text-2); font-size: 0.92em; line-height: 1.5; user-select: all; cursor: default; }
+.ib-mask::before { content: ''; width: 10px; height: 10px; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8'%3E%3Cpath d='M4.5 7V5a3.5 3.5 0 0 1 7 0v2M3.5 7h9v6.5h-9z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.8'%3E%3Cpath d='M4.5 7V5a3.5 3.5 0 0 1 7 0v2M3.5 7h9v6.5h-9z'/%3E%3C/svg%3E") center / contain no-repeat; }
+.ib-mask.chg { color: var(--ok); }
+/* (보완 필요) — 앰버 점선 칩. 누르면 내용으로 바꿀 수 있다 */
+.ib-todo { display: inline-block; margin: 0 1px; padding: 0 5px; border: 1px dashed var(--warn); border-radius: 4px; background: var(--warn-bg); color: var(--warn-ink); font-size: 0.92em; line-height: 1.5; cursor: pointer; }
+
+.bk-heading { display: flex; align-items: baseline; gap: 10px; }
+.bk-heading .ib { flex: 1; }
+.bk-side { flex: none; font: 11.5px var(--mono); }
+.bk-h { font-family: var(--mono); font-weight: 700; }
+.bk-h2 { font-size: 20px; }
+.bk-h3 { font-size: 17px; }
+.bk-h4 { font-size: 16px; }
+.bk-callout { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border-left: 2px solid var(--text); background: var(--surface-subtle); color: var(--text-2); }
+.bk-callout-check { border-left-color: var(--warn); }
+.bk-callout-warn { border-left-color: var(--danger); }
+.bk-callout-kind { align-self: flex-start; padding: 0 6px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); font: 600 11.5px var(--mono); color: var(--text-2); }
+.bk-list { display: flex; flex-direction: column; gap: 2px; }
+.bk-li { position: relative; display: flex; align-items: flex-start; gap: 6px; border-radius: 4px; }
+.bk-li .ib { flex: 1; }
+.bk-li-mark { flex: none; min-width: 18px; text-align: right; color: var(--text-2); }
+.bk-li-task { flex: none; color: var(--text-2); }
+.bk-li-chg, .bk-li-new { box-shadow: inset 3px 0 0 var(--ok); }
+.bk-li-new::after { content: '새로'; flex: none; align-self: center; padding: 0 5px; border: 1px solid var(--ok); border-radius: 4px; font: 10.5px var(--mono); color: var(--ok); background: var(--surface); }
+.bk-hr { margin: 8px 0; border: 0; border-top: 1px solid var(--border); }
+.bk-table .table-wrap { margin: 0; }
+.bk-table table { margin: 0; }
+.bk-table th, .bk-table td { padding: 3px 5px; vertical-align: top; }
+.bk-table td.bk-cell-chg, .bk-table th.bk-cell-chg { background: var(--diff-add); box-shadow: inset 3px 0 0 var(--ok); }
+.bk-row-new td { background: var(--diff-add); }
+.bk-gone-row td { background: var(--diff-del); font-size: 13px; color: var(--text-2); }
+.bk-gone-row td > span { margin-right: 8px; }
+.bk-table-bar { display: none; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 4px; font-size: 12px; }
+.bk-table:focus-within .bk-table-bar { display: flex; }
+/* 지운 블록 — 한 줄로 접힌 상자 */
+.bk-gone { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; padding: 4px 10px; border-radius: var(--radius-sm); background: var(--diff-del); font-size: 13px; color: var(--text-2); }
+.bk-gone > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: line-through; text-decoration-color: var(--danger); }
+.bk-gone-item { margin: 0; }
+/* 화면이 모르는 모양·잠근 줄 — 회색 상자에 결과 모양 그대로, 원문 보기에서 고친다 */
+.bk-unknown, .bk-locked { padding: 6px 10px; border: 1px dashed var(--line); border-radius: var(--radius-sm); background: var(--surface-sheet); }
+.bk-locked-label { display: block; margin-bottom: 4px; font: 12px var(--mono); color: var(--text-2); }
+.bk-locked-md { opacity: 0.8; font-size: 14.5px; }
+.bk-locked-md > :last-child { margin-bottom: 0; }
+/* 바뀐 곳 표시 끄기 — 깨끗한 모양만 */
+.marks-off .bk.bk-changed, .marks-off .bk.bk-new { background: none; box-shadow: none; }
+.marks-off .bk::before, .marks-off .bk-newchip, .marks-off .doc-sec.changed::before, .marks-off .sec-new { display: none; }
+.marks-off .doc-sec.changed:not(.open) { background: none; box-shadow: none; }
+
+/* 블록 편집 중인 장은 블록마다 막대를 그린다 — 장 전체 막대와 겹치지 않게 */
+.doc-sec.open:has(> .sec-editor.blocks)::before { display: none; }
+
+/* 제출 확인 창 — 보이는 글 전/후 카드 */
+.change-cards { display: flex; flex-direction: column; gap: 8px; }
+.change-card { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.card-line { display: flex; gap: 8px; padding: 3px 6px; border-radius: 4px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.card-line.before { background: var(--diff-del); color: var(--text-2); }
+.card-line.after { background: var(--diff-add); }
+.change-card.deleted .card-line.before .card-text { text-decoration: line-through; text-decoration-color: var(--danger); }
+.card-side { flex: none; font: 600 12px/1.9 var(--mono); color: var(--text-2); white-space: nowrap; }
+.card-line del { color: var(--danger); text-decoration-color: var(--danger); }
+.card-line ins, .card-table ins { text-decoration: none; font-weight: 700; color: var(--ok); }
+.card-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.card-table th, .card-table td { padding: 4px 7px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+.card-table th { background: var(--surface-subtle); font: 600 12.5px var(--mono); }
+.card-table tr.before td { color: var(--text-2); }
+.card-table tr.before td.chg { background: var(--diff-del); }
+.card-table tr.after td.chg { background: var(--diff-add); }
+.card-table del { color: var(--danger); }
+
 /* 편집 바 — 상단바 아래 본문 맨 위에 붙는다. 빨강 램프는 이 화면에 하나, 차단이 있으면 앰버로 바꾼다 */
 .edit-bar { position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 13.5px; }
 .edit-bar-title { min-width: 0; max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13.5px var(--mono); }

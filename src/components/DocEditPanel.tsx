@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { diffStats } from './DiffView'
+import { changeCount, changeSummary, sectionCards } from './ChangeCards'
 import {
   brokenAnchors,
   editWarnings,
@@ -315,21 +315,20 @@ export function DocEditPanel({
       {pendingNote}
 
       <div className="edit-panel-sec">
-        <div className="label">바뀐 곳 {changes.length}</div>
+        <div className="label">바뀐 곳 {changeCount(changes)}</div>
         {changes.length === 0 ? (
           <span className="muted edit-panel-empty">아직 바뀐 곳이 없어요</span>
         ) : (
-          changes.map((c) => {
-            const s = diffStats(c.before, c.after)
-            return (
-              <button key={`${c.kind}-${c.key}`} className="edit-change" onClick={() => onJump(c.kind === 'removed' ? null : slotOfKey(c.key))}>
-                <span className="edit-change-title">{sectionLabel(c.title)}</span>
-                <span className="muted">
-                  {kindLabel[c.kind]} · 추가 {s.added}줄 / 삭제 {s.removed}줄
-                </span>
-              </button>
-            )
-          })
+          changes.map((c) => (
+            // 줄 수 대신 블록으로 센다 — 「표 칸 1 바뀜 · 문단 1 추가」
+            <button key={`${c.kind}-${c.key}`} className="edit-change" onClick={() => onJump(c.kind === 'removed' ? null : slotOfKey(c.key))}>
+              <span className="edit-change-title">{sectionLabel(c.title)}</span>
+              <span className="muted">
+                {c.kind === 'changed' ? '' : `${kindLabel[c.kind]} · `}
+                {changeSummary(c, sectionCards(c))}
+              </span>
+            </button>
+          ))
         )}
       </div>
 
@@ -401,7 +400,14 @@ export function DocEditPanel({
           (askDiscard ? (
             <div className="form-actions">
               <span className="muted edit-panel-foot">고친 내용을 모두 지울까요? 되돌릴 수 없어요.</span>
-              <button className="btn sm" onClick={onDiscardAll}>
+              <button
+                className="btn sm"
+                onClick={() => {
+                  // 다음에 다시 고쳤을 때 확인 줄이 미리 열려 있지 않게
+                  setAskDiscard(false)
+                  onDiscardAll()
+                }}
+              >
                 지우기
               </button>
               <button className="btn sm" onClick={() => setAskDiscard(false)}>

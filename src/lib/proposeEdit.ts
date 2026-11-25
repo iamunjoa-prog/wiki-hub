@@ -24,6 +24,27 @@ export class StaleDocError extends Error {
   }
 }
 
+export interface DocVersion {
+  version: number
+  body: string
+}
+
+/**
+ * 편집 진입 때 main 의 최신 버전·본문(/api/docVersion) — 화면 묶음이 재배포 전이라 낡았어도 제출 409 를 미리 막는다(doc-editing 2-6).
+ * 어떤 이유로든 못 읽으면 null — 화면은 묻지 않고 묶음 본문으로 고친다(제출 때 409 흐름이 뒤를 받친다)
+ */
+export async function fetchDocVersion(path: string): Promise<DocVersion | null> {
+  try {
+    const res = await fetch(`/api/docVersion?path=${encodeURIComponent(path)}`, { headers: { Accept: 'application/json' } })
+    if (!res.ok) return null
+    const data = (await res.json()) as { version?: unknown; body?: unknown }
+    if (typeof data.version !== 'number' || typeof data.body !== 'string') return null
+    return { version: data.version, body: data.body.replace(/\r\n?/g, '\n') }
+  } catch {
+    return null
+  }
+}
+
 /**
  * 문서 "✎ 수정 제안" — 서버가 GitHub 에 브랜치를 만들고 기존 파일을 고쳐 PR 을 연다.
  * 프론트매터(version·updatedBy·updatedAt)는 서버가 main 의 파일에서 다시 쓰므로 본문만 보낸다.
