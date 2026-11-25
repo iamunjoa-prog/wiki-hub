@@ -4,6 +4,7 @@ import { TopBar } from '../components/AppShell'
 import { CliStatus } from '../components/CliStatus'
 import { SystemCard } from '../components/SystemCard'
 import { categories, categoryShort } from '../data/docs'
+import { kstToday } from '../lib/scheduleApi'
 import { useApp } from '../store/AppStore'
 import type { ProposalStatus } from '../types'
 
@@ -39,7 +40,9 @@ export function Dashboard() {
   const favorites = systems.filter((s) => favoriteSystems.includes(s.id))
 
   const recent = [...docs].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, 7)
-  const weekly = docs.filter((d) => d.updatedAt >= '2026-08-25').length
+  // 오늘(KST) 포함 최근 7일 — 날짜를 박아 두면 시간이 지나며 전체 문서 수와 같아진다
+  const weekAgo = kstToday(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000))
+  const weekly = docs.filter((d) => d.updatedAt >= weekAgo).length
 
   // 관리자는 전체 대기 건, 실무자는 본인 요청을 최신순으로
   const requests = [
@@ -54,9 +57,7 @@ export function Dashboard() {
 
   return (
     <>
-      <TopBar>
-        <span className="btn sm">알림 3</span>
-      </TopBar>
+      <TopBar />
       <div className="content">
         <div className="dash-wrap">
           <div className="kpi-grid">
@@ -71,7 +72,7 @@ export function Dashboard() {
               </span>
             </div>
             <div className="kpi">
-              <span className="label">이번 주 업데이트</span>
+              <span className="label">최근 7일 업데이트</span>
               <b>{weekly}</b>
             </div>
             {isAdmin ? (
