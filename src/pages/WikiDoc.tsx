@@ -1,13 +1,29 @@
-import { Children, isValidElement, useEffect, useMemo, useRef, useState } from 'react'
+import { Children, isValidElement, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import type { Components } from 'react-markdown'
 import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
+import { DocEditPanel, DraftBanner, PendingProposalsNote, useEditChecks } from '../components/DocEditPanel'
+import { SectionEditor } from '../components/SectionEditor'
+import { SubmitDoneDialog, SubmitEditDialog, type EditBase } from '../components/SubmitEditDialog'
 import { categories, categoryShort, docCommits, subcategories } from '../data/docs'
-import { headingId, headingPlain } from '../lib/docEdit'
+import type { AiEditResult } from '../lib/assistant'
+import { defaultEditReason, headingId, headingPlain, sectionAnchor, sectionChanges, sectionLabel, sectionTitleOf } from '../lib/docEdit'
+import {
+  changedSections,
+  loadDraft,
+  normBody,
+  planRestore,
+  removeDraft,
+  saveDraft,
+  splitSections,
+  type DraftRestore,
+  type EditDraft,
+} from '../lib/draft'
+import type { EditProposalResult } from '../lib/proposeEdit'
 import { useApp } from '../store/AppStore'
 
 interface Heading {
@@ -40,11 +56,59 @@ function textOf(node: ReactNode): string {
     .join('')
 }
 
+const PLUGINS = [[remarkGfm, { singleTilde: false }], remarkCjkFriendly] as NonNullable<Parameters<typeof ReactMarkdown>[0]['remarkPlugins']>
+
+/**
+ * 장 하나를 그린다. 장마다 따로 그려야 장 제목 옆에 [이 장 고치기]를 달고 편집 칸과 바꿔 끼울 수 있다.
+ * 글이 같으면 다시 그리지 않는다 — 다른 장을 고치는 동안 이 장의 DOM 이 새로 생기지 않게
+ */
+const SectionView = memo(function SectionView({ text, components, preamble }: { text: string; components: Components; preamble: boolean }) {
+  // `**용어(설명)**를`처럼 닫는 ** 앞이 문장부호이고 뒤에 조사가 붙으면 표준 규칙상 굵게가 안 닫혀 별표가 남는다
+  return (
+    <ReactMarkdown remarkPlugins={PLUGINS} components={components}>
+      {preamble ? splitScope(text).body : text}
+    </ReactMarkdown>
+  )
+})
+
+/** 편집 칸마다의 key — splitSections 와 같은 규칙(제목#몇 번째)이라 바뀐 곳 목록과 칸을 맞출 수 있다 */
+function slotKeys(parts: string[]): string[] {
+  const seen = new Map<string, number>()
+  return parts.map((t) => {
+    const title = sectionTitleOf(t)
+    const n = (seen.get(title) ?? 0) + 1
+    seen.set(title, n)
+    return `${title}#${n}`
+  })
+}
+
+/** `?edit=` 앵커가 가리키는 칸 — 장 앵커뿐 아니라 그 장 안 `###` 소제목 앵커로도 찾는다 */
+function slotOfAnchor(parts: string[], anchor: string | null): number | null {
+  if (!anchor || anchor === 'all') return null
+  const i = parts.findIndex((t) => sectionAnchor(sectionTitleOf(t)) === anchor)
+  if (i >= 0) return i
+  const j = parts.findIndex((t) => t.split('\n').some((l) => /^###\s/.test(l) && headingId(l.replace(/^###\s+/, '').trim()) === anchor))
+  return j >= 0 ? j : null
+}
+
+/** 편집 바 「임시 저장 10:42」 — 24시간 표기 */
+const timeLabel = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+const LEAVE_SAVED = '고친 내용을 임시 저장했어요. 문서를 다시 열면 이어서 고칠 수 있어요.'
+
+type SaveState = { state: 'idle' } | { state: 'pending' } | { state: 'saved'; at: string } | { state: 'failed' }
+
+/** 다른 문서로 옮기면 편집 상태를 통째로 새로 시작한다 — 떠나는 문서의 고친 내용은 그 자리에서 임시 저장된다 */
 export function WikiDoc() {
+  const { docId } = useParams()
+  return <WikiDocPage key={docId} />
+}
+
+function WikiDocPage() {
   const { docId } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
-  const { docs } = useApp()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { docs, session, proposals, ensureProposals, refreshProposals, showToast } = useApp()
   const doc = docs.find((d) => d.id === docId)
   const [showHistory, setShowHistory] = useState(false)
   const [activeHeading, setActiveHeading] = useState<string | null>(null)
@@ -99,6 +163,195 @@ export function WikiDoc() {
     const scope: Components = { p: ({ children }) => <>{children}</>, a: mdLink }
     return { body, scope }
   }, [docs, navigate])
+
+  // ── 편집 모드 — 주소 `?edit=<장 앵커>` 가 있으면 같은 화면에서 고친다 (docs/ux/2026-11-25-doc-editing.md) ──
+  const editParam = searchParams.get('edit')
+  const editing = Boolean(doc) && editParam !== null
+  // 초안은 계정별로 둔다 — 로그인 없는 데모에서는 데모 계정 아이디를 쓴다
+  const accountId = session.loginId ?? session.userId
+  const docBase = useMemo<EditBase | null>(() => (doc ? { version: doc.version, body: normBody(doc.body) } : null), [doc])
+  /** 409 뒤 서버가 준 최신본 — 배포 전까지는 화면 묶음 문서보다 새것을 기준으로 고친다 */
+  const [baseOverride, setBaseOverride] = useState<EditBase | null>(null)
+  const base = baseOverride ?? docBase
+  /** 편집 칸 — 장마다 한 칸. 이어 붙이면(join '\n') 본문이다. null 이면 편집하지 않는 중 */
+  const [parts, setParts] = useState<string[] | null>(null)
+  const [open, setOpen] = useState<number[]>([])
+  const [raw, setRaw] = useState(false)
+  const [reason, setReason] = useState('')
+  const [reasonTouched, setReasonTouched] = useState(false)
+  const [reference, setReference] = useState<{ label: string; text: string } | null>(null)
+  /** 임시 저장이 있고 아직 고르지 않았다 — 고를 때까지 편집 칸을 초안으로 채우지 않는다 */
+  const [draftInfo, setDraftInfo] = useState<{ draft: EditDraft; plan: Exclude<DraftRestore, { kind: 'empty' }> } | null>(null)
+  const [save, setSave] = useState<SaveState>({ state: 'idle' })
+  const [submitOpen, setSubmitOpen] = useState(false)
+  const [done, setDone] = useState<{ result: EditProposalResult; titles: string[] } | null>(null)
+  const [exitAsk, setExitAsk] = useState(false)
+  const [pendingSeen, setPendingSeen] = useState(false)
+  const [flash, setFlash] = useState<number | null>(null)
+
+  const viewParts = useMemo(() => (docBase ? splitSections(docBase.body).map((s) => s.text) : []), [docBase])
+  const slots = parts ?? viewParts
+  const body = parts ? parts.join('\n') : (base?.body ?? '')
+  const baseSections = useMemo(() => (base ? splitSections(base.body) : []), [base])
+  const baseByKey = useMemo(() => new Map(baseSections.map((s) => [s.key, s.text])), [baseSections])
+  const keys = useMemo(() => slotKeys(slots), [slots])
+  const changes = useMemo(() => (parts && base ? sectionChanges(baseSections, splitSections(body)) : []), [parts, base, baseSections, body])
+  const slotOfKey = useCallback((key: string) => {
+    const i = keys.indexOf(key)
+    return i >= 0 ? i : null
+  }, [keys])
+  const autoReason = defaultEditReason(changes.map((c) => c.title))
+
+  // 사유를 직접 쓰기 전에는 바뀐 장 이름으로 채워 둔다 — 버튼 하나로 제출 (requests-doc-edit.md 3-2)
+  useEffect(() => {
+    if (parts && !reasonTouched) setReason(autoReason)
+  }, [autoReason, parts, reasonTouched])
+
+  // 최신 값 — 떠날 때·탭 닫을 때의 저장은 렌더 밖에서 돈다
+  const latest = useRef({ body, reason, base, parts, reference })
+  latest.current = { body, reason, base, parts, reference }
+  const lastSaved = useRef<string | null>(null)
+  const snap = (b: string, r: string) => `${b}\u0000${r}`
+
+  const saveNow = useCallback(() => {
+    const { body: b, reason: r, base: bs, parts: ps, reference: ref } = latest.current
+    if (!doc || !ps || !bs) return
+    const s = snap(b, r)
+    if (s === lastSaved.current) return
+    lastSaved.current = s
+    if (b === bs.body) {
+      // 고친 것이 없으면 초안을 남기지 않는다 — 열고 닫기만 하면 아무것도 남지 않게. 합치는 중이면 옛 초안을 지우지 않는다
+      if (!ref) removeDraft(accountId, doc.id)
+      setSave({ state: 'idle' })
+      return
+    }
+    const now = new Date()
+    const ok = saveDraft(accountId, doc.id, { baseVersion: bs.version, baseBody: bs.body, body: b, reason: r, savedAt: now.toISOString() })
+    if (!ok) lastSaved.current = null
+    setSave(ok ? { state: 'saved', at: timeLabel(now) } : { state: 'failed' })
+  }, [doc, accountId])
+  const saveRef = useRef(saveNow)
+  saveRef.current = saveNow
+
+  const readDraft = useCallback(() => {
+    if (!doc) return
+    const draft = loadDraft(accountId, doc.id)
+    if (!draft) return setDraftInfo(null)
+    // 409 뒤 최신본(배포 전) 기준으로 저장한 초안 — 화면 문서보다 새 버전이라 그 기준 그대로 이어 고친다
+    const ahead = draft.baseVersion !== null && draft.baseBody !== null && draft.baseVersion > doc.version
+    const plan: DraftRestore = ahead
+      ? normBody(draft.body) === normBody(draft.baseBody!)
+        ? { kind: 'empty' }
+        : { kind: 'same', titles: (changedSections(draft.baseBody!, draft.body) ?? []).map((s) => s.title) }
+      : planRestore(draft, doc.version, doc.body)
+    if (plan.kind === 'empty') {
+      removeDraft(accountId, doc.id)
+      setDraftInfo(null)
+    } else setDraftInfo({ draft, plan })
+  }, [doc, accountId])
+
+  const loadedFor = useRef<string | null>(null)
+  useEffect(() => {
+    if (!doc) return
+    // 문서 목록이 다시 그려져도 고른 결과를 되묻지 않게 계정·문서·버전마다 한 번만 읽는다
+    const loadKey = `${accountId}.${doc.id}@${doc.version}`
+    if (loadedFor.current === loadKey) return
+    loadedFor.current = loadKey
+    readDraft()
+  }, [doc, accountId, readDraft])
+
+  const startSession = useCallback(
+    (opts: { body?: string; base?: EditBase | null; reason?: string; reference?: { label: string; text: string } | null; anchor?: string | null; keys?: string[] } = {}) => {
+      if (!docBase) return
+      const b = opts.base ?? docBase
+      const ps = splitSections(opts.body ?? b.body).map((s) => s.text)
+      setBaseOverride(opts.base ?? null)
+      setParts(ps)
+      setReason(opts.reason ?? '')
+      setReasonTouched(Boolean(opts.reason))
+      setReference(opts.reference ?? null)
+      setRaw(false)
+      setExitAsk(false)
+      const ks = slotKeys(ps)
+      const fromKeys = (opts.keys ?? []).map((k) => ks.indexOf(k)).filter((i) => i >= 0)
+      const at = slotOfAnchor(ps, opts.anchor ?? null)
+      setOpen(fromKeys.length ? fromKeys : at !== null ? [at] : opts.anchor === 'all' ? [0] : [])
+      lastSaved.current = snap(ps.join('\n'), opts.reason ?? '')
+      setSave({ state: 'idle' })
+    },
+    [docBase],
+  )
+
+  const endSession = useCallback(() => {
+    setParts(null)
+    setBaseOverride(null)
+    setOpen([])
+    setRaw(false)
+    setReference(null)
+    setExitAsk(false)
+    setSubmitOpen(false)
+    setSave({ state: 'idle' })
+  }, [])
+
+  // 편집 모드로 들어오면(주소에 ?edit=) 편집 칸을 연다. 임시 저장을 고르기 전에는 열지 않는다
+  useEffect(() => {
+    if (!editing || parts !== null || draftInfo) return
+    startSession({ anchor: editParam })
+  }, [editing, parts, draftInfo, editParam, startSession])
+
+  // 편집 모드에서 나가면(편집 끝내기·뒤로 가기) 바로 임시 저장하고 보기로 돌아간다
+  useEffect(() => {
+    if (editing || parts === null) return
+    saveRef.current()
+    endSession()
+    readDraft()
+  }, [editing, parts, endSession, readDraft])
+
+  // 편집을 시작할 때 같은 문서의 대기 제안을 한 번 읽는다 — 못 읽으면 알림 없이 넘어간다(4-2)
+  useEffect(() => {
+    if (editing) ensureProposals()
+  }, [editing, ensureProposals])
+
+  // 글이 바뀌고 2초 쉬면 임시 저장
+  useEffect(() => {
+    if (!parts) return
+    if (snap(body, reason) === lastSaved.current) return
+    setSave({ state: 'pending' })
+    const t = setTimeout(() => saveRef.current(), 2000)
+    return () => clearTimeout(t)
+  }, [body, reason, parts])
+
+  // 허브 안에서 떠나면 막지 않는다 — 그 자리에서 저장하고 알린다(4-2). 탭을 닫는 건 저장 안 된 틈이 있을 때만 브라우저가 묻는다
+  useEffect(
+    () => () => {
+      const { body: b, base: bs, parts: ps } = latest.current
+      if (!ps || !bs) return
+      saveRef.current()
+      if (b !== bs.body) showToast(LEAVE_SAVED)
+    },
+    [showToast],
+  )
+  const sessionOn = parts !== null
+  useEffect(() => {
+    if (!sessionOn) return
+    const unsaved = () => {
+      const { body: b, reason: r, base: bs } = latest.current
+      return Boolean(bs) && b !== bs!.body && snap(b, r) !== lastSaved.current
+    }
+    const onBefore = (e: BeforeUnloadEvent) => {
+      if (!unsaved()) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    // 실제로 떠나는 순간에는 묻지 않고 저장해 둔다 — 확인창에서 [나가기]를 눌러도 잃지 않게
+    const onHide = () => saveRef.current()
+    window.addEventListener('beforeunload', onBefore)
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      window.removeEventListener('beforeunload', onBefore)
+      window.removeEventListener('pagehide', onHide)
+    }
+  }, [sessionOn])
 
   // location.hash는 퍼센트 인코딩된 상태다 — getElementById는 원문(디코딩된) id로 찾아야 한다
   const hashId = location.hash ? decodeURIComponent(location.hash.slice(1)) : null
@@ -169,7 +422,44 @@ export function WikiDoc() {
     }
   }, [activeHeading])
 
-  if (!doc) {
+  // 새로고침·링크로 편집 주소를 바로 열었을 때만 그 장으로 옮긴다 — 화면 안에서 눌러 연 장은 이미 보이는 자리라 움직이지 않는다
+  const scrolledFor = useRef(false)
+  useEffect(() => {
+    if (!parts || scrolledFor.current) return
+    scrolledFor.current = true
+    const at = open[0]
+    if (at === undefined) return
+    const el = document.getElementById(`sec-${at}`)
+    const box = contentRef.current
+    if (!el || !box) return
+    const r = el.getBoundingClientRect()
+    const b = box.getBoundingClientRect()
+    if (r.top < b.top || r.top > b.bottom - 80) el.scrollIntoView({ block: 'start' })
+  }, [parts, open])
+
+  const onChangeSlot = useCallback((slot: number, text: string) => {
+    setParts((ps) => (ps ? ps.map((t, i) => (i === slot ? text : t)) : ps))
+  }, [])
+  const onCloseSlot = useCallback((slot: number) => {
+    setOpen((o) => o.filter((i) => i !== slot))
+    // 장을 닫을 때 바로 임시 저장한다
+    setTimeout(() => saveRef.current(), 0)
+  }, [])
+  const onAccept = useCallback(
+    (slot: number, result: AiEditResult) => {
+      setParts((ps) => (ps ? ps.map((t, i) => (i === slot ? result.body : t)) : ps))
+      // 사유를 직접 쓰지 않았을 때만 AI 요약을 넣는다
+      if (!reasonTouched && result.summary) {
+        setReason(`${result.summary} (AI 수정 · ${result.by})`)
+        setReasonTouched(true)
+      }
+    },
+    [reasonTouched],
+  )
+
+  const checks = useEditChecks({ doc, docs, baseBody: base?.body ?? '', body, reason, changes, slotOfKey })
+
+  if (!doc || !base) {
     return (
       <>
         <TopBar />
@@ -180,9 +470,7 @@ export function WikiDoc() {
     )
   }
 
-  const commits = docCommits[doc.id] ?? [
-    { version: doc.version, author: doc.updatedBy, at: doc.updatedAt, message: '문서 등록' },
-  ]
+  const commits = docCommits[doc.id] ?? [{ version: doc.version, author: doc.updatedBy, at: doc.updatedAt, message: '문서 등록' }]
 
   // 현재 위치 — 위키 문서 › 카테고리 › 서브메뉴. 각 칸은 그 목록으로 간다
   const subs = subcategories[doc.category] ?? []
@@ -213,12 +501,116 @@ export function WikiDoc() {
       )
     })
 
+  const setEditParam = (anchor: string, replace: boolean) => setSearchParams({ edit: anchor }, { replace })
+  /** 장 [이 장 고치기] — 보기 중이면 편집 모드로 들어가며 그 장을 연다. 편집 중이면 그 장만 더 연다 */
+  const editSlot = (i: number) => {
+    const anchor = sectionAnchor(sectionTitleOf(slots[i]))
+    if (parts && !draftInfo) {
+      setOpen((o) => (o.includes(i) ? o : [...o, i]))
+      setEditParam(anchor, true)
+    } else setEditParam(anchor, false)
+  }
+  const exitEdit = () => {
+    setExitAsk(false)
+    setSearchParams({}, { replace: false })
+  }
+  const jump = (slot: number | null) => {
+    setSubmitOpen(false)
+    if (slot === null) return
+    setOpen((o) => (o.includes(slot) ? o : [...o, slot]))
+    requestAnimationFrame(() => document.getElementById(`sec-${slot}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    // 패널 항목을 누르면 그 장을 2초 강조한다
+    setFlash(slot)
+    setTimeout(() => setFlash((f) => (f === slot ? null : f)), 2000)
+  }
+  const continueDraft = (next: { body: string; base: EditBase | null; reference?: { label: string; text: string } }) => {
+    if (!draftInfo) return
+    const { draft } = draftInfo
+    const bs = next.base ?? docBase!
+    const first = (changedSections(bs.body, next.body) ?? [])[0]
+    const anchor = editParam ?? (first ? sectionAnchor(first.title) : 'all')
+    setDraftInfo(null)
+    startSession({ body: next.body, base: next.base, reason: next.reference ? '' : draft.reason, reference: next.reference ?? null, anchor })
+    if (!editing) setEditParam(anchor, false)
+  }
+
+  const pending = editing && proposals ? proposals.filter((p) => p.kind === 'edit' && p.status === 'pending' && p.docCode === doc.code) : []
+  const ahead = baseOverride && baseOverride.version > doc.version ? baseOverride.version : null
+  const saveLabel =
+    save.state === 'pending'
+      ? '저장 중…'
+      : save.state === 'saved'
+        ? `임시 저장 ${save.at}`
+        : save.state === 'failed'
+          ? '임시 저장 못 함 · 지금 할 일: 내용 복사해 두기'
+          : '고치면 이 PC에 임시 저장돼요'
+
   return (
     <>
       <TopBar />
       <div className="content flush" style={{ overflow: 'auto' }} ref={contentRef}>
-        <div className="doc-layout">
+        {editing && parts && (
+          <div className={`edit-bar${checks.blocked ? ' blocked' : ''}`} role="region" aria-label="편집 바">
+            <span className={`lamp ${checks.blocked ? 'warn' : 'on'}`} aria-hidden="true" />
+            <b className="edit-bar-title">
+              {checks.blocked ? '제출 전 확인' : '편집 중'} · {doc.title}
+            </b>
+            <span className={`mono edit-bar-save${save.state === 'failed' ? ' err' : ''}`}>{saveLabel}</span>
+            <span className="edit-bar-gap" />
+            <button className="btn sm" onClick={() => setRaw((v) => !v)}>
+              {raw ? '장으로 나눠 보기' : '원문 보기(고급)'}
+            </button>
+            <button className="btn sm edit-bar-submit" disabled={changes.length === 0} onClick={() => setSubmitOpen(true)}>
+              제출하기
+            </button>
+            <button className="btn sm primary" onClick={() => (changes.length > 0 ? setExitAsk(true) : exitEdit())}>
+              편집 끝내기
+            </button>
+            {exitAsk && (
+              <div className="edit-bar-ask" role="alertdialog" aria-label="편집 끝내기">
+                <span>고친 내용은 임시 저장돼 있어요. 보기로 돌아갈까요?</span>
+                <button className="btn sm primary" onClick={exitEdit}>
+                  돌아가기
+                </button>
+                <button className="btn sm" onClick={() => setExitAsk(false)}>
+                  계속 고치기
+                </button>
+              </div>
+            )}
+            {ahead && (
+              <div className="edit-bar-note">ⓘ 승인된 새 버전(v{ahead})이 아직 화면에 반영 전이에요. 고칠 때는 v{ahead}로 고쳐요</div>
+            )}
+          </div>
+        )}
+        <div className={`doc-layout${editing ? ' editing' : ''}`}>
           <div className="doc-body">
+            {draftInfo && (
+              <DraftBanner
+                draft={draftInfo.draft}
+                plan={draftInfo.plan}
+                docVersion={doc.version}
+                onContinue={() => {
+                  const { draft, plan } = draftInfo
+                  const ahead = draft.baseVersion !== null && draft.baseBody !== null && draft.baseVersion > doc.version
+                  if (plan.kind === 'rebased') continueDraft({ body: plan.body, base: null })
+                  else continueDraft({ body: draft.body, base: ahead ? { version: draft.baseVersion!, body: normBody(draft.baseBody!) } : null })
+                }}
+                onMerge={() =>
+                  continueDraft({
+                    body: docBase!.body,
+                    base: null,
+                    reference: {
+                      label: `내 임시 저장본${draftInfo.draft.baseVersion !== null ? ` (v${draftInfo.draft.baseVersion} 기준)` : ''}`,
+                      text: draftInfo.draft.body,
+                    },
+                  })
+                }
+                onDiscard={() => {
+                  removeDraft(accountId, doc.id)
+                  setDraftInfo(null)
+                }}
+              />
+            )}
             <div className="doc-head">
               <div className="doc-title">
                 <nav className="crumb" aria-label="현재 위치">
@@ -237,10 +629,7 @@ export function WikiDoc() {
                   </span>
                   {scoped.scope.map((s, i) => (
                     <span key={i} className="doc-scope">
-                      <ReactMarkdown
-                        remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
-                        components={md.scope}
-                      >
+                      <ReactMarkdown remarkPlugins={PLUGINS} components={md.scope}>
                         {s}
                       </ReactMarkdown>
                     </span>
@@ -250,9 +639,12 @@ export function WikiDoc() {
               <button className="btn sm" onClick={() => setShowHistory((v) => !v)}>
                 ⎇ 히스토리
               </button>
-              <button className="btn sm primary" onClick={() => navigate(`/wiki/${doc.id}/propose`)}>
-                ✎ 수정 제안
-              </button>
+              {!editing && (
+                // 지금 읽는 장을 열고 편집 모드로 — 페이지를 옮기지 않는다
+                <button className="btn sm primary" onClick={() => setEditParam(activeHeading ?? 'all', false)}>
+                  ✎ 수정 제안
+                </button>
+              )}
             </div>
 
             {showHistory && (
@@ -275,31 +667,159 @@ export function WikiDoc() {
             {headings.length > 0 && (
               <details className="panel doc-toc-inline" key={doc.id} ref={inlineTocRef}>
                 <summary>목차 ({headings.length})</summary>
-                <div className="doc-toc-inline-list">
-                  {tocLinks(() => inlineTocRef.current?.removeAttribute('open'))}
-                </div>
+                <div className="doc-toc-inline-list">{tocLinks(() => inlineTocRef.current?.removeAttribute('open'))}</div>
               </details>
             )}
 
-            <div className="md">
-              {/* `**용어(설명)**를`처럼 닫는 ** 앞이 문장부호이고 뒤에 조사가 붙으면 표준 규칙상 굵게가 안 닫혀 별표가 남는다 */}
-              <ReactMarkdown
-                remarkPlugins={[[remarkGfm, { singleTilde: false }], remarkCjkFriendly]}
-                components={md.body}
-              >
-                {scoped.body}
-              </ReactMarkdown>
-            </div>
+            {editing && parts && raw ? (
+              <div className="raw-editor">
+                <span className="muted" style={{ fontSize: 12.5 }}>
+                  문서 전체 원문이에요. 여기서 고친 것도 같은 검사·같은 「바뀐 곳」 목록에 들어가요.
+                </span>
+                <textarea
+                  className="field raw-textarea"
+                  value={body}
+                  onChange={(e) => {
+                    setParts(splitSections(e.target.value).map((s) => s.text))
+                    setOpen([])
+                  }}
+                  aria-label="문서 전체 원문"
+                  spellCheck={false}
+                />
+              </div>
+            ) : (
+              <div className="md doc-md">
+                {slots.map((text, i) => {
+                  const title = sectionTitleOf(text)
+                  const preamble = i === 0 && !title
+                  const isOpen = Boolean(parts) && open.includes(i)
+                  const baseText = baseByKey.get(keys[i]) ?? null
+                  const changed = Boolean(parts) && baseText !== text
+                  return (
+                    <section
+                      key={i}
+                      id={`sec-${i}`}
+                      className={`doc-sec${changed ? ' changed' : ''}${isOpen ? ' open' : ''}${flash === i ? ' flash' : ''}${title ? '' : ' intro'}`}
+                    >
+                      {isOpen ? (
+                        <SectionEditor
+                          doc={doc}
+                          slot={i}
+                          title={title}
+                          text={text}
+                          baseText={baseText}
+                          preview={<SectionView text={text} components={md.body} preamble={preamble} />}
+                          onChange={onChangeSlot}
+                          onClose={onCloseSlot}
+                          onAccept={onAccept}
+                        />
+                      ) : (
+                        <>
+                          <SectionView text={text} components={md.body} preamble={preamble} />
+                          {changed && baseText === null && <span className="sec-new">새로</span>}
+                          {/* 머리말이 적용대상 줄뿐이면(메타 줄 태그로 옮겨 보임) 고칠 것이 안 보이므로 단추도 두지 않는다 — 원문 보기에서 고친다 */}
+                          {!(preamble && !splitScope(text).body.trim()) && (
+                            <button
+                              className="sec-edit"
+                              onClick={() => editSlot(i)}
+                              title={`「${sectionLabel(title)}」 장만 고쳐요 — 읽던 자리에서 열려요`}
+                            >
+                              ✎ {title ? '이 장 고치기' : '머리말 고치기'}
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </section>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
-          <nav className="doc-toc" ref={tocRef}>
-            <div className="label" style={{ marginBottom: 8 }}>
-              목차
-            </div>
-            {tocLinks()}
-          </nav>
+          {editing && parts ? (
+            <DocEditPanel
+              changes={changes}
+              checks={checks}
+              body={body}
+              parts={parts}
+              reason={reason}
+              defaultReason={autoReason}
+              onReason={(v) => {
+                setReason(v)
+                setReasonTouched(true)
+              }}
+              onFillReason={() => {
+                setReason(autoReason)
+                setReasonTouched(false)
+              }}
+              onJump={jump}
+              slotOfKey={slotOfKey}
+              onSubmit={() => setSubmitOpen(true)}
+              onDiscardAll={() => {
+                removeDraft(accountId, doc.id)
+                startSession({ anchor: editParam })
+              }}
+              pendingNote={
+                !pendingSeen && pending.length > 0 ? (
+                  <PendingProposalsNote pending={pending} myName={session.name} onDismiss={() => setPendingSeen(true)} />
+                ) : null
+              }
+              reference={reference}
+              onCloseReference={() => setReference(null)}
+            />
+          ) : (
+            <nav className="doc-toc" ref={tocRef}>
+              <div className="label" style={{ marginBottom: 8 }}>
+                목차
+              </div>
+              {tocLinks()}
+            </nav>
+          )}
         </div>
       </div>
+
+      {submitOpen && parts && (
+        <SubmitEditDialog
+          doc={doc}
+          base={base}
+          body={body}
+          reason={reason}
+          defaultReason={autoReason}
+          onReason={(v) => {
+            setReason(v)
+            setReasonTouched(true)
+          }}
+          changes={changes}
+          checks={checks}
+          parts={parts}
+          pendingCount={pending.length}
+          onClose={() => setSubmitOpen(false)}
+          onGoFix={jump}
+          onRebase={(next, nextBody) => {
+            const openKeys = open.map((i) => keys[i])
+            const ps = splitSections(nextBody).map((s) => s.text)
+            const ks = slotKeys(ps)
+            setBaseOverride(next)
+            setParts(ps)
+            setOpen(openKeys.map((k) => ks.indexOf(k)).filter((i) => i >= 0))
+          }}
+          onReEdit={(next, nextBody, mine, clashKeys) => {
+            startSession({ body: nextBody, base: next, reason, reference: { label: '내가 쓴 글', text: mine }, keys: clashKeys })
+            setSubmitOpen(false)
+          }}
+          onSubmitted={(result) => {
+            // 초안은 PR 이 실제로 만들어진 뒤에만 지운다 — 실패하면 긴 수정이 그대로 남아야 한다
+            removeDraft(accountId, doc.id)
+            lastSaved.current = null
+            setDone({ result, titles: changes.map((c) => c.title) })
+            endSession()
+            setDraftInfo(null)
+            setSearchParams({}, { replace: true })
+            void refreshProposals()
+          }}
+        />
+      )}
+      {done && <SubmitDoneDialog result={done.result} titles={done.titles} onClose={() => setDone(null)} />}
     </>
   )
 }

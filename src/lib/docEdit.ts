@@ -144,6 +144,56 @@ export function brokenAnchors(doc: Pick<WikiDoc, 'id' | 'code' | 'body'>, after:
   return out
 }
 
+// ── 장(H2) 단위 편집 — 문서 보기 화면 안에서 장마다 고친다 (docs/ux/2026-11-25-doc-editing.md) ──
+
+/** 장 하나의 제목 — 첫 줄이 `## ` 이면 그 글자, 아니면 머리말('') */
+export function sectionTitleOf(text: string): string {
+  const m = /^##\s+(.*)$/.exec(text.split('\n', 1)[0] ?? '')
+  return m ? m[1].trim() : ''
+}
+
+/** 편집 주소 `?edit=` 에 쓰는 장 앵커 — 본문 제목 id 와 같은 규칙, 머리말은 `intro` */
+export const sectionAnchor = (title: string) => (title ? headingId(title) : 'intro')
+
+/** 화면에 보이는 장 이름 — 머리말은 이름이 없어 「머리말」로 부른다 */
+export const sectionLabel = (title: string) => (title ? headingPlain(title) : '머리말')
+
+export interface SectionChange {
+  /** splitSections 의 key — 같은 제목이 두 번 나와도 섞이지 않는다 */
+  key: string
+  title: string
+  kind: 'changed' | 'added' | 'removed'
+  /** 고친 장의 앞(base)·뒤(after) 원문 — 장 단위 비교·검사에 쓴다 */
+  before: string
+  after: string
+}
+
+/** 바뀐 장 목록 — 같은 key 끼리 비교하고, 한쪽에만 있는 장은 새로 생김·없어짐으로 친다 */
+export function sectionChanges(
+  base: { key: string; title: string; text: string }[],
+  now: { key: string; title: string; text: string }[],
+): SectionChange[] {
+  const baseByKey = new Map(base.map((s) => [s.key, s]))
+  const nowKeys = new Set(now.map((s) => s.key))
+  const out: SectionChange[] = []
+  for (const s of now) {
+    const b = baseByKey.get(s.key)
+    if (!b) out.push({ key: s.key, title: s.title, kind: 'added', before: '', after: s.text })
+    else if (b.text !== s.text) out.push({ key: s.key, title: s.title, kind: 'changed', before: b.text, after: s.text })
+  }
+  for (const b of base) if (!nowKeys.has(b.key)) out.push({ key: b.key, title: b.title, kind: 'removed', before: b.text, after: '' })
+  return out
+}
+
+/** 수정 사유 기본값 — 사유 칸을 미리 채워 버튼 하나로 제출하게 한다 (requests-doc-edit.md 3-2) */
+export function defaultEditReason(titles: string[]): string {
+  if (titles.length === 0) return ''
+  const named = titles.filter(Boolean).map((t) => `「${headingPlain(t)}」`)
+  if (named.length === 0) return '문서 첫머리 수정'
+  const head = titles.some((t) => !t) ? '문서 첫머리, ' : ''
+  return `${head}${named.join(', ')} 장 수정`
+}
+
 /** 배너 한 줄 — `지식/promotion/ppm.md 외 4곳의 링크가 끊깁니다` */
 export function brokenAnchorMessage(broken: BrokenAnchor[]): string | null {
   const files = [...new Set(broken.map((b) => b.from))]

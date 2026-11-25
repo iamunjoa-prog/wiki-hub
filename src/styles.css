@@ -660,6 +660,106 @@ button.row:hover { background: var(--surface-subtle); }
   .doc-title { flex-basis: 100%; }
 }
 
+/* ---------- 문서 보기 안 편집 모드 (docs/ux/2026-11-25-doc-editing.md 1차) ---------- */
+
+/* 장마다 감싼다 — 감싼 상자에 여백·테두리가 없어 장 사이 여백은 감싸기 전과 같게 접힌다 */
+.doc-sec { position: relative; border-radius: var(--radius-sm); }
+.md > .doc-sec:first-child > h2:first-child,
+.md > .doc-sec:has(> hr + .sec-edit) + .doc-sec > h2:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
+/* 장 제목 오른쪽 끝 [이 장 고치기] 자리 — 마우스를 올려야 보여도 제목 줄바꿈이 바뀌지 않게 늘 비워 둔다 */
+.doc-sec > h2:first-child { padding-right: 128px; }
+.sec-edit {
+  position: absolute;
+  right: 0;
+  top: 20px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: 12px var(--mono);
+  color: var(--text-2);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.sec-edit:hover { border-color: var(--text); color: var(--text); }
+.md > .doc-sec:first-child > .sec-edit { top: 4px; }
+.doc-sec.intro > .sec-edit { position: static; display: block; margin: 0 0 8px auto; }
+.doc-sec:hover { background: var(--hover-tint); box-shadow: 0 0 0 6px var(--hover-tint); }
+.doc-sec:hover > .sec-edit, .doc-sec:focus-within > .sec-edit { opacity: 1; }
+@media (hover: none) { .sec-edit { opacity: 1; } }
+.doc-sec.open:hover { background: none; box-shadow: none; }
+/* 바뀐 장 — 막대는 본문 왼쪽 여백에(카테고리 띠와 같은 세로선에 오지 않게) */
+.doc-sec.changed::before { content: ''; position: absolute; left: -14px; top: 0; bottom: 0; width: 3px; border-radius: 2px; background: var(--ok); }
+.doc-sec.changed:not(.open) { background: var(--diff-add); box-shadow: 0 0 0 6px var(--diff-add); }
+.doc-sec.flash, .doc-sec.flash:hover { background: var(--highlight); box-shadow: 0 0 0 6px var(--highlight); }
+.sec-new { position: absolute; right: 128px; top: 22px; padding: 0 6px; border: 1px solid var(--ok); border-radius: 4px; font: 11px var(--mono); color: var(--ok); background: var(--surface); }
+
+/* 장 제목(h2) 위 여백과 같게 — 편집 칸으로 바뀌어도 읽던 자리가 움직이지 않게 */
+.doc-sec.open { margin: 36px 0 20px; }
+.md > .doc-sec.open:first-child { margin-top: 0; }
+.sec-editor { display: flex; flex-direction: column; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+/* 도구줄은 편집 바 아래에 붙어 다닌다 — 긴 장을 내려도 [닫기]·[AI에게 부탁]이 보이게 */
+.sec-toolbar { position: sticky; top: 46px; z-index: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px 0 6px; background: var(--surface); }
+.sec-toolbar-title { margin-right: auto; font-size: 13px; }
+.sec-editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start; }
+textarea.field.sec-textarea { font: 13.5px/1.65 var(--code); min-height: 200px; }
+.sec-preview { padding: 8px 12px; border: 1px dashed var(--line); border-radius: var(--radius-sm); max-height: 75vh; overflow: auto; font-size: 15px; }
+.sec-preview > h2:nth-child(2) { margin-top: 0; padding-top: 0; border-top: 0; padding-right: 0; }
+.sec-preview-label { margin-bottom: 4px; }
+.sec-ai { margin-bottom: 0; }
+.sec-suggest { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-subtle); font-size: 13.5px; }
+.raw-editor { display: flex; flex-direction: column; gap: 6px; }
+textarea.field.raw-textarea { min-height: 70vh; font: 13.5px/1.65 var(--code); }
+
+/* 편집 바 — 상단바 아래 본문 맨 위에 붙는다. 빨강 램프는 이 화면에 하나, 차단이 있으면 앰버로 바꾼다 */
+.edit-bar { position: sticky; top: 0; z-index: 6; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 18px; border-bottom: 1px solid var(--border); background: var(--surface); font-size: 13.5px; }
+.edit-bar-title { min-width: 0; max-width: 46ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 700 13.5px var(--mono); }
+.edit-bar-save { font-size: 12px; color: var(--text-2); }
+.edit-bar-save.err { color: var(--danger); }
+.edit-bar-gap { flex: 1; }
+.edit-bar-submit { display: none; }
+.edit-bar-ask, .edit-bar-note { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.edit-bar-ask { padding: 6px 8px; border: 1px solid var(--warn); border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn-ink); }
+.edit-bar-note { color: var(--text-2); }
+.lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--status-off); vertical-align: middle; }
+.lamp.on { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.lamp.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+.lamp.ok { background: var(--ok-dot); }
+
+/* 편집 패널 — 편집 중에는 오른쪽 목차 자리가 이 패널로 바뀐다 */
+.doc-edit-panel { width: var(--w-detail); flex: none; position: sticky; top: 52px; max-height: calc(100vh - var(--h-topbar) - 64px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 64px; scrollbar-width: thin; }
+.edit-panel-sec { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.edit-change, .edit-check { display: flex; flex-direction: column; gap: 1px; padding: 4px 0; border: 0; background: none; text-align: left; font-size: 13px; line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+.edit-change .muted { font-size: 12px; }
+.edit-change:hover .edit-change-title, .edit-check:hover { text-decoration: underline; text-underline-offset: 2px; }
+.edit-check.warn { color: var(--warn-text); }
+.edit-check.block { color: var(--danger); }
+.edit-panel-empty, .edit-panel-foot { font-size: 12.5px; }
+textarea.field.edit-reason { min-height: 64px; font-family: var(--sans); }
+textarea.field.edit-reference { min-height: 140px; font: 12.5px/1.6 var(--code); }
+.edit-discard { align-self: flex-start; }
+.edit-pending { border-radius: var(--radius); }
+.draft-banner { margin-bottom: 14px; border-radius: var(--radius-sm); }
+
+/* 제출 확인 창 — 화면 가운데, 페이지는 그대로 */
+.modal-back.submit-back { padding: 5vh 0; }
+.modal.submit-modal { width: min(760px, 94vw); max-height: 90vh; display: flex; flex-direction: column; }
+.modal.submit-modal.done { width: min(560px, 94vw); }
+.submit-modal .submit-body { overflow-y: auto; min-height: 0; word-break: keep-all; }
+.submit-foot { flex: none; padding: 10px 14px; border-top: 1px solid var(--border); }
+.submit-change { display: flex; flex-direction: column; gap: 4px; }
+.submit-after { display: flex; flex-direction: column; gap: 2px; border-radius: var(--radius-sm); }
+.clash { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--warn); }
+
+/* 좁은 폭(챗봇 창을 열었을 때 등) — 편집 패널은 본문 아래로, 편집 바에 [제출하기]를 꺼내 둔다 */
+@container (max-width: 720px) {
+  .doc-layout.editing { flex-direction: column; align-items: stretch; }
+  .doc-layout.editing .doc-edit-panel { width: auto; position: static; max-height: none; padding-bottom: 0; }
+  .edit-bar { padding: 8px 14px; }
+  .edit-bar-submit { display: inline-flex; }
+  .sec-editor-grid { grid-template-columns: 1fr; }
+}
+
 /* 한글은 어절 단위로만 줄을 바꾼다("생성·승 / 인·발급" 방지). 긴 영문·주소만 아무 데서나 끊는다 */
 .md { font-size: 16px; line-height: 1.8; color: var(--text-body); word-break: keep-all; overflow-wrap: anywhere; }
 /* 장이 바뀌는 것이 보이게 h2 위에 구분선, h3 는 본문(16px)보다 크게 */
@@ -1118,7 +1218,7 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .form-row { display: flex; flex-direction: column; gap: 6px; }
 .form-actions { display: flex; gap: 8px; align-items: center; }
 
-/* 수정 제안 · AI로 수정 */
+/* 수정 제안 · AI에게 부탁(장 도구줄) */
 .ai-edit {
   display: flex;
   flex-direction: column;

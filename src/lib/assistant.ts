@@ -1299,7 +1299,7 @@ export interface AiEditResult {
 }
 
 /**
- * 수정 제안 화면의 "AI로 수정". 쓸 수 있는 엔진을 순서대로 시도해 고친 본문 전체를 받는다.
+ * 문서 편집 모드의 장 도구줄 "AI에게 부탁". 쓸 수 있는 엔진을 순서대로 시도해 고친 본문(장 하나를 보내면 그 장)을 받는다.
  * 규칙 기반 대체는 없다 — 모두 실패하면 마지막 오류를 throw 한다.
  */
 export async function requestAiEdit(

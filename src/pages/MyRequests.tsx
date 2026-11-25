@@ -133,7 +133,7 @@ export function MyRequests() {
                       </a>
                     )}
                     {p.status === 'rejected' && p.kind === 'edit' && p.docCode && (
-                      <button className="btn sm" onClick={() => navigate(`/wiki/${p.docCode}/propose`)}>
+                      <button className="btn sm" onClick={() => navigate(`/wiki/${p.docCode}?edit=all`)}>
                         수정해서 다시 제안
                       </button>
                     )}
