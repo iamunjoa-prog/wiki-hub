@@ -10,17 +10,26 @@ import { ENGINE_LABEL, requestAiEdit, type AiEditResult } from '../lib/assistant
 import { brokenAnchorMessage, brokenAnchors, editWarnings, maskLeaks } from '../lib/docEdit'
 import { draftTimeLabel, loadDraft, planRestore, removeDraft, saveDraft, type DraftRestore, type EditDraft } from '../lib/draft'
 import { requestDocEdit, type EditProposalResult } from '../lib/proposeEdit'
-import { hitLines, requestPublicCheck } from '../lib/publicCheck'
+import { checkKey, hitLines, PublicLeakError, requestPublicCheck } from '../lib/publicCheck'
 import { useApp } from '../store/AppStore'
 import type { PublicHit, WikiDoc } from '../types'
 
+interface PublicHits {
+  blocks: PublicHit[]
+  warnings: PublicHit[]
+}
+
+const NO_HITS: PublicHits = { blocks: [], warnings: [] }
+
 /**
- * 수정 제안의 공개 규칙 검사 — 경고만 보이고 제출은 막지 않는다(requests-report.md 13절 R-A).
- * 이미 문서에 있던 줄까지 짚으면 고칠 수 없는 경고가 쌓이므로, 이번에 새로 생기거나 바뀐 줄만 남긴다
+ * 수정 제안의 공개 규칙 검사 — 이름·별표 2개는 차단, 금액은 경고(D2 ②, 서버 /api/proposeEdit 와 같은 기준).
+ * 이미 문서에 있던 줄까지 짚으면 고칠 수 없는 항목이 쌓이므로, 이번에 새로 생기거나 바뀐 줄과 사유만 남긴다
  */
-function usePublicWarnings(doc: WikiDoc | undefined, body: string, reason: string, active: boolean): PublicHit[] {
-  const [hits, setHits] = useState<PublicHit[]>([])
+function usePublicHits(doc: WikiDoc | undefined, body: string, reason: string, active: boolean): PublicHits {
+  const [hits, setHits] = useState<PublicHits>(NO_HITS)
   useEffect(() => {
+    // 편집으로 돌아가면 지난 결과를 버린다 — 고친 본문에 옛 차단이 잠깐이라도 남지 않게
+    if (!active) setHits(NO_HITS)
     if (!doc || !active) return
     let alive = true
     const t = setTimeout(() => {
@@ -32,9 +41,9 @@ function usePublicWarnings(doc: WikiDoc | undefined, body: string, reason: strin
           const lines = norm(body)
           const fresh = (h: PublicHit) =>
             h.where === 'reason' || (h.where === 'body' && h.line !== null && !before.has((lines[h.line - 1] ?? '').trim()))
-          setHits([...res.blocks, ...res.warnings].filter(fresh))
+          setHits({ blocks: res.blocks.filter(fresh), warnings: res.warnings.filter(fresh) })
         })
-        // 검사를 못 해도 제출은 막지 않는다 — 서버 수정 제안 경로는 이 검사와 별개다
+        // 검사를 못 해도 화면에서는 막지 않는다 — 서버가 제출 때 한 번 더 검사해 막는다
         .catch((err) => console.info('[propose] 공개 검사 실패:', (err as Error).message))
     }, 600)
     return () => {
@@ -42,7 +51,7 @@ function usePublicWarnings(doc: WikiDoc | undefined, body: string, reason: strin
       clearTimeout(t)
     }
   }, [doc, body, reason, active])
-  return active ? hits : []
+  return active ? hits : NO_HITS
 }
 
 const AI_WAIT_HINT = { claude: '1~2분', codex: '2~3분', gemini: '20~40초' } as const
@@ -272,7 +281,12 @@ export function ProposeEdit() {
   const [result, setResult] = useState<EditProposalResult | null>(null)
 
   useEffect(() => ensureProposals(), [ensureProposals])
-  const publicHits = usePublicWarnings(doc, body, reason, step === 2)
+  const publicHits = usePublicHits(doc, body, reason, step === 2)
+  /** 화면 검사를 지나 서버가 막은 항목(400 public-leak) — 그때 낸 글이 지금 글과 같을 때만 보인다 */
+  const [serverBlocks, setServerBlocks] = useState<{ blocks: PublicHit[]; key: string } | null>(null)
+  const submitKey = checkKey({ title: doc?.title ?? '', body, reason })
+  const shownServer = serverBlocks && serverBlocks.key === submitKey ? serverBlocks.blocks : null
+  const publicBlocks = shownServer ?? publicHits.blocks
 
   // 제출 전 안전장치 — LLM 이 아니라 규칙이 거른다 (src/lib/docEdit.ts)
   const checks = useMemo(() => {
@@ -328,17 +342,22 @@ export function ProposeEdit() {
     (p) => p.kind === 'edit' && p.status === 'pending' && p.docCode === doc.code,
   ).length
 
+  const blocked = (checks?.leaks.length ?? 0) > 0 || publicBlocks.length > 0
+
   const submit = async () => {
-    if (busy || !reason.trim() || (checks?.leaks.length ?? 0) > 0) return
+    if (busy || !reason.trim() || blocked) return
     setBusy(true)
     setSubmitError(null)
+    setServerBlocks(null)
+    const at = submitKey
     try {
       const res = await requestDocEdit(doc, body, reason.trim(), session.name)
       // 초안은 PR 이 실제로 만들어진 뒤에만 지운다 — 실패하면 긴 수정이 그대로 남아야 한다
       removeDraft(accountId, docId!)
       setResult(res)
     } catch (err) {
-      setSubmitError({ message: (err as Error).message, status: (err as { status?: number }).status })
+      if (err instanceof PublicLeakError) setServerBlocks({ blocks: err.blocks, key: at })
+      else setSubmitError({ message: (err as Error).message, status: (err as { status?: number }).status })
     } finally {
       setBusy(false)
     }
@@ -546,10 +565,24 @@ export function ProposeEdit() {
                   <span>편집으로 돌아가 해당 부분을 원래 표기로 되돌려 주세요.</span>
                 </div>
               )}
-              {publicHits.length > 0 && (
+              {shownServer && (
+                <div className="err" role="alert">
+                  제출하지 않았습니다. 아래 줄을 고친 뒤 다시 제출해 주세요. 편집한 내용은 그대로 있습니다.
+                </div>
+              )}
+              {publicBlocks.length > 0 && (
+                <div className="banner danger" role="alert">
+                  <b>제출할 수 없습니다 — 공개 저장소에 올릴 수 없는 표현이 있습니다</b>
+                  {hitLines(publicBlocks, true, { body, reasonLabel: '수정 사유' }).map((m) => (
+                    <span key={m}>· {m}</span>
+                  ))}
+                  <span>본문은 [편집으로]를 눌러 고치고, 수정 사유는 아래 칸에서 고쳐 주세요.</span>
+                </div>
+              )}
+              {publicHits.warnings.length > 0 && (
                 <div className="banner warn" role="status">
                   <b>제출은 할 수 있지만 확인해 주세요 — 위키는 공개 저장소에 올라갑니다</b>
-                  {hitLines(publicHits, false).map((m) => (
+                  {hitLines(publicHits.warnings, false, { body, reasonLabel: '수정 사유' }).map((m) => (
                     <span key={m}>· {m}</span>
                   ))}
                 </div>
@@ -612,7 +645,7 @@ export function ProposeEdit() {
               <div className="form-actions">
                 <button
                   className="btn primary"
-                  disabled={!reason.trim() || busy || (checks?.leaks.length ?? 0) > 0}
+                  disabled={!reason.trim() || busy || blocked}
                   onClick={submit}
                 >
                   {busy ? 'PR 만드는 중…' : '제안 제출'}

@@ -1,4 +1,5 @@
-import type { ProposalPr, WikiDoc } from '../types'
+import type { ProposalPr, PublicHit, WikiDoc } from '../types'
+import { throwIfPublicLeak } from './publicCheck'
 
 export interface EditProposalResult {
   prUrl: string
@@ -10,7 +11,7 @@ export interface EditProposalResult {
 /**
  * 문서 "✎ 수정 제안" — 서버가 GitHub 에 브랜치를 만들고 기존 파일을 고쳐 PR 을 연다.
  * 프론트매터(version·updatedBy·updatedAt)는 서버가 main 의 파일에서 다시 쓰므로 본문만 보낸다.
- * 실패하면 서버 메시지 원문(409 "문서를 다시 열어 수정해 주세요" 포함)을 그대로 던진다.
+ * 공개 규칙에 막히면(400 public-leak) PublicLeakError 를, 그 밖의 실패는 서버 메시지 원문(409 "문서를 다시 열어 수정해 주세요" 포함)을 던진다.
  */
 export async function requestDocEdit(
   doc: Pick<WikiDoc, 'path' | 'code' | 'title' | 'version'>,
@@ -33,7 +34,12 @@ export async function requestDocEdit(
       via,
     }),
   })
-  const data = (await res.json().catch(() => ({}))) as Partial<EditProposalResult> & { error?: string }
+  const data = (await res.json().catch(() => ({}))) as Partial<EditProposalResult> & {
+    error?: string
+    code?: string
+    blocks?: PublicHit[]
+  }
+  throwIfPublicLeak(res.status, data)
   if (!res.ok || !data.prUrl) throw Object.assign(new Error(data.error || `HTTP ${res.status}`), { status: res.status })
   return { prUrl: data.prUrl, prNumber: data.prNumber!, version: data.version! }
 }
