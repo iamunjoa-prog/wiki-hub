@@ -174,6 +174,8 @@ export type EngineFailureCode =
   | 'config'
   | 'maintenance'
   | 'rate'
+  /** 장 단위 AI 수정에서 엔진이 장 밖까지 바꿔 와 그 장을 골라낼 수 없었다(/api/edit 422) */
+  | 'outside'
 
 export interface EngineFailure {
   engine: Engine

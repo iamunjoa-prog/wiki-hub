@@ -31,7 +31,7 @@ function headingTexts(body: string): string[] {
  * 한글 사이에 별표가 **하나** 낀 가려진 표기. 양옆이 한글이라 `**굵게**` 의 별표 둘과는 겹치지 않는다
  * (`**류*영 매니저**` 처럼 굵게 안에 있어도 잡는다).
  */
-const MASKED = /[가-힣]+\*[가-힣]+/g
+export const MASKED = /[가-힣]+\*[가-힣]+/g
 
 /** 한 줄에서 짝이 맞는 `**굵게**` 를 걷어낸 뒤에도 남는, 한글에 붙은 별표 두 개 — 별표 2개로 가린 표기 */
 function doubleStarMasks(text: string): string[] {

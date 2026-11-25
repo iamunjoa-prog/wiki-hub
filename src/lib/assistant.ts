@@ -602,6 +602,7 @@ const FAILURE_CAUSE: Record<EngineFailureCode, [cause: string, action: FailureAc
   unknown: ['AI 엔진 응답을 받지 못해', 'persist'],
   maintenance: ['허브 점검 중이라', 'retry'],
   rate: ['요청이 잠깐 많아', 'retry'],
+  outside: ['AI가 이 장 밖까지 바꿔 와', 'persist'],
 }
 const ADMIN_ACTION: Record<Exclude<FailureAction, 'retry'>, string> = {
   persist: '계속되면 관리자에게 알려 주세요.',
@@ -616,6 +617,8 @@ export function fallbackNotice(fallback: EngineFailure[]): string {
 
 /** AI 수정 실패 문구 — 수정은 규칙 기반 대체가 없어 "하지 못했습니다"로 끝난다 */
 function editFailureText(code: EngineFailureCode): string {
+  // 장 밖 거절은 엔진 고장이 아니라 부탁 범위 문제 — 관리자 대신 부탁을 좁히게 한다
+  if (code === 'outside') return 'AI가 이 장 밖까지 바꿔 와서 받지 않았어요. 부탁을 이 장 안의 일로 좁혀 다시 해 주세요'
   const [cause, action] = FAILURE_CAUSE[code]
   return `${cause} 수정하지 못했습니다. ${action === 'retry' ? '잠시 후 다시 시도해 주세요.' : ADMIN_ACTION[action]}`
 }
@@ -1296,6 +1299,18 @@ export interface AiEditResult {
   summary: string
   /** 수정한 엔진 — 앞선 엔진이 실패했으면 함께 적는다 */
   by: string
+  /** 장 단위 — 엔진이 다른 장까지 써 와서 서버가 그 장만 잘라 냈다 */
+  trimmed?: boolean
+}
+
+/** 장 단위 AI 수정 입력(/api/edit 의 section) — 장 원문과 문서 장 제목 순서만 보내 빠르게 */
+export interface AiEditSection {
+  /** 그 장 원문 — `## ` 제목 줄부터 다음 장 앞까지. 머리말은 첫 `## ` 앞 */
+  body: string
+  /** 장 제목(머리말은 '') */
+  title: string
+  anchor: string
+  outline: string[]
 }
 
 /**
@@ -1307,6 +1322,8 @@ export async function requestAiEdit(
   body: string,
   instruction: string,
   engines: Engine[],
+  /** 있으면 body 는 문서 전체, 돌려받는 body 는 이 장만 */
+  section?: AiEditSection,
 ): Promise<AiEditResult> {
   if (engines.length === 0) throw new Error('쓸 수 있는 AI 엔진이 없습니다')
   const failed: string[] = []
@@ -1316,9 +1333,15 @@ export async function requestAiEdit(
       const res = await fetch('/api/edit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ engine, title: doc.title, code: doc.code, path: doc.path, body, instruction }),
+        body: JSON.stringify({ engine, title: doc.title, code: doc.code, path: doc.path, body, instruction, ...(section ? { section } : {}) }),
       })
-      const data = (await res.json().catch(() => ({}))) as { body?: string; summary?: string; error?: string; code?: string }
+      const data = (await res.json().catch(() => ({}))) as {
+        body?: string
+        summary?: string
+        error?: string
+        code?: string
+        section?: { trimmed?: boolean }
+      }
       if (!res.ok) throw failureFromResponse(res.status, data)
       if (typeof data.body !== 'string') throw new EngineFailureError('invalid', data.error || '본문 없는 응답')
       const label = ENGINE_LABEL[engine]
@@ -1326,6 +1349,7 @@ export async function requestAiEdit(
         body: data.body,
         summary: data.summary ?? '',
         by: failed.length ? `${label} (${failed.join('·')} 실패)` : label,
+        trimmed: data.section?.trimmed === true,
       }
     } catch (err) {
       lastCode = failureCode(err)
