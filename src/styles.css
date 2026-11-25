@@ -1,62 +1,101 @@
 :root {
-  --text: #111;
-  --text-2: #555;
-  --muted: #999;
-  --border: #e5e5e5;
-  --rowsep: #f0f0f0;
-  --line: #d4d4d4;
+  /* 바탕·글자 — 아이덴티티 개편 2-1 (docs/ux/2026-11-25-identity-redesign.md). 이름은 그대로, 값만 바꿨다 */
+  --text: #141a24;
+  --text-2: #5a6372;
+  --muted: #6b7482; /* 설계값 #737c8a 는 흰 바탕 4.2:1 이라 4.5:1 을 넘게 한 단계 진하게 */
+  --border: #e3e6eb;
+  --rowsep: #eef0f3;
+  --line: #cbd0d8;
   --surface: #fff;
-  --surface-subtle: #fafafa;
-  --surface-sheet: #f7f7f7;
-  --accent: #ea002c;
-  --danger: #b03a2e;
-  --ok: #2f7d4f;
+  --surface-subtle: #f6f7f9;
+  --surface-sheet: #f1f3f6;
+  /* ON AIR 빨강 — 진행 중 램프·묻기 버튼에만. --accent 는 예전 이름이라 별칭으로 둔다 */
+  --onair: #d7262e;
+  --onair-soft: #fdecec;
+  --accent: var(--onair);
+  --danger: #b42318;
+  --ok: #1f7a4d;
   /* 값으로 박혀 있던 색을 모은 토큰 — 다크 모드는 이 블록만 바꾸면 되게 */
-  --text-body: #222; /* 위키 본문 글자 */
-  --text-3: #444; /* 사이드바 1단 메뉴 */
-  --text-soft: #777;
-  --text-strong: #000;
-  --on-dark: #fff; /* 진한 바탕(검정·빨강) 위 글자 */
-  --accent-hover: #c60026;
-  --accent-soft: #fff6f8;
-  --accent-line: #f3c4cd;
-  --surface-code: #f4f4f4;
-  --surface-stripe: #eaeaea;
-  --surface-wait: #f5f5f5;
-  --surface-disabled: #f0f0f0;
+  --text-body: #252c38; /* 위키 본문 글자 */
+  --text-3: #3a4250;
+  --text-soft: #6b7482;
+  --text-strong: #0b1018;
+  --on-dark: #fff; /* 진한 바탕(남색·빨강) 위 글자 */
+  --accent-hover: #b81e25;
+  --accent-soft: var(--onair-soft);
+  --accent-line: #f2c1c3;
+  --surface-code: #f2f4f7;
+  --surface-stripe: #e8ebef;
+  --surface-wait: #f3f4f6;
+  --surface-disabled: #eef0f3;
   --highlight: #fff2b8;
-  --hover-tint: rgba(0, 0, 0, 0.035);
-  --info: #3b6fd8; /* 토요일·후반 구간·타깃 */
+  --hover-tint: rgba(20, 26, 36, 0.04);
+  --info: #2e5bcc; /* 토요일·후반 구간·타깃 */
   --gold: #c8a300;
   --gold-text: #9a7d00;
   --warn: #e0a100;
-  --warn-text: #b7791f;
+  --warn-text: #9a6a00;
   --warn-bg: #fff8e6;
   --warn-ink: #5c4400;
   --ok-dot: #22a559;
-  --status-off: #c8c8c8;
+  --status-off: #9aa3b0;
   --danger-bg: #fbeeec;
   --diff-add: #eaf5ec;
   --diff-del: #f7ecea;
+
+  /* 사이드바 콘솔 — 라이트 모드에서도 사이드바만 진한 남색 (2-2) */
+  --console: #121826;
+  --console-2: #1c2436;
+  --console-line: #273047;
+  --console-text: #c5ccd8;
+  --console-strong: #fff;
+  --console-muted: #7f8aa0;
+
+  /* 카테고리 3색 — 방송 컬러바. 사각 점·띠로만 쓰고 늘 이름 글자를 같이 붙인다 (2-3) */
+  --cat-guide: #0b7489;
+  --cat-guide-bg: #e8f5f8;
+  --cat-guide-line: #b5dee7;
+  --cat-promo: #b0306f;
+  --cat-promo-bg: #fbeaf2;
+  --cat-promo-line: #edbcd3;
+  --cat-prog: #9a6700;
+  --cat-prog-bg: #fbf3e0;
+  --cat-prog-line: #e9d29a;
 
   --sans: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui, 'Apple SD Gothic Neo', 'Malgun Gothic', 'Segoe UI', sans-serif;
   /* 제목·라벨용: 한글 굴림체 대체 방지를 위해 본문과 같은 산세리프 사용 */
   --mono: var(--sans);
   --code: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Malgun Gothic', monospace;
 
-  --radius: 8px;
-  --radius-sm: 5px;
-  --shadow-hover: 0 4px 14px rgba(0, 0, 0, 0.07);
+  /* 간격 4 / 8 / 12 / 16 / 20 / 24 / 32 / 48 (2-6) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 48px;
+
+  --radius-xs: 2px; /* 태그·칩·램프 칸 — 편성표 칸처럼 각지게 */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-pill: 999px; /* 진행 중 램프·묻기 버튼에만 */
+  --shadow-hover: 0 4px 14px rgba(20, 26, 36, 0.08);
+  --shadow-dock: -8px 0 24px rgba(20, 26, 36, 0.06);
 
   --w-sidebar: 248px;
   --w-sidebar-doc: 248px;
-  --w-toc: 200px;
+  --w-toc: 240px; /* 문서 정보 카드를 같이 넣는다 */
   --w-doc: 820px; /* 위키 본문 최대 폭 — 넓은 창에서 한 줄이 한글 50자 안팎을 넘지 않게 */
   --w-rail: 44px;
   --w-dock: clamp(320px, 33vw, 560px); /* 초기값 — 실제 너비는 드래그로 바뀐다 */
   --w-detail: 320px;
-  --h-topbar: 44px;
+  --h-topbar: 48px;
 }
+
+/* 타임코드 — 문서 코드·버전·날짜·건수를 고정폭 숫자로 (2-5) */
+.tc { font-family: var(--code); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
 
 * { box-sizing: border-box; }
 
@@ -171,16 +210,26 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* 최소 폭을 두지 않는다 — 창이 좁아도 페이지 전체가 가로로 밀리지 않고, 넘치는 내용은 각 화면의 .content 안에서 처리한다 */
 .shell { display: flex; height: 100%; }
 
+/* 사이드바 = 송출실 콘솔. 본문은 흰 종이로 두고 사이드바만 진한 남색 (identity-redesign 2-2) */
 .sidebar {
   width: var(--w-sidebar);
   flex: none;
   position: relative;
-  border-right: 1px solid var(--border);
-  background: var(--surface-subtle);
+  border-right: 1px solid var(--console-line);
+  background: var(--console);
+  color: var(--console-text);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* 남색 위에서는 카테고리 진한 색이 묻힌다 — 콘솔 안에서만 밝은 쪽(설계안 다크 값)을 쓴다 */
+  --cat-guide: #4cc3da;
+  --cat-promo: #e56da8;
+  --cat-prog: #e8b23c;
 }
+.sidebar .label { color: var(--console-muted); }
+.sidebar .kbd { font: 600 11.5px var(--code); color: var(--console-muted); }
+.sidebar .icon { flex: none; color: var(--console-muted); }
+.sidebar .nav-item.on .icon, .sidebar .nav-item:hover .icon { color: inherit; }
 .sidebar.narrow { width: var(--w-sidebar-doc); }
 /* 오른쪽 경계를 끌어 너비 조절 — 선은 1px이지만 잡는 영역은 7px로 넉넉하게 */
 .sidebar-resizer {
@@ -216,10 +265,19 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   gap: 7px;
   height: var(--h-topbar);
   padding: 0 14px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--console-line);
   font: 600 14px var(--mono);
+  min-width: 0;
 }
-.brand .dot { width: 8px; height: 8px; background: var(--text); }
+.colorbar-mark { flex: none; }
+.brand-cue { font: 800 15px var(--code); letter-spacing: 0.08em; color: var(--console-strong); }
+.brand-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 11.5px var(--mono); color: var(--console-muted); }
+
+/* 고정 줄 — 검색·홈·묻기·내 요청. 아래 메뉴를 펼쳐도 첫 화면에 남는다 */
+.nav-fixed { flex: none; display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) 10px; border-bottom: 1px solid var(--console-line); }
+.nav-search { border: 1px solid var(--console-line); margin-bottom: 4px; }
+.nav-search .kbd { margin-left: auto; }
+.nav-hint { margin-left: auto; font: 500 11.5px var(--mono); color: var(--console-muted); }
 
 /* 문서가 많은 카테고리를 펼치면 목록이 화면보다 길어진다.
    nav가 직접 스크롤하지 않으면 로고·푸터가 눌리면서 메뉴 전체가 위로 밀린다. */
@@ -237,8 +295,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  font: 600 14px var(--mono);
-  color: var(--text-3);
+  font: 500 14px var(--mono);
+  color: var(--console-text);
   border: 0;
   border-radius: var(--radius-sm);
   background: none;
@@ -246,25 +304,50 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   width: 100%;
 }
 /* 1단 메뉴 묶음 제목 — 첫 묶음은 위 여백 없이 */
-.nav-section { padding: 12px 8px 4px; }
+.nav-section { padding: 14px 8px 4px; font: 700 11.5px/1.2 var(--mono); letter-spacing: 0.06em; }
 .nav-section:first-child { padding-top: 4px; }
-.nav-item:hover { color: var(--text); }
+.nav-section-row { display: flex; align-items: center; }
+.nav-section-link { margin-left: auto; font: 500 12px var(--mono); letter-spacing: 0; color: var(--console-muted); }
+.nav-section-link:hover, .nav-section-link.on, .nav-section-link.trail { color: var(--console-strong); }
+.nav-item:hover { color: var(--console-strong); background: var(--console-2); }
+/* 선택 = 콘솔 바탕 + 왼쪽 3px 막대. 막대 색은 그 메뉴의 카테고리 색, 카테고리가 없으면 ON AIR 빨강 */
 .nav-item.on {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: inset 2px 0 0 var(--text);
+  background: var(--console-2);
+  color: var(--console-strong);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--bar, var(--onair));
 }
-.nav-item .count { margin-left: auto; color: var(--text); }
+.nav-item .count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--console-line);
+  color: var(--console-strong);
+  font-size: 11.5px;
+  line-height: 18px;
+  text-align: center;
+}
 /* 현재 위치의 상위 메뉴: 배경 없이 글자만 진하게 */
-.nav-item.trail { color: var(--text); }
+.nav-item.trail { color: var(--console-strong); }
 .nav-item.sub {
   font-weight: 400;
   font-size: 13.5px;
-  color: var(--text-2);
+  color: var(--console-text);
 }
-.nav-item.sub:hover { background: var(--hover-tint); color: var(--text); }
-.nav-item.sub.trail { font-weight: 600; color: var(--text); }
+.nav-item.sub.trail { font-weight: 600; color: var(--console-strong); }
 .nav-item.sub.on { font-weight: 600; }
+
+/* 위키 카테고리 — 앞에 8px 사각 점. 색만으로 구분하지 않게 이름이 늘 같이 붙는다 */
+/* 카테고리 색 — data-cat 을 단 곳(사이드바·문서 머리·근거 카드·홈 타일)이 같은 변수를 쓴다 */
+[data-cat='guide'] { --bar: var(--cat-guide); --bar-bg: var(--cat-guide-bg); --bar-line: var(--cat-guide-line); }
+[data-cat='promotion'] { --bar: var(--cat-promo); --bar-bg: var(--cat-promo-bg); --bar-line: var(--cat-promo-line); }
+[data-cat='programming'] { --bar: var(--cat-prog); --bar-bg: var(--cat-prog-bg); --bar-line: var(--cat-prog-line); }
+.nav-cats { display: flex; flex-direction: column; gap: 1px; }
+.nav-item.cat { font-weight: 600; }
+.cat-dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 8px; background: var(--bar, var(--status-off)); vertical-align: 1px; }
+.nav-item.cat.no-toggle { padding-left: 22px; }
+.nav-item.cat.no-toggle .cat-dot { margin-right: 2px; }
 
 /* 하위 메뉴: 들여쓰기 + 세로 가이드선 */
 .nav-children {
@@ -273,7 +356,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   gap: 1px;
   margin: 2px 0 4px 14px;
   padding-left: 6px;
-  border-left: 1px solid var(--border);
+  border-left: 1px solid var(--console-line);
 }
 /* 2·3단은 부모 화살표 아래에 가이드선이 오도록 조금만 들인다 — 단마다 크게 쌓이면 문서 제목이 9~10자에서 잘린다 */
 .nav-children.depth2,
@@ -289,10 +372,10 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   height: 30px;
   border: 0;
   background: none;
-  color: var(--muted);
+  color: var(--console-muted);
   border-radius: var(--radius-sm);
 }
-.nav-toggle:hover { color: var(--text); }
+.nav-toggle:hover { color: var(--console-strong); }
 .nav-label {
   flex: 1;
   min-width: 0;
@@ -303,7 +386,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   font: inherit;
   color: inherit;
 }
-.nav-count { padding-right: 8px; font-size: 12px; color: var(--text-2); }
+.nav-count { padding-right: 8px; font-size: 12px; color: var(--console-muted); }
 .chev { transition: transform 0.15s; }
 .chev.open { transform: rotate(90deg); }
 
@@ -397,23 +480,23 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   overflow-wrap: anywhere;
   line-height: 1.4;
 }
-.nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--muted); }
+.nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--console-muted); }
 
 /* 아직 화면이 없는 편성 메뉴 — 눌러도 되는 메뉴와 구분되게 상태를 옆에 붙인다 */
 .nav-soon {
   flex: none;
   margin-left: auto;
   padding: 1px 5px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.05);
-  color: var(--muted);
+  border-radius: var(--radius-pill);
+  background: var(--console-line);
+  color: var(--console-muted);
   font-size: 10.5px;
   letter-spacing: -0.01em;
 }
 
 /* 문서가 아직 없는 위키 카테고리·서브메뉴 — 펼칠 수 없고 맨 아래로 내린다 */
-.nav-item.sub.nav-unready { cursor: default; color: var(--muted); }
-.nav-item.sub.nav-unready:hover { background: none; color: var(--muted); }
+.nav-item.nav-unready { cursor: default; color: var(--console-muted); }
+.nav-item.nav-unready:hover { background: none; color: var(--console-muted); }
 
 /* 편성/스케줄 자리표시 화면 */
 .schedule-soon { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
@@ -424,13 +507,15 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   flex: none;
   margin-top: auto;
   padding: 10px 12px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--console-line);
   font: 12.5px var(--mono);
-  color: var(--muted);
+  color: var(--console-muted);
   display: flex;
   align-items: center;
   gap: 8px;
 }
+.sidebar-foot .btn { background: none; border-color: var(--console-line); color: var(--console-text); }
+.sidebar-foot .btn:hover:not(:disabled) { border-color: var(--console-muted); color: var(--console-strong); }
 
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
@@ -440,10 +525,43 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   gap: 10px;
   height: var(--h-topbar);
   flex: none;
-  padding: 0 12px;
+  padding: 0 var(--sp-3);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
+/* 위치 · 검색(최대 560) · 오늘 · 묻기 (identity-redesign 3-2) */
+/* 폭이 모자라면 검색칸이 먼저 줄어든다(기준 폭이 커서) — 위치 글자가 '위키프로'처럼 잘리지 않게 */
+.topbar-crumb {
+  flex: 1 1 auto;
+  min-width: 72px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font: 600 13px var(--mono);
+  color: var(--text-2);
+}
+.topbar-crumb > span { display: inline-flex; align-items: center; min-width: 0; }
+.topbar-crumb > span.here { color: var(--text); overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+.topbar-crumb a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.search-input.topbar-search { flex: 0 1 560px; min-width: 160px; color: var(--muted); }
+.topbar-extra { flex: none; display: flex; align-items: center; gap: var(--sp-2); }
+.topbar-date { flex: none; font: 600 13px var(--mono); color: var(--text-2); }
+.topbar-date .tc { color: var(--text); }
+.topbar-date-tz { margin-left: 4px; font: 500 10.5px var(--code); color: var(--muted); }
+.btn.topbar-ask {
+  position: relative;
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: var(--onair);
+  border-color: var(--onair);
+  color: var(--on-dark);
+  padding: 6px 14px;
+}
+.btn.topbar-ask:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.btn.topbar-ask.line { background: var(--surface); border-color: var(--line); color: var(--text); }
+.btn.topbar-ask.line:hover:not(:disabled) { background: var(--surface); border-color: var(--text); }
+.topbar-ask .fab-badge { top: -10px; right: -6px; }
 
 .search-input {
   flex: 1;
@@ -484,7 +602,52 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 
 /* ---------- dashboard ---------- */
 
-.dash-wrap { max-width: 1440px; margin: 0 auto; }
+.dash-wrap { max-width: 1440px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-4); }
+.dash-wrap > .dash-cols { margin-top: 0; }
+
+/* 홈 인사 줄 — 날짜 · 오늘의 큐, 오른쪽에 엔진 상태 한 줄 */
+.dash-greet { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); }
+.dash-greet h1 { margin: 0; font: 800 26px/1.25 var(--mono); word-break: keep-all; }
+.dash-greet h1 .muted { font-weight: 600; }
+.dash-engine { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font: 600 13px var(--mono); color: var(--text-2); }
+.dash-engine:hover { color: var(--text); }
+
+/* 묻기 바 — Enter 는 검색, [묻기]는 큐 어시스턴트에게. 이 화면의 빨간 버튼은 [묻기] 하나 */
+.ask-bar { display: flex; align-items: center; gap: var(--sp-3); height: 56px; padding: 0 8px 0 16px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
+.ask-bar:focus-within { border-color: var(--text); }
+.ask-bar input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: 16px var(--sans); color: var(--text); }
+.ask-bar-hint { flex: none; font: 500 12px var(--mono); color: var(--muted); }
+.btn.ask-bar-btn { flex: none; height: 40px; padding: 0 18px; border-radius: var(--radius-pill); background: var(--onair); border-color: var(--onair); color: var(--on-dark); font-size: 14px; }
+.btn.ask-bar-btn:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+.ask-bar-chips { margin-top: calc(var(--sp-2) - var(--sp-4)); }
+
+/* 카테고리 타일 3개 — 왼쪽 띠 + 이름 + 2단 바로가기 */
+.cat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-3); }
+.cat-tile { display: flex; flex-direction: column; border: 1px solid var(--border); border-left: 4px solid var(--bar, var(--line)); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.cat-tile-head { display: flex; align-items: center; gap: var(--sp-2); padding: 12px 14px 8px; color: var(--bar, var(--text)); }
+.cat-tile-head b { font: 700 16px var(--mono); color: var(--text); }
+.cat-tile-head:hover b { text-decoration: underline; text-underline-offset: 3px; }
+.cat-tile-count { margin-left: auto; font: 600 13px var(--mono); color: var(--text-2); }
+.cat-tile-body { display: flex; flex-direction: column; padding: 0 14px 12px; font-size: 14px; }
+.cat-tile-body a { display: flex; align-items: center; gap: var(--sp-2); padding: 5px 0; color: var(--text); border-top: 1px solid var(--rowsep); }
+.cat-tile-body a:first-child { border-top: 0; }
+.cat-tile-body a:hover { color: var(--bar, var(--text)); }
+.cat-tile-body a .tc { margin-left: auto; font-size: 12.5px; color: var(--muted); }
+.cat-tile-body > .muted { padding: 5px 0; font-size: 13.5px; }
+.cat-tile.is-empty { background: var(--surface-subtle); }
+.cat-tile.is-empty .cat-tile-head b { color: var(--text-2); }
+.dash-queue .kpi b .lamp { vertical-align: 6px; }
+
+/* 최근 갱신 문서 행 — 왼쪽 카테고리 띠 + 타임코드 + 최신성 램프 */
+.row.dash-doc { box-shadow: inset 3px 0 0 var(--bar, transparent); }
+.dash-doc-code { flex: none; width: 76px; font-size: 12px; font-weight: 700; color: var(--bar, var(--text-2)); overflow: hidden; text-overflow: ellipsis; }
+.dash-doc .lamp-label { width: 72px; flex: none; }
+@container (max-width: 720px) {
+  .cat-tiles { grid-template-columns: minmax(0, 1fr); }
+  .dash-doc-by, .ask-bar-hint { display: none; }
+  .dash-greet h1 { font-size: 22px; }
+  .dash-engine { margin-left: 0; }
+}
 .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
 .kpi { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--border); text-align: left; background: none; border-top: 0; border-bottom: 0; border-left: 0; }
 .kpi:last-child { border-right: 0; }
@@ -614,8 +777,19 @@ button.row:hover { background: var(--surface-subtle); }
 
 .doc-layout { display: flex; gap: 18px; align-items: flex-start; padding: 16px 18px; }
 .doc-body { flex: 1; min-width: 0; max-width: var(--w-doc); }
-/* 목차가 길면(CBS 25줄) 목차 안에서 스크롤한다. 아래 여백은 오른쪽 아래 챗봇 버튼(.fab) 높이만큼 — 끝 항목이 버튼에 가리지 않게 */
-.doc-toc { width: var(--w-toc); flex: none; position: sticky; top: 0; max-height: calc(100vh - var(--h-topbar) - 32px); overflow-y: auto; padding-bottom: 64px; scrollbar-width: thin; }
+/* 오른쪽 칸 — 문서 정보 카드 → 이 문서로 묻기 → 목차. 칸 전체가 따라 내려오고 목차가 길면(CBS 25줄) 목차 안에서 스크롤한다 */
+.doc-side { width: var(--w-toc); flex: none; position: sticky; top: 0; max-height: calc(100vh - var(--h-topbar) - 32px); display: flex; flex-direction: column; gap: var(--sp-3); }
+.doc-toc { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-4); scrollbar-width: thin; }
+.doc-info { flex: none; border-left: 4px solid var(--bar, var(--border)); }
+.doc-info-head { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.doc-info-cat { margin-left: auto; display: inline-flex; align-items: center; font: 600 12px var(--mono); color: var(--bar); }
+.doc-info-cat .cat-dot { margin-right: 5px; }
+.doc-info dl { margin: 0; padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 4px; }
+.doc-info dl > div { display: flex; align-items: center; gap: var(--sp-2); min-height: 22px; font-size: 12.5px; }
+.doc-info dt { flex: none; width: 34px; color: var(--muted); }
+.doc-info dd { margin: 0; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.doc-ask { flex: none; justify-content: center; }
+.btn.doc-ask-inline { display: none; }
 .doc-toc a {
   display: block;
   padding: 4px 0;
@@ -637,14 +811,25 @@ button.row:hover { background: var(--surface-subtle); }
 .doc-toc-inline-list a.on { color: var(--text); font-weight: 600; }
 
 /* 현재 위치 줄 — 편성/스케줄 경로 줄과 같은 라벨 글자. 각 칸은 해당 목록으로 가는 링크 */
-.crumb { display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 6px; font: 600 12.5px var(--mono); letter-spacing: 0.04em; color: var(--text-2); word-break: keep-all; }
-.crumb a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .crumb-sep { margin: 0 6px; color: var(--muted); }
 
-.doc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+/* 문서 머리 — 왼쪽 4px 카테고리 띠 (identity-redesign 2-8 ④) */
+.doc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; padding-left: 14px; border-left: 4px solid var(--bar, var(--border)); }
 .doc-title { flex: 1; min-width: 0; }
-.doc-head h1 { font: 700 24px var(--mono); margin: 0; word-break: keep-all; }
-.doc-meta { font: 12.5px var(--mono); color: var(--text-2); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
+.doc-head h1 { font: 750 24px/1.3 var(--mono); margin: 0; word-break: keep-all; }
+.doc-meta { font: 500 12.5px var(--mono); color: var(--text-2); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
+.doc-meta.doc-tc { gap: 6px; }
+.doc-meta .tc.strong { color: var(--text); font-weight: 700; }
+.doc-meta .sep { color: var(--muted); }
+.doc-stale { display: flex; align-items: center; gap: var(--sp-2); margin: -6px 0 16px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--radius-sm); background: var(--danger-bg); color: var(--danger); font-size: 13px; }
+
+/* 적용대상 칩 [PPM] [PPV] [공통] — 편성표 칸처럼 각지게 */
+.scope-chip { display: inline-flex; align-items: center; padding: 1px 6px; border: 1px solid var(--line); border-radius: var(--radius-xs); font: 700 11.5px/1.5 var(--code); letter-spacing: 0.02em; color: var(--text-2); background: var(--surface); white-space: nowrap; }
+.scope-chip.strong { border-color: var(--text); color: var(--text); }
+
+/* 상태 램프 + 글자 — 색만으로 뜻을 싣지 않는다 */
+.lamp-label { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--mono); color: var(--text-2); white-space: nowrap; }
+.lamp-basis { font-weight: 500; font-size: 11px; color: var(--muted); }
 /* 문서 첫 줄 적용대상 인용을 옮긴 태그 — 안에 굵게·링크가 섞여 .tag(inline-flex) 대신 글자 흐름대로 */
 .doc-scope { display: inline-block; padding: 1px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-subtle); line-height: 1.5; }
 .doc-scope strong { color: var(--text); }
@@ -654,7 +839,8 @@ button.row:hover { background: var(--surface-subtle); }
 /* 본문이 좁으면 목차 열을 접어 본문 폭을 지키고, 제목 줄 버튼은 아래로 내린다 */
 @container (max-width: 720px) {
   .doc-layout { padding: 14px 14px; }
-  .doc-toc { display: none; }
+  .doc-side { display: none; }
+  .btn.doc-ask-inline { display: inline-flex; }
   .doc-toc-inline { display: block; }
   .doc-head { flex-wrap: wrap; }
   .doc-title { flex-basis: 100%; }
@@ -835,9 +1021,13 @@ textarea.field.raw-textarea { min-height: 70vh; font: 13.5px/1.65 var(--code); }
 .edit-bar-ask { padding: 6px 8px; border: 1px solid var(--warn); border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn-ink); }
 .edit-bar-note { color: var(--text-2); }
 .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--status-off); vertical-align: middle; }
-.lamp.on { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* ON AIR 램프 — 진행 중만 2초 주기로 은은하게 깜빡인다. 동작 줄이기 설정이면 멈춘다 (2-8 ③) */
+.lamp.on { background: var(--onair); box-shadow: 0 0 0 3px var(--onair-soft); animation: lamp-onair 2s ease-in-out infinite; }
 .lamp.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
 .lamp.ok { background: var(--ok-dot); }
+.lamp.no { background: var(--danger); }
+@keyframes lamp-onair { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .lamp.on { animation: none; } }
 
 /* 편집 패널 — 편집 중에는 오른쪽 목차 자리가 이 패널로 바뀐다 */
 .doc-edit-panel { width: var(--w-detail); flex: none; position: sticky; top: 52px; max-height: calc(100vh - var(--h-topbar) - 64px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 64px; scrollbar-width: thin; }
@@ -913,20 +1103,22 @@ textarea.field.edit-reference { min-height: 140px; font: 12.5px/1.6 var(--code);
   height: 46px;
   padding: 0 18px 0 16px;
   border: 0;
-  border-radius: 999px;
-  background: var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--onair);
   color: var(--on-dark);
   font: 600 14.5px var(--sans);
-  box-shadow: 0 6px 20px rgba(234, 0, 44, 0.3);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--onair) 30%, transparent);
   transition: transform 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
-.fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 8px 24px rgba(234, 0, 44, 0.36); }
+.fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 8px 24px color-mix(in srgb, var(--onair) 36%, transparent); }
+/* 넓은 화면은 상단바 [묻기]를 쓴다 — 떠 있는 버튼은 휴대폰 폭에서만 */
+@media (min-width: 761px) { .fab { display: none; } }
 .fab-badge {
   position: absolute;
   right: 8px;
   top: -12px;
   padding: 2px 8px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--text);
   color: var(--on-dark);
   font: 600 11.5px var(--sans);
@@ -939,6 +1131,7 @@ textarea.field.edit-reference { min-height: 140px; font: 12.5px/1.6 var(--code);
   position: relative;
   border-left: 1px solid var(--border);
   background: var(--surface-subtle);
+  box-shadow: var(--shadow-dock);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -979,9 +1172,9 @@ body.resizing-x { cursor: col-resize; user-select: none; }
   padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 var(--onair);
 }
-.dock-head .t { font: 600 14px var(--mono); color: var(--accent); }
+.dock-head .t { font: 700 14px var(--mono); color: var(--text); }
 .dock-head button { margin-left: auto; border: 0; background: none; color: var(--muted); font: 14.5px var(--mono); }
 /* 지난 대화 — 닫기 바로 왼쪽의 회색 글자 버튼. 닫기는 이 버튼 뒤에 붙는다 */
 .dock-head .dock-history { padding: 0; font: 12px var(--mono); }
@@ -1009,6 +1202,27 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .msg-text { word-break: keep-all; overflow-wrap: anywhere; }
 .msg-text p { margin: 0; }
 .msg-text p + p { margin-top: 11px; }
+/* "이 답의 근거 문서" 카드 — 왼쪽 카테고리 띠, 각진 칩, 램프 + 글자 (identity-redesign 4-3) */
+.source-cards { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.source-cards-title { font: 700 11.5px/1.2 var(--mono); letter-spacing: 0.06em; color: var(--text-2); }
+.source-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--bar, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.source-card:hover { border-color: var(--line); border-left-color: var(--bar, var(--line)); box-shadow: var(--shadow-hover); }
+.source-card-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.source-card-code { flex: none; font-size: 12px; font-weight: 700; color: var(--bar, var(--text-2)); }
+.source-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13.5px var(--sans); }
+.source-card-bottom { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.source-card-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-2); }
 .sources { display: flex; gap: 4px; flex-wrap: wrap; }
 .sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
 .sources button:hover { border-color: var(--text); color: var(--text); }
@@ -1744,6 +1958,12 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .drawer-backdrop { display: none; }
 @media (max-width: 760px) {
   .nav-burger { display: inline-flex; }
+  /* 휴대폰 폭: 메뉴·검색 한 줄 + 위치 한 줄. 날짜는 접고 묻기는 떠 있는 버튼이 맡는다 */
+  .topbar { flex-wrap: wrap; height: auto; min-height: var(--h-topbar); padding-top: 8px; padding-bottom: 6px; row-gap: 4px; }
+  .search-input.topbar-search { flex: 1 1 0; min-width: 0; }
+  .topbar-crumb { order: 10; flex-basis: 100%; font-size: 12px; }
+  .topbar-crumb:empty { display: none; }
+  .topbar-date, .btn.topbar-ask { display: none; }
   .sidebar {
     position: fixed;
     top: 0;

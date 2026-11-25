@@ -89,6 +89,8 @@ interface AssistantState {
   /** 기다리기 시작한 시각(ms) — 경과 시간 표시용 */
   pendingSince: number | null
   campaignDraft: CampaignDraft | null
+  /** 입력칸에 미리 넣을 글 — '이 문서로 묻기'. seq 가 바뀔 때마다 챗봇 창이 입력칸을 이 글로 채운다 */
+  composeSeed: { text: string; seq: number } | null
   /** 엔진별 상태 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini만. 확인 전이면 undefined, 서버 경로가 없으면 null */
   engineStatus: Partial<Record<Engine, EngineStatus>> | null | undefined
   /** 답변에 쓸 수 있는(설치 + 로그인/키) 엔진. 서버 경로가 없으면 null */
@@ -127,6 +129,8 @@ interface AppState {
 
   openDock: () => void
   closeDock: () => void
+  /** 챗봇 창을 열고 입력칸에 글을 미리 넣는다 — 보내지는 않는다(질문은 사용자가 마저 쓴다) */
+  openDockWith: (text: string) => void
   ask: (query: string, opts?: AskOpts) => void
   /** 같은 질문을 리포트(report) 또는 짧은 답(qa)으로 다시 받는다 — 그 질문 한 번에만 적용된다 */
   askAgain: (messageId: string, mode: 'qa' | 'report') => void
@@ -258,6 +262,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   /** 기다리는 요청을 끊는 손잡이 — 「그만하고 짧게 답 받기」 */
   const abortRef = useRef<AbortController | null>(null)
   const [campaignDraft, setCampaignDraft] = useState<CampaignDraft | null>(null)
+  const [composeSeed, setComposeSeed] = useState<{ text: string; seq: number } | null>(null)
+  const openDockWith = useCallback((text: string) => {
+    setDockOpen(true)
+    setComposeSeed((prev) => ({ text, seq: (prev?.seq ?? 0) + 1 }))
+  }, [])
   const [preferredEngine, setPreferredEngine] = useState<Engine>(
     () => (localStorage.getItem(LS_ENGINE) as Engine) || 'claude',
   )
@@ -864,6 +873,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       pendingReport,
       pendingSince,
       campaignDraft,
+      composeSeed,
       engineStatus,
       engines,
       engine,
@@ -875,6 +885,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     showToast,
     openDock: () => setDockOpen(true),
     closeDock: () => setDockOpen(false),
+    openDockWith,
     ask,
     askAgain,
     cancelReport,

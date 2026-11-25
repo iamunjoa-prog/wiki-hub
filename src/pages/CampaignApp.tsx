@@ -104,7 +104,7 @@ export function CampaignApp() {
   return (
     <>
       <TopBar>
-        <a className="btn sm" style={{ marginLeft: 'auto' }} href={CAMPAIGN_APP_URL} target="_blank" rel="noreferrer">
+        <a className="btn sm" href={CAMPAIGN_APP_URL} target="_blank" rel="noreferrer">
           캠페인 대시보드 열기 ↗
         </a>
       </TopBar>

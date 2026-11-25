@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { categories, subcategories } from '../data/docs'
 import type { ScheduleLeaf } from '../data/scheduleNav'
 import { isGroup, scheduleNav, scheduleTrail } from '../data/scheduleNav'
@@ -8,6 +8,7 @@ import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
 import { HubUpdateNotice } from './HubUpdateNotice'
+import { ColorBarMark, Icon } from './Icon'
 import { LocalHubOnboarding } from './LocalHubOnboarding'
 
 /** 휴대폰 폭(760px 이하)에서 사이드바를 서랍으로 연다 — 버튼은 각 화면의 TopBar 에 있어 상태를 셸에서 나눠 준다 */
@@ -70,8 +71,9 @@ function WikiTree() {
   const rootOn = location.pathname === '/wiki' && !activeCategory
 
   // 문서가 0건인 메뉴는 막다른 길이라 맨 아래로 내리고 펼치지 못하게 한다. 건수는 문서 데이터에서 세므로 문서가 생기면 저절로 열린다
-  const emptyRow = (key: string, label: string) => (
-    <div key={key} className="nav-item sub no-toggle nav-unready" aria-disabled="true" title={`${label} — 아직 문서가 없습니다`}>
+  const emptyRow = (key: string, label: string, level: 'cat' | 'sub' = 'sub') => (
+    <div key={key} className={`nav-item ${level} no-toggle nav-unready`} aria-disabled="true" title={`${label} — 아직 문서가 없습니다`}>
+      {level === 'cat' && <span className="cat-dot" aria-hidden="true" />}
       <span className="nav-ellipsis">{label}</span>
       <span className="nav-soon">준비중</span>
     </div>
@@ -92,18 +94,18 @@ function WikiTree() {
 
   return (
     <div className="nav-group">
-      <NavLink
-        to="/wiki"
-        end
-        className={`nav-item${rootOn ? ' on' : inWiki ? ' trail' : ''}`}
-      >
-        위키 문서
-      </NavLink>
-      <div className="nav-children">
+      {/* "위키 문서" 부모 줄 대신 묶음 제목 — 카테고리가 한 단계 덜 들어가 긴 문서 제목이 덜 잘린다 (identity-redesign 3-1) */}
+      <div className="label nav-section nav-section-row">
+        위키
+        <NavLink to="/wiki" end className={`nav-section-link${rootOn ? ' on' : inWiki ? ' trail' : ''}`}>
+          전체 <span className="tc">{docs.length}</span> ›
+        </NavLink>
+      </div>
+      <div className="nav-cats">
         {filledFirst(categories, (c) => docs.filter((d) => d.category === c.id).length).map((c) => {
           const open = openCategory === c.id
           const children = docs.filter((d) => d.category === c.id)
-          if (children.length === 0) return emptyRow(c.id, c.label)
+          if (children.length === 0) return <div key={c.id} className="nav-cat" data-cat={c.id}>{emptyRow(c.id, c.label, 'cat')}</div>
           const catOn = activeCategory === c.id && !activeSub
           const catTrail = activeDoc?.category === c.id
           const subs = subcategories[c.id]
@@ -112,8 +114,8 @@ function WikiTree() {
           const subsWithOthers = unassigned.length > 0 ? [...subs, { id: '__unassigned__', label: '기타' }] : subs
 
           return (
-            <div key={c.id}>
-              <div className={`nav-item sub has-toggle${catOn ? ' on' : catTrail ? ' trail' : ''}`}>
+            <div key={c.id} className="nav-cat" data-cat={c.id}>
+              <div className={`nav-item cat has-toggle${catOn ? ' on' : catTrail ? ' trail' : ''}`}>
                 <button
                   className="nav-toggle"
                   onClick={() => toggle(c.id)}
@@ -129,9 +131,10 @@ function WikiTree() {
                     if (!open) toggle(c.id)
                   }}
                 >
+                  <span className="cat-dot" aria-hidden="true" />
                   {c.label}
                 </button>
-                <span className="nav-count">{children.length}</span>
+                <span className="nav-count tc">{children.length}</span>
               </div>
               {open && subs.length === 0 && (
                 <div className="nav-children depth2">
@@ -233,6 +236,7 @@ function ScheduleTree() {
   return (
     <div className="nav-group">
       <NavLink to="/sheets" end className={`nav-item${rootOn ? ' on' : inSchedule ? ' trail' : ''}`}>
+        <Icon name="grid-time" />
         편성/스케줄
       </NavLink>
       <div className="nav-children">
@@ -352,17 +356,33 @@ function useSidebarResize() {
   return { width, dragging, startDrag: () => setDragging(true), onKeyDown }
 }
 
+/** 상단바 검색 입력 — 사이드바 고정 줄의 [검색]도 같은 입력으로 포커스를 옮긴다 */
+const SEARCH_INPUT_ID = 'hub-search'
+
 function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
-  const { session, setRole, proposals, promotions, systemRequests, chatLog } = useApp()
+  const { session, setRole, proposals, promotions, systemRequests, chatLog, openDock } = useApp()
   const { user: account, signOut } = useAuth()
+  const drawer = useContext(DrawerContext)
   // 대화 기록 메뉴는 저장 상태로만 고른다 — 내 PC용 허브는 데모 버튼으로 관리자가 돼도 기록을 읽을 API 가 없다
   const showMyChatLog = chatLog?.mine === true
   const showChatLog = account?.role === 'admin' && chatLog?.enabled === true
+  const isAdmin = session.role === 'admin'
   const pendingCount =
     (proposals ?? []).filter((p) => p.status === 'pending').length +
     promotions.filter((p) => p.status === 'pending').length +
     systemRequests.filter((r) => r.status === 'pending').length
+  const myPendingCount =
+    (proposals ?? []).filter((p) => p.status === 'pending' && p.requestedBy === session.name).length +
+    promotions.filter((p) => p.status === 'pending' && p.requestedBy === session.name).length +
+    systemRequests.filter((r) => r.status === 'pending' && r.requestedBy === session.name).length
   const { width, dragging, startDrag, onKeyDown } = useSidebarResize()
+  const navOn = ({ isActive }: { isActive: boolean }) => `nav-item${isActive ? ' on' : ''}`
+
+  const focusSearch = () => {
+    // 휴대폰 폭에서는 서랍이 검색창을 덮는다 — 닫은 뒤 포커스를 옮긴다
+    drawer.setOpen(false)
+    requestAnimationFrame(() => document.getElementById(SEARCH_INPUT_ID)?.focus())
+  }
 
   return (
     <aside className={`sidebar${drawerOpen ? ' drawer-open' : ''}`} style={{ width }} id="app-sidebar">
@@ -378,59 +398,104 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
         }}
         onKeyDown={onKeyDown}
       />
+      {/* 정식 이름은 그대로 두고 CUE 를 앞에 붙인다 — 방송 큐시트에서 온 표기, 상표 아님 (identity-redesign 1-3) */}
       <div className="brand">
-        <span className="dot" />
-        플랫폼 담당 지식 허브
+        <ColorBarMark />
+        <b className="brand-cue">CUE</b>
+        <span className="brand-name">플랫폼 담당 지식 허브</span>
       </div>
-      <nav className="nav">
-        {/* 1단 메뉴가 한 줄로 이어지면 문서·업무 화면·요청이 섞여 보여 묶음 제목으로 나눈다 */}
-        <div className="label nav-section">찾기</div>
-        <NavLink to="/" end className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          메인
+      {/* 자주 쓰는 4개는 메뉴를 펼쳐도 밀리지 않게 스크롤 밖에 둔다 (identity-redesign 3-1) */}
+      <div className="nav-fixed">
+        <button type="button" className="nav-item nav-search" onClick={focusSearch}>
+          <Icon name="search" />
+          검색
+          <span className="kbd">{detectOs() === 'mac' ? '⌘K' : 'Ctrl K'}</span>
+        </button>
+        <NavLink to="/" end className={navOn}>
+          <Icon name="home" />
+          홈
         </NavLink>
+        <button type="button" className="nav-item" onClick={openDock}>
+          <Icon name="ask" />
+          묻기
+          <span className="nav-hint">큐 어시스턴트</span>
+        </button>
+        {/* 관리자는 처리할 일이 먼저다 — 대시보드 요청 칸과 같이 승인 대기로 보낸다. 본인 요청은 '내 기록'에 둔다 */}
+        {isAdmin ? (
+          <NavLink to="/approvals" className={navOn}>
+            <Icon name="inbox" />
+            승인 대기
+            {pendingCount > 0 && <span className="count tc">{pendingCount}</span>}
+          </NavLink>
+        ) : (
+          <NavLink to="/requests" className={navOn}>
+            <Icon name="inbox" />
+            내 요청
+            {myPendingCount > 0 && (
+              <span className="count tc" title={`대기 중 ${myPendingCount}건`}>
+                {myPendingCount}
+              </span>
+            )}
+          </NavLink>
+        )}
+      </div>
 
+      <nav className="nav">
         <WikiTree />
 
         <div className="label nav-section">업무 화면</div>
         <ScheduleTree />
 
-        <NavLink to="/jira-schedule" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+        <NavLink to="/jira-schedule" className={navOn}>
+          <Icon name="calendar" />
           Jira 스케줄 확인
         </NavLink>
 
         {/* 위키의 '시스템 매뉴얼'과 헷갈리지 않게 접속 주소 화면이라는 것을 이름에 담는다 */}
-        <NavLink to="/systems" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
+        <NavLink to="/systems" className={navOn}>
+          <Icon name="link-out" />
           시스템 바로가기
         </NavLink>
 
-        <div className="label nav-section">내 업무</div>
-        <NavLink to="/requests" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-          내 요청 현황
-        </NavLink>
-
-        {showMyChatLog && (
-          <NavLink to="/my-chat-log" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-            내 대화 기록
-          </NavLink>
+        {(showMyChatLog || isAdmin) && (
+          <>
+            <div className="label nav-section">내 기록</div>
+            {isAdmin && (
+              <NavLink to="/requests" className={navOn}>
+                <Icon name="inbox" />
+                내 요청
+              </NavLink>
+            )}
+            {showMyChatLog && (
+              <NavLink to="/my-chat-log" className={navOn}>
+                <Icon name="history" />
+                내 대화 기록
+              </NavLink>
+            )}
+          </>
         )}
 
-        {session.role === 'admin' && (
-          <NavLink to="/approvals" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-            승인 관리
-            <span className="count">{pendingCount}</span>
-          </NavLink>
-        )}
-
-        {account?.role === 'admin' && (
-          <NavLink to="/accounts" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-            계정 관리
-          </NavLink>
-        )}
-
-        {showChatLog && (
-          <NavLink to="/chat-log" className={({ isActive }) => `nav-item${isActive ? ' on' : ''}`}>
-            대화 기록
-          </NavLink>
+        {isAdmin && (
+          <>
+            <div className="label nav-section">관리</div>
+            <NavLink to="/approvals" className={navOn}>
+              <Icon name="check-badge" />
+              승인 관리
+              <span className="count tc">{pendingCount}</span>
+            </NavLink>
+            {account?.role === 'admin' && (
+              <NavLink to="/accounts" className={navOn}>
+                <Icon name="users" />
+                계정 관리
+              </NavLink>
+            )}
+            {showChatLog && (
+              <NavLink to="/chat-log" className={navOn}>
+                <Icon name="history" />
+                대화 기록
+              </NavLink>
+            )}
+          </>
         )}
       </nav>
 
@@ -468,12 +533,98 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
   )
 }
 
-export function TopBar({ children }: { children?: React.ReactNode }) {
+/* ---------- 상단바 ---------- */
+
+type Crumb = { label: string; to?: string }
+
+/** 화면 이름 — 사이드바 메뉴 이름과 같게 둔다 */
+const PAGE_LABEL: Record<string, string> = {
+  '/jira-schedule': 'Jira 스케줄 확인',
+  '/systems': '시스템 바로가기',
+  '/requests': '내 요청',
+  '/approvals': '승인 관리',
+  '/accounts': '계정 관리',
+  '/my-chat-log': '내 대화 기록',
+  '/chat-log': '대화 기록',
+  '/search': '검색 결과',
+  '/handoff': '프로모션 자동화',
+}
+
+/** 지금 위치(빵부스러기) — 문서 본문 안에 있던 것을 모든 화면의 상단바로 올렸다 (identity-redesign 3-2) */
+function useCrumbs(): Crumb[] {
+  const { docs } = useApp()
+  const { pathname } = useLocation()
+  const [params] = useSearchParams()
+  if (pathname === '/') return [{ label: '홈' }]
+  if (pathname.startsWith('/wiki')) {
+    const wiki: Crumb = { label: '위키', to: '/wiki' }
+    if (pathname === '/wiki/new') return [wiki, { label: '새 문서' }]
+    const docId = pathname.startsWith('/wiki/') ? pathname.split('/')[2] : null
+    const doc = docId ? docs.find((d) => d.id === docId) : undefined
+    const catId = doc?.category ?? params.get('category')
+    const cat = categories.find((c) => c.id === catId)
+    if (!cat) return [wiki]
+    const subs = subcategories[cat.id] ?? []
+    const subId = doc ? doc.subcategory : params.get('sub')
+    // 서브메뉴가 있는 카테고리인데 소속이 없는 문서는 사이드바처럼 '기타'로 보인다
+    const sub = doc
+      ? subs.length > 0
+        ? (subs.find((s) => s.id === subId) ?? { id: '__unassigned__', label: '기타' })
+        : null
+      : (subs.find((s) => s.id === subId) ?? null)
+    return [
+      wiki,
+      { label: cat.label, to: `/wiki?category=${cat.id}` },
+      ...(sub ? [{ label: sub.label, to: `/wiki?category=${cat.id}&sub=${sub.id}` }] : []),
+    ]
+  }
+  if (pathname.startsWith('/sheets')) {
+    const trail = scheduleTrail(pathname)
+    const root: Crumb = { label: '편성/스케줄', to: '/sheets' }
+    if (trail) return [root, ...trail.slice(1).map((label) => ({ label }))]
+    if (pathname === '/sheets/new') return [root, { label: '편성표 등록' }]
+    if (pathname === '/sheets/campaign') return [root, { label: '캠페인 신청 캘린더' }]
+    return [root]
+  }
+  const label = PAGE_LABEL[pathname]
+  return label ? [{ label }] : []
+}
+
+const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
+
+/** 오늘 날짜·요일(KST) — 편성 실무자는 날짜로 일한다. 자정을 넘겨도 맞게 1분마다 다시 잰다 */
+function TodayKst() {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+  const kst = new Date(now + 9 * 60 * 60 * 1000)
+  const mm = String(kst.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(kst.getUTCDate()).padStart(2, '0')
+  return (
+    <span className="topbar-date" title="오늘 (한국 시간)">
+      <span className="tc">
+        {mm}.{dd}
+      </span>{' '}
+      {WEEKDAY[kst.getUTCDay()]}
+      <span className="topbar-date-tz">KST</span>
+    </span>
+  )
+}
+
+/**
+ * 상단바 — 위치 · 검색 · 오늘 · 묻기.
+ * `ask="line"` 은 화면 안에 이미 빨간 묻기 버튼이 있을 때(홈 묻기 바) — 빨강 덩어리는 화면당 하나
+ */
+export function TopBar({ children, ask = 'onair' }: { children?: React.ReactNode; ask?: 'onair' | 'line' }) {
   const navigate = useNavigate()
   const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
   const [q, setQ] = useState('')
   const drawer = useContext(DrawerContext)
+  const { assistant, openDock } = useApp()
+  const crumbs = useCrumbs()
 
   useEffect(() => {
     if (!location.pathname.startsWith('/search')) setQ('')
@@ -503,25 +654,42 @@ export function TopBar({ children }: { children?: React.ReactNode }) {
           <path d="M4 6h16M4 12h16M4 18h16" />
         </svg>
       </button>
+      <nav className="topbar-crumb" aria-label="현재 위치">
+        {crumbs.map((c, i) => (
+          <span key={`${i}-${c.label}`} className={i === crumbs.length - 1 ? 'here' : undefined}>
+            {i > 0 && <span className="crumb-sep">›</span>}
+            {c.to && i < crumbs.length - 1 ? <Link to={c.to}>{c.label}</Link> : c.label}
+          </span>
+        ))}
+      </nav>
       <form
-        className="search-input"
+        className="search-input topbar-search"
         onSubmit={(e) => {
           e.preventDefault()
           if (q.trim()) navigate(`/search?q=${encodeURIComponent(q.trim())}`)
         }}
       >
-        <span className="mono muted">⌕</span>
+        <Icon name="search" />
         <input
           ref={inputRef}
+          id={SEARCH_INPUT_ID}
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="지식 문서 검색"
-          aria-label="지식 문서 검색"
+          placeholder="문서·코드·구좌 검색"
+          aria-label="문서·코드·구좌 검색"
         />
         {/* 실무자 PC는 Windows다 — 맥이 아니면 Ctrl 로 보여 준다(단축키는 둘 다 받는다) */}
         <span className="kbd">{detectOs() === 'mac' ? '⌘K' : 'Ctrl K'}</span>
       </form>
-      {children}
+      {children && <div className="topbar-extra">{children}</div>}
+      <TodayKst />
+      {!assistant.open && (
+        <button type="button" className={`btn topbar-ask${ask === 'line' ? ' line' : ''}`} onClick={openDock} title="큐 어시스턴트에게 묻기 — 위키 문서를 근거로 답해요">
+          <Icon name="ask" />
+          묻기
+          {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
+        </button>
+      )}
     </div>
   )
 }
@@ -555,11 +723,10 @@ export function AppShell() {
         {assistant.open ? (
           <AssistantDock />
         ) : (
-          <button className="fab" onClick={openDock} title="무엇이든 물어보세요 — 편성·프로모션 챗봇">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z" />
-            </svg>
-            챗봇
+          // 넓은 화면에서는 상단바 [묻기]로 옮겼다 — 휴대폰 폭(760px 이하)에서만 떠 있는 버튼을 남긴다
+          <button className="fab" onClick={openDock} title="큐 어시스턴트에게 묻기 — 위키 문서를 근거로 답해요">
+            <Icon name="ask" />
+            묻기
             {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
           </button>
         )}
