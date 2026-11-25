@@ -358,9 +358,9 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   padding-left: 6px;
   border-left: 1px solid var(--console-line);
 }
-/* 2·3단은 부모 화살표 아래에 가이드선이 오도록 조금만 들인다 — 단마다 크게 쌓이면 문서 제목이 9~10자에서 잘린다 */
+/* 2·3단은 단마다 12px(9+선1+2) — 가이드선이 부모 화살표 바로 아래 와서 어느 묶음인지 보이고, 좁은 폭에서도 제목이 덜 잘린다 */
 .nav-children.depth2,
-.nav-children.depth3 { margin-left: 6px; padding-left: 4px; }
+.nav-children.depth3 { margin-left: 9px; padding-left: 2px; }
 
 .nav-item.has-toggle { padding: 0; gap: 0; }
 .nav-toggle {
@@ -390,7 +390,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .chev { transition: transform 0.15s; }
 .chev.open { transform: rotate(90deg); }
 
-.nav-item.leaf { font-size: 13px; padding: 5px 8px; }
+/* 문서·화면 줄은 화살표 칸(22px)만큼 비워 형제 묶음 글자와 맞춘다 — 8px이면 부모보다 왼쪽에서 시작해 위계가 뒤집혀 보인다 */
+.nav-item.leaf { font-size: 13px; padding: 5px 8px 5px 22px; }
 /* 화살표 없는 형제 메뉴 — 화살표 있는 메뉴와 글자 시작점을 맞춘다 */
 .nav-item.sub.no-toggle { padding-left: 22px; }
 
@@ -480,7 +481,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   overflow-wrap: anywhere;
   line-height: 1.4;
 }
-.nav-empty { padding: 5px 8px; font-size: 12.5px; color: var(--console-muted); }
+.nav-empty { padding: 5px 8px 5px 22px; font-size: 12.5px; color: var(--console-muted); }
 
 /* 아직 화면이 없는 편성 메뉴 — 눌러도 되는 메뉴와 구분되게 상태를 옆에 붙인다 */
 .nav-soon {
