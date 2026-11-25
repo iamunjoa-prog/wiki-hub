@@ -7,6 +7,8 @@ import remarkCjkFriendly from 'remark-cjk-friendly'
 import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
 import { DocEditPanel, DraftBanner, PendingProposalsNote, useEditChecks } from '../components/DocEditPanel'
+import { agoLabel, categoryLabel, freshnessOf, FreshLamp, ScopeChip } from '../components/DocBits'
+import { Icon } from '../components/Icon'
 import { SectionEditor } from '../components/SectionEditor'
 import { SubmitDoneDialog, SubmitEditDialog, type EditBase } from '../components/SubmitEditDialog'
 import { docCommits } from '../data/docs'
@@ -108,7 +110,7 @@ function WikiDocPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { docs, session, proposals, ensureProposals, refreshProposals, showToast } = useApp()
+  const { docs, session, proposals, ensureProposals, refreshProposals, showToast, openDockWith } = useApp()
   const doc = docs.find((d) => d.id === docId)
   const [showHistory, setShowHistory] = useState(false)
   const [activeHeading, setActiveHeading] = useState<string | null>(null)
@@ -524,6 +526,13 @@ function WikiDocPage() {
   }
 
   const commits = docCommits[doc.id] ?? [{ version: doc.version, author: doc.updatedBy, at: doc.updatedAt, message: '문서 등록' }]
+  const fresh = freshnessOf(doc.updatedAt)
+  // 첫 줄 '적용대상 **X**'는 [X] 칩이 대신 보여 준다 — 뒤에 붙은 설명(예: (B tv+))만 태그로 남긴다
+  const scopeNotes = scoped.scope
+    .map((s) => s.replace(/^적용대상 \*\*[^*]+\*\*\s*/, '').replace(/^[—–-]\s*/, '').trim())
+    .filter(Boolean)
+  /** 이 문서로 묻기 — 챗봇 창을 열고 입력칸에 문서 코드를 미리 넣는다. 질문은 사용자가 마저 쓴다 */
+  const askDoc = () => openDockWith(`${doc.code} 기준으로: `)
 
   const tocLinks = (onPick?: () => void) =>
     headings.map((h, i) => {
@@ -658,21 +667,31 @@ function WikiDocPage() {
                 }}
               />
             )}
-            <div className="doc-head">
+            {/* 문서 머리 — 왼쪽 카테고리 띠 + 타임코드 메타 + 적용대상 칩 + 최신성 램프 (identity-redesign 4-2) */}
+            <div className="doc-head" data-cat={doc.category}>
               <div className="doc-title">
                 <h1>{doc.title}</h1>
-                <div className="doc-meta">
-                  <span className="tag">{doc.code}</span>
+                <div className="doc-meta doc-tc">
+                  <span className="tc strong">{doc.code}</span>
+                  <span className="sep">·</span>
+                  <span className="tc">v{doc.version}</span>
+                  <span className="sep">·</span>
                   <span>
-                    최종 수정 {doc.updatedBy} · {doc.updatedAt} · v{doc.version}
+                    <span className="tc">{doc.updatedAt}</span> 갱신
                   </span>
-                  {scoped.scope.map((s, i) => (
+                  <span className="sep">·</span>
+                  <span>{doc.updatedBy}</span>
+                </div>
+                <div className="doc-meta">
+                  <ScopeChip scope={doc.scope} />
+                  {scopeNotes.map((s, i) => (
                     <span key={i} className="doc-scope">
                       <ReactMarkdown remarkPlugins={PLUGINS} components={md.scope}>
                         {s}
                       </ReactMarkdown>
                     </span>
                   ))}
+                  <FreshLamp updatedAt={doc.updatedAt} />
                 </div>
               </div>
               <button className="btn sm" onClick={() => setShowHistory((v) => !v)}>
@@ -684,7 +703,21 @@ function WikiDocPage() {
                   ✎ 고치기
                 </button>
               )}
+              {/* 오른쪽 칸이 접히는 좁은 폭에서만 — 넓은 화면은 문서 정보 카드 아래 버튼을 쓴다 */}
+              {!editing && (
+                <button className="btn sm doc-ask-inline" onClick={askDoc}>
+                  <Icon name="ask" />
+                  이 문서로 묻기
+                </button>
+              )}
             </div>
+
+            {fresh.level === 'old' && (
+              <div className="doc-stale" role="note">
+                <span className="lamp no" aria-hidden="true" />
+                90일 넘게 갱신되지 않은 문서예요. 담당 {doc.ownerId} 에게 확인하고 쓰세요
+              </div>
+            )}
 
             {showHistory && (
               <div className="panel" style={{ marginBottom: 16 }}>
@@ -819,12 +852,56 @@ function WikiDocPage() {
               onCloseReference={() => setReference(null)}
             />
           ) : (
-            <nav className="doc-toc" ref={tocRef}>
-              <div className="label" style={{ marginBottom: 8 }}>
-                목차
-              </div>
-              {tocLinks()}
-            </nav>
+            // 오른쪽 칸 — 문서 정보 카드 → 이 문서로 묻기 → 목차. 카드는 5줄 고정이라 목차를 크게 밀지 않는다
+            <aside className="doc-side">
+              <section className="panel doc-info" data-cat={doc.category} aria-label="문서 정보">
+                <div className="doc-info-head">
+                  <span className="label strong">문서 정보</span>
+                  <span className="doc-info-cat">
+                    <span className="cat-dot" aria-hidden="true" />
+                    {categoryLabel(doc.category)}
+                  </span>
+                </div>
+                <dl>
+                  <div>
+                    <dt>코드</dt>
+                    <dd className="tc">{doc.code}</dd>
+                  </div>
+                  <div>
+                    <dt>담당</dt>
+                    <dd>{doc.ownerId}</dd>
+                  </div>
+                  <div>
+                    <dt>갱신</dt>
+                    <dd>
+                      <span className="tc">{doc.updatedAt.slice(5)}</span> ({agoLabel(doc.updatedAt)})
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>상태</dt>
+                    <dd>
+                      <FreshLamp updatedAt={doc.updatedAt} basis />
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>적용</dt>
+                    <dd>
+                      <ScopeChip scope={doc.scope} />
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+              <button className="btn block doc-ask" onClick={askDoc} title={`챗봇 창을 열고 「${doc.code} 기준으로: 」를 넣어 둬요`}>
+                <Icon name="ask" />
+                이 문서로 묻기
+              </button>
+              <nav className="doc-toc" ref={tocRef} aria-label="이 페이지 목차">
+                <div className="label" style={{ marginBottom: 8 }}>
+                  이 페이지 목차
+                </div>
+                {tocLinks()}
+              </nav>
+            </aside>
           )}
         </div>
       </div>

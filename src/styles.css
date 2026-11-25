@@ -339,9 +339,10 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .nav-item.sub.on { font-weight: 600; }
 
 /* 위키 카테고리 — 앞에 8px 사각 점. 색만으로 구분하지 않게 이름이 늘 같이 붙는다 */
-.nav-cat[data-cat='guide'] { --bar: var(--cat-guide); }
-.nav-cat[data-cat='promotion'] { --bar: var(--cat-promo); }
-.nav-cat[data-cat='programming'] { --bar: var(--cat-prog); }
+/* 카테고리 색 — data-cat 을 단 곳(사이드바·문서 머리·근거 카드·홈 타일)이 같은 변수를 쓴다 */
+[data-cat='guide'] { --bar: var(--cat-guide); --bar-bg: var(--cat-guide-bg); --bar-line: var(--cat-guide-line); }
+[data-cat='promotion'] { --bar: var(--cat-promo); --bar-bg: var(--cat-promo-bg); --bar-line: var(--cat-promo-line); }
+[data-cat='programming'] { --bar: var(--cat-prog); --bar-bg: var(--cat-prog-bg); --bar-line: var(--cat-prog-line); }
 .nav-cats { display: flex; flex-direction: column; gap: 1px; }
 .nav-item.cat { font-weight: 600; }
 .cat-dot { display: inline-block; flex: none; width: 8px; height: 8px; margin-right: 8px; background: var(--bar, var(--status-off)); vertical-align: 1px; }
@@ -529,9 +530,10 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
   background: var(--surface);
 }
 /* 위치 · 검색(최대 560) · 오늘 · 묻기 (identity-redesign 3-2) */
+/* 폭이 모자라면 검색칸이 먼저 줄어든다(기준 폭이 커서) — 위치 글자가 '위키프로'처럼 잘리지 않게 */
 .topbar-crumb {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 1 auto;
+  min-width: 72px;
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -542,7 +544,7 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .topbar-crumb > span { display: inline-flex; align-items: center; min-width: 0; }
 .topbar-crumb > span.here { color: var(--text); overflow: hidden; text-overflow: ellipsis; display: inline-block; }
 .topbar-crumb a:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
-.search-input.topbar-search { flex: 0 1 560px; color: var(--muted); }
+.search-input.topbar-search { flex: 0 1 560px; min-width: 160px; color: var(--muted); }
 .topbar-extra { flex: none; display: flex; align-items: center; gap: var(--sp-2); }
 .topbar-date { flex: none; font: 600 13px var(--mono); color: var(--text-2); }
 .topbar-date .tc { color: var(--text); }
@@ -730,8 +732,19 @@ button.row:hover { background: var(--surface-subtle); }
 
 .doc-layout { display: flex; gap: 18px; align-items: flex-start; padding: 16px 18px; }
 .doc-body { flex: 1; min-width: 0; max-width: var(--w-doc); }
-/* 목차가 길면(CBS 25줄) 목차 안에서 스크롤한다. 아래 여백은 오른쪽 아래 챗봇 버튼(.fab) 높이만큼 — 끝 항목이 버튼에 가리지 않게 */
-.doc-toc { width: var(--w-toc); flex: none; position: sticky; top: 0; max-height: calc(100vh - var(--h-topbar) - 32px); overflow-y: auto; padding-bottom: 64px; scrollbar-width: thin; }
+/* 오른쪽 칸 — 문서 정보 카드 → 이 문서로 묻기 → 목차. 칸 전체가 따라 내려오고 목차가 길면(CBS 25줄) 목차 안에서 스크롤한다 */
+.doc-side { width: var(--w-toc); flex: none; position: sticky; top: 0; max-height: calc(100vh - var(--h-topbar) - 32px); display: flex; flex-direction: column; gap: var(--sp-3); }
+.doc-toc { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-bottom: var(--sp-4); scrollbar-width: thin; }
+.doc-info { flex: none; border-left: 4px solid var(--bar, var(--border)); }
+.doc-info-head { display: flex; align-items: center; gap: var(--sp-2); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.doc-info-cat { margin-left: auto; display: inline-flex; align-items: center; font: 600 12px var(--mono); color: var(--bar); }
+.doc-info-cat .cat-dot { margin-right: 5px; }
+.doc-info dl { margin: 0; padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 4px; }
+.doc-info dl > div { display: flex; align-items: center; gap: var(--sp-2); min-height: 22px; font-size: 12.5px; }
+.doc-info dt { flex: none; width: 34px; color: var(--muted); }
+.doc-info dd { margin: 0; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn.doc-ask { flex: none; justify-content: center; }
+.btn.doc-ask-inline { display: none; }
 .doc-toc a {
   display: block;
   padding: 4px 0;
@@ -755,10 +768,23 @@ button.row:hover { background: var(--surface-subtle); }
 /* 현재 위치 줄 — 편성/스케줄 경로 줄과 같은 라벨 글자. 각 칸은 해당 목록으로 가는 링크 */
 .crumb-sep { margin: 0 6px; color: var(--muted); }
 
-.doc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; }
+/* 문서 머리 — 왼쪽 4px 카테고리 띠 (identity-redesign 2-8 ④) */
+.doc-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 16px; padding-left: 14px; border-left: 4px solid var(--bar, var(--border)); }
 .doc-title { flex: 1; min-width: 0; }
-.doc-head h1 { font: 700 24px var(--mono); margin: 0; word-break: keep-all; }
-.doc-meta { font: 12.5px var(--mono); color: var(--text-2); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
+.doc-head h1 { font: 750 24px/1.3 var(--mono); margin: 0; word-break: keep-all; }
+.doc-meta { font: 500 12.5px var(--mono); color: var(--text-2); margin-top: 7px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; word-break: keep-all; }
+.doc-meta.doc-tc { gap: 6px; }
+.doc-meta .tc.strong { color: var(--text); font-weight: 700; }
+.doc-meta .sep { color: var(--muted); }
+.doc-stale { display: flex; align-items: center; gap: var(--sp-2); margin: -6px 0 16px; padding: 8px 12px; border: 1px solid var(--danger); border-radius: var(--radius-sm); background: var(--danger-bg); color: var(--danger); font-size: 13px; }
+
+/* 적용대상 칩 [PPM] [PPV] [공통] — 편성표 칸처럼 각지게 */
+.scope-chip { display: inline-flex; align-items: center; padding: 1px 6px; border: 1px solid var(--line); border-radius: var(--radius-xs); font: 700 11.5px/1.5 var(--code); letter-spacing: 0.02em; color: var(--text-2); background: var(--surface); white-space: nowrap; }
+.scope-chip.strong { border-color: var(--text); color: var(--text); }
+
+/* 상태 램프 + 글자 — 색만으로 뜻을 싣지 않는다 */
+.lamp-label { display: inline-flex; align-items: center; gap: 6px; font: 600 12px var(--mono); color: var(--text-2); white-space: nowrap; }
+.lamp-basis { font-weight: 500; font-size: 11px; color: var(--muted); }
 /* 문서 첫 줄 적용대상 인용을 옮긴 태그 — 안에 굵게·링크가 섞여 .tag(inline-flex) 대신 글자 흐름대로 */
 .doc-scope { display: inline-block; padding: 1px 7px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface-subtle); line-height: 1.5; }
 .doc-scope strong { color: var(--text); }
@@ -768,7 +794,8 @@ button.row:hover { background: var(--surface-subtle); }
 /* 본문이 좁으면 목차 열을 접어 본문 폭을 지키고, 제목 줄 버튼은 아래로 내린다 */
 @container (max-width: 720px) {
   .doc-layout { padding: 14px 14px; }
-  .doc-toc { display: none; }
+  .doc-side { display: none; }
+  .btn.doc-ask-inline { display: inline-flex; }
   .doc-toc-inline { display: block; }
   .doc-head { flex-wrap: wrap; }
   .doc-title { flex-basis: 100%; }
@@ -949,9 +976,13 @@ textarea.field.raw-textarea { min-height: 70vh; font: 13.5px/1.65 var(--code); }
 .edit-bar-ask { padding: 6px 8px; border: 1px solid var(--warn); border-radius: var(--radius-sm); background: var(--warn-bg); color: var(--warn-ink); }
 .edit-bar-note { color: var(--text-2); }
 .lamp { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--status-off); vertical-align: middle; }
-.lamp.on { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* ON AIR 램프 — 진행 중만 2초 주기로 은은하게 깜빡인다. 동작 줄이기 설정이면 멈춘다 (2-8 ③) */
+.lamp.on { background: var(--onair); box-shadow: 0 0 0 3px var(--onair-soft); animation: lamp-onair 2s ease-in-out infinite; }
 .lamp.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
 .lamp.ok { background: var(--ok-dot); }
+.lamp.no { background: var(--danger); }
+@keyframes lamp-onair { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .lamp.on { animation: none; } }
 
 /* 편집 패널 — 편집 중에는 오른쪽 목차 자리가 이 패널로 바뀐다 */
 .doc-edit-panel { width: var(--w-detail); flex: none; position: sticky; top: 52px; max-height: calc(100vh - var(--h-topbar) - 64px); overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-bottom: 64px; scrollbar-width: thin; }

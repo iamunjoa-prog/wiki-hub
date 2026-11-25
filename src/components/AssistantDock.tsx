@@ -406,6 +406,9 @@ function chatLogNotice(status: ReturnType<typeof useApp>['chatLog']): string | n
   return null
 }
 
+/** 마지막으로 입력칸에 채운 composeSeed 순번 — 창이 닫히면 컴포넌트가 사라져 바깥에 둔다 */
+let appliedSeedSeq = 0
+
 export function AssistantDock() {
   const { assistant, closeDock, ask, chatLog } = useApp()
   const navigate = useNavigate()
@@ -413,6 +416,22 @@ export function AssistantDock() {
   const [input, setInput] = useState('')
   const { width, dragging, startDrag, onKeyDown } = useDockResize()
   const logRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // '이 문서로 묻기' — 입력칸을 문서 코드로 채우고 커서를 끝에 둔다. 보내는 것은 사용자가 마저 쓴 뒤
+  const seed = assistant.composeSeed
+  useEffect(() => {
+    // 창을 닫았다 다시 열 때 지난 글을 또 채우지 않게 한 번만 쓴다
+    if (!seed || seed.seq === appliedSeedSeq) return
+    appliedSeedSeq = seed.seq
+    setInput(seed.text)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(seed.text.length, seed.text.length)
+    })
+  }, [seed])
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight, behavior: 'smooth' })
@@ -499,6 +518,7 @@ export function AssistantDock() {
           }}
         >
           <input
+            ref={inputRef}
             className="field"
             value={input}
             onChange={(e) => setInput(e.target.value)}
