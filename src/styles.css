@@ -1086,6 +1086,7 @@ textarea.field.edit-reference { min-height: 140px; font: 12.5px/1.6 var(--code);
   position: relative;
   border-left: 1px solid var(--border);
   background: var(--surface-subtle);
+  box-shadow: var(--shadow-dock);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -1126,9 +1127,9 @@ body.resizing-x { cursor: col-resize; user-select: none; }
   padding: 0 12px;
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  box-shadow: inset 2px 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 var(--onair);
 }
-.dock-head .t { font: 600 14px var(--mono); color: var(--accent); }
+.dock-head .t { font: 700 14px var(--mono); color: var(--text); }
 .dock-head button { margin-left: auto; border: 0; background: none; color: var(--muted); font: 14.5px var(--mono); }
 /* 지난 대화 — 닫기 바로 왼쪽의 회색 글자 버튼. 닫기는 이 버튼 뒤에 붙는다 */
 .dock-head .dock-history { padding: 0; font: 12px var(--mono); }
@@ -1156,6 +1157,27 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .msg-text { word-break: keep-all; overflow-wrap: anywhere; }
 .msg-text p { margin: 0; }
 .msg-text p + p { margin-top: 11px; }
+/* "이 답의 근거 문서" 카드 — 왼쪽 카테고리 띠, 각진 칩, 램프 + 글자 (identity-redesign 4-3) */
+.source-cards { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.source-cards-title { font: 700 11.5px/1.2 var(--mono); letter-spacing: 0.06em; color: var(--text-2); }
+.source-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 8px 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--bar, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.source-card:hover { border-color: var(--line); border-left-color: var(--bar, var(--line)); box-shadow: var(--shadow-hover); }
+.source-card-top { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.source-card-code { flex: none; font-size: 12px; font-weight: 700; color: var(--bar, var(--text-2)); }
+.source-card-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 13.5px var(--sans); }
+.source-card-bottom { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.source-card-path { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--text-2); }
 .sources { display: flex; gap: 4px; flex-wrap: wrap; }
 .sources button { border: 1px solid var(--line); background: var(--surface); padding: 2px 6px; font: 600 11.5px var(--mono); color: var(--text-2); }
 .sources button:hover { border-color: var(--text); color: var(--text); }

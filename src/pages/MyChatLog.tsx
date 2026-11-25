@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { TopBar } from '../components/AppShell'
 import { RichText } from '../components/AssistantDock'
 import { useAuth } from '../components/AuthGate'
+import { SourceCards } from '../components/SourceCards'
 import {
   ChatLogError,
   dayLabel,
@@ -57,7 +57,6 @@ function readTurn(t: Turn<MyChatLogItem>) {
 
 function Card({ turn }: { turn: Turn<MyChatLogItem> }) {
   const { docs, showToast } = useApp()
-  const navigate = useNavigate()
   const { first, ok, failText } = readTurn(turn)
   const report = ok?.mode === 'report' ? ok.report : null
   // 위키에 있는 문서만 — 챗봇 창과 같다
@@ -96,15 +95,8 @@ function Card({ turn }: { turn: Turn<MyChatLogItem> }) {
       ) : (
         <div className="muted">{failText}</div>
       )}
-      {sources.length > 0 && (
-        <div className="sources">
-          {sources.map((d) => (
-            <button key={d.id} type="button" onClick={() => navigate(`/wiki/${d.id}`)}>
-              {d.title}
-            </button>
-          ))}
-        </div>
-      )}
+      {/* 챗봇 창과 같은 근거 카드 — 기록에는 소제목(anchor)이 남지 않아 문서 처음으로 간다 */}
+      <SourceCards items={sources.map((doc) => ({ doc }))} />
       {report && <div className="muted mychat-cut">리포트 본문은 저장되지 않아요. 받았을 때 .md로 저장해 두세요.</div>}
     </article>
   )

@@ -10,12 +10,12 @@ import {
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
-import { headingId } from '../lib/docEdit'
 import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine, PromotionBrief, SourceRef } from '../types'
+import type { ChatMessage, Engine, PromotionBrief } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 import { ReportCard } from './ReportCard'
+import { SourceCards, sourceHref } from './SourceCards'
 
 // 굵게 안의 가린 이름(류*영)도 굵게로 묶이게 단일 `*` 는 허용한다
 const BOLD = /(\*\*(?:[^*]|\*(?!\*))+?\*\*)/g
@@ -127,19 +127,15 @@ function BriefCard({ brief }: { brief: PromotionBrief }) {
   )
 }
 
-/**
- * 근거 문서 주소 — 소제목(anchor)이 있으면 그 장으로 바로 보낸다.
- * anchor 는 본문 제목 id(`h-…`) 또는 소제목 글자로 온다. 글자면 문서 화면과 같은 규칙으로 id 를 만든다
- */
-export function sourceHref(s: Pick<SourceRef, 'docId' | 'anchor'>): string {
-  const a = s.anchor?.trim()
-  if (!a) return `/wiki/${s.docId}`
-  return `/wiki/${s.docId}#${encodeURIComponent(a.startsWith('h-') ? a : headingId(a))}`
-}
-
 function Message({ msg }: { msg: ChatMessage }) {
   const navigate = useNavigate()
-  const { session, assistant, askAgain } = useApp()
+  const { session, assistant, askAgain, docs, closeDock } = useApp()
+  // 근거는 문서 카드로 — 목록에 없는 문서(지워진 문서 등)만 예전처럼 글자 버튼으로 남긴다
+  const sourceItems = (msg.sources ?? []).flatMap((s) => {
+    const doc = docs.find((d) => d.id === s.docId)
+    return doc ? [{ doc, anchor: s.anchor }] : []
+  })
+  const unknownSources = (msg.sources ?? []).filter((s) => !docs.some((d) => d.id === s.docId))
   // 안내는 규칙 기반으로 떨어진 답에만 — 다음 엔진이 답했으면 답은 정상이라 출처 줄만 남긴다
   const notice = msg.fallback?.length && msg.answeredBy === RULE_BASED_LABEL ? fallbackNotice(msg.fallback) : null
   // 관리자에게만 엔진·분류 코드를 붙인다 — 원문 사유는 관리자 화면에도 두지 않는다
@@ -169,9 +165,14 @@ function Message({ msg }: { msg: ChatMessage }) {
           {!msg.reportFailed && <span className="muted">근거·비교를 갖춘 보고 문서로 받습니다 · {REPORT_WAIT_HINT}</span>}
         </div>
       )}
-      {msg.sources && msg.sources.length > 0 && (
+      <SourceCards
+        items={sourceItems}
+        // 휴대폰 폭에서는 창이 본문을 거의 다 덮는다 — 근거 문서를 읽을 수 있게 닫는다
+        onOpen={() => window.innerWidth <= 760 && closeDock()}
+      />
+      {unknownSources.length > 0 && (
         <div className="sources">
-          {msg.sources.map((s) => (
+          {unknownSources.map((s) => (
             <button key={s.docId} onClick={() => navigate(sourceHref(s))}>
               {s.label}
             </button>
@@ -457,7 +458,7 @@ export function AssistantDock() {
         onKeyDown={onKeyDown}
       />
       <div className="dock-head">
-        <span className="t">무엇이든 물어보세요</span>
+        <span className="t">큐 어시스턴트</span>
         {chatLog?.mine && (
           <button
             type="button"
