@@ -36,8 +36,12 @@ const BAD_JSON: Rejection = { status: 400, error: '요청 형식이 올바르지
 
 /* ── 판정 함수 (배포·로컬 공용) ─────────────────────────── */
 
-/** 로컬 허브 화면의 출처 — 실행기·vite.config.ts 가 5173 으로 고정한다 */
-export const LOCAL_HUB_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+/**
+ * 로컬 허브 화면의 출처 — 허브가 실제로 뜬 포트 하나만. 실행기·vite.config.ts 는 5173 으로 고정하고(strictPort),
+ * 검증용으로 `--port` 를 바꿔 띄우면 그 포트가 된다. 포트 범위로 넓히지 않는 이유 — 같은 PC의 다른 개발 서버 화면이 CLI·토큰을 쓰게 된다
+ */
+export const localHubOrigins = (port: number) => [`http://localhost:${port}`, `http://127.0.0.1:${port}`]
+export const LOCAL_HUB_ORIGINS = localHubOrigins(5173)
 
 /** 'null'·깨진 값은 new URL 이 예외를 던진다 — 500 이 아니라 거절로 다룬다 */
 function parseOrigin(raw: string): URL | null {
@@ -119,6 +123,8 @@ export const RATE_PR: RateRule = { name: 'pr', limit: 30, windowSeconds: 24 * 60
 export const RATE_DOWNLOAD: RateRule = { name: 'download', limit: 5, windowSeconds: 60 }
 /** 공개 규칙 검사 — 제출 전 [다시 검사]를 몇 번 누를 수 있게 넉넉히 */
 export const RATE_CHECK: RateRule = { name: 'check', limit: 30, windowSeconds: 60 }
+/** 편집 진입 때 최신 버전 조회 — 장을 여러 번 열고 닫아도 걸리지 않게, GitHub 읽기 한도는 지키게 */
+export const RATE_DOC_VERSION: RateRule = { name: 'docVersion', limit: 30, windowSeconds: 60 }
 
 /** 배포가 넣어 주는 접속 IP — Vercel 은 이 헤더를 자기 값으로 덮어써서 요청자가 꾸밀 수 없다 */
 export function clientIp(forwardedFor: string | null | undefined, realIp: string | null | undefined): string {
