@@ -25,8 +25,10 @@ function StatusTag({ status, doc }: { status: ProposalStatus; doc?: boolean }) {
 
 const CATEGORY_ICON: Record<string, IconName> = { guide: 'book', promotion: 'megaphone', programming: 'grid-time' }
 const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
+// 별표가 늘어도 오른쪽 열이 왼쪽보다 길어지지 않게 — 나머지는 시스템 화면에서 본다
+const FAVORITE_LIMIT = 3
 
-/** 인사 줄 오른쪽 엔진 상태 한 줄 — 연결·설정은 아래 '챗봇 답변 엔진' 칸에서 한다 */
+/** 인사 줄 오른쪽 엔진 상태 한 줄 — 연결·설정은 하단 왼쪽 '챗봇 답변 엔진' 칸에서 한다 */
 function EngineLine() {
   const { assistant } = useApp()
   const engines = assistant.engines
@@ -56,7 +58,8 @@ function EngineLine() {
 }
 
 /**
- * 홈 — 인사 줄 · 묻기 바 · 카테고리 타일 · 큐 카드 · 최근 갱신 문서 + 내 요청 + 자주 쓰는 시스템 (identity-redesign 3-3, 4-1).
+ * 홈 — 인사 줄 · 묻기 바 · 카테고리 타일 · 큐 카드 · 하단 두 열 (identity-redesign 3-3, 4-1).
+ * 하단 왼쪽 = 최근 갱신 문서 + 챗봇 답변 엔진, 오른쪽 = 내 요청 + 자주 쓰는 시스템 (home-engine-assistant-cards 4-1).
  * '이번 주 큐'는 편성표 데이터 연결 뒤(2차)에 붙인다 — 그 전에는 자리를 그리지 않는다
  */
 export function Dashboard() {
@@ -244,6 +247,11 @@ export function Dashboard() {
                   </button>
                 ))}
               </div>
+
+              {/* 왼쪽 열 둘째 칸 — 열마다 칸 2개로 높이를 맞추고, 한 열로 내려앉을 때 둘째로 올라온다 */}
+              <div id="engine">
+                <CliStatus />
+              </div>
             </div>
 
             <div className="right">
@@ -276,22 +284,24 @@ export function Dashboard() {
                   </button>
                 </div>
                 {favorites.length > 0 ? (
-                  <div className="sys-grid">
-                    {favorites.map((s) => (
-                      <SystemCard key={s.id} system={s} />
-                    ))}
-                  </div>
+                  <>
+                    <div className="sys-grid">
+                      {favorites.slice(0, FAVORITE_LIMIT).map((s) => (
+                        <SystemCard key={s.id} system={s} />
+                      ))}
+                    </div>
+                    {favorites.length > FAVORITE_LIMIT && (
+                      <Link className="sys-more" to="/systems">
+                        외 {favorites.length - FAVORITE_LIMIT}개 · 전체 ›
+                      </Link>
+                    )}
+                  </>
                 ) : (
                   <div className="empty">
                     <div className="box" />
                     시스템 화면에서 별표를 누르면 여기에 모여요
                   </div>
                 )}
-              </div>
-
-              {/* 엔진 연결·설정은 그대로 둔다 — 인사 줄의 상태 한 줄이 여기로 데려온다 */}
-              <div id="engine">
-                <CliStatus />
               </div>
             </div>
           </div>
