@@ -236,7 +236,7 @@ export function DraftBanner({
       {asking ? (
         <div className="form-actions">
           <span>고친 내용 {count}개 장을 지울까요? 되돌릴 수 없어요.</span>
-          <button className="btn sm" onClick={onDiscard}>
+          <button className="btn sm danger" onClick={onDiscard}>
             지우기
           </button>
           <button className="btn sm" onClick={() => setAsking(false)}>
@@ -408,7 +408,7 @@ export function DocEditPanel({
             <div className="form-actions">
               <span className="muted edit-panel-foot">고친 내용을 모두 지울까요? 되돌릴 수 없어요.</span>
               <button
-                className="btn sm"
+                className="btn sm danger"
                 onClick={() => {
                   // 다음에 다시 고쳤을 때 확인 줄이 미리 열려 있지 않게
                   setAskDiscard(false)
