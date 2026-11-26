@@ -431,7 +431,8 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
 
         <NavLink to="/jira-schedule" className={navOn}>
           <Icon name="calendar" />
-          Jira 스케줄 확인
+          <span className="nav-ellipsis">Jira 스케줄 확인</span>
+          <span className="nav-soon">준비중</span>
         </NavLink>
 
         {/* 위키의 '시스템 매뉴얼'과 헷갈리지 않게 접속 주소 화면이라는 것을 이름에 담는다 */}
