@@ -1,0 +1,69 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1f2a44;--coral:#ff6b6b;--mint:#1f9e8a;--pink:#e5487b;--yellow:#ffd84d;--bg:#fff8ef}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:'Gowun Dodum',sans-serif;color:var(--navy)}
+.page{width:1200px;padding:44px 48px 40px;position:relative}
+.top{text-align:center}
+.top .tag{display:inline-block;background:var(--yellow);font-family:Jua;font-size:20px;padding:5px 16px;border-radius:99px}
+.top h1{font-family:Jua;font-weight:400;font-size:48px;margin:14px 0 6px}
+.top p{font-size:21px;color:#475467;margin:0}
+.wheel{position:relative;width:1104px;height:980px;margin-top:10px}
+svg{position:absolute;inset:0}
+.node{position:absolute;width:330px;background:#fff;border:4px solid var(--navy);border-radius:28px;padding:20px 22px 18px;box-shadow:0 8px 0 rgba(31,42,68,.15);transform:translate(-50%,-50%)}
+.node .ic{position:absolute;top:-34px;left:50%;transform:translateX(-50%);width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;border:4px solid var(--navy)}
+.node h2{font-family:Jua;font-weight:400;font-size:30px;margin:22px 0 2px;text-align:center}
+.node .role{text-align:center;font-family:Jua;font-size:19px;margin-bottom:10px}
+.node ul{margin:0;padding:0;list-style:none;font-size:17px;line-height:1.65}
+.node li::before{content:'✓ ';font-weight:700}
+.wiki .ic{background:#d9e8ff}.wiki .role{color:#2f6fd6}.wiki li::before{color:#2f6fd6}
+.auto .ic{background:#ffe1e1}.auto .role{color:var(--coral)}.auto li::before{color:var(--coral)}
+.dash .ic{background:#c9f2ea}.dash .role{color:var(--mint)}.dash li::before{color:var(--mint)}
+.flow{position:absolute;white-space:nowrap;transform:translate(-50%,-50%);font-family:Jua;font-size:22px;padding:10px 18px;border-radius:16px;text-align:center;line-height:1.3;box-shadow:0 4px 0 rgba(0,0,0,.08)}
+.flow small{display:block;font-family:'Gowun Dodum';font-size:15px;margin-top:3px}
+.f1{background:#ffe1e1;color:#b83a3a}.f2{background:#c9f2ea;color:#126b5d}.f3{background:#d9e8ff;color:#2457a8}
+.center{position:absolute;left:552px;top:500px;transform:translate(-50%,-50%);text-align:center;width:300px}
+.center .c1{font-family:Jua;font-size:30px}
+.center .c2{font-size:18px;line-height:1.8;margin-top:6px}
+.center .c2 b{font-family:Jua;font-weight:400;font-size:20px}
+.bottom{margin-top:6px;background:var(--navy);color:#fff;border-radius:24px;padding:22px 30px;text-align:center}
+.bottom .b1{font-family:Jua;font-size:28px}.bottom .b1 em{font-style:normal;color:var(--yellow)}
+.bottom .b2{font-size:18px;opacity:.85;margin-top:6px}
+</style></head><body><div class="page">
+<div class="top"><span class="tag">플랫폼 담당 지식 허브</span>
+<h1>세 가지가 함께 돌아가요 🔄</h1>
+<p>위키에 쌓인 기준으로 실행하고, 결과에서 배운 것을 다시 위키에 남겨요</p></div>
+<div class="wheel">
+<svg viewBox="0 0 1104 900" width="1104" height="900">
+<defs>
+<marker id="h1" markerWidth="30" markerHeight="30" refX="6" refY="5" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" preserveAspectRatio="none" orient="auto"><path d="M1,1 L7,5 L1,9" fill="none" stroke="#ff6b6b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="h2" markerWidth="30" markerHeight="30" refX="6" refY="5" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" preserveAspectRatio="none" orient="auto"><path d="M1,1 L7,5 L1,9" fill="none" stroke="#1f9e8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="h3" markerWidth="30" markerHeight="30" refX="6" refY="5" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" preserveAspectRatio="none" orient="auto"><path d="M1,1 L7,5 L1,9" fill="none" stroke="#2f6fd6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs>
+<circle cx="552" cy="500" r="330" fill="none" stroke="#f1e3cf" stroke-width="26"/>
+<g id="arcs"></g>
+</svg>
+<div class="node wiki" style="left:552px;top:175px"><div class="ic">📚</div><h2>위키</h2><div class="role">기준과 인사이트가 모이는 곳</div>
+<ul><li>편성 기준 · 프로모션 정책</li><li>지켜야 할 운영 원칙 · 제약</li><li>지난 실행에서 얻은 인사이트</li></ul></div>
+<div class="node auto" style="left:860px;top:690px"><div class="ic">⚙️</div><h2>마케팅 자동화</h2><div class="role">기준대로 실행하는 곳</div>
+<ul><li>대상 · 구좌 · 혜택 조건 확인</li><li>위키 기준에 맞는지 점검</li><li>프로모션 실행</li></ul></div>
+<div class="node dash" style="left:244px;top:690px"><div class="ic">📊</div><h2>실적 대시보드</h2><div class="role">결과를 보고 배우는 곳</div>
+<ul><li>무엇이 잘됐고 아쉬웠는지</li><li>실행 기준과 결과를 함께 보기</li><li>업무 개선점 찾기</li></ul></div>
+<div class="flow f1" style="left:940px;top:330px">① 기준 보고 실행<small>위키의 규칙·인사이트로<br>조건을 정해요</small></div>
+<div class="flow f2" style="left:552px;top:915px">② 실행 결과가 쌓여요<small>어떤 기준으로 했는지도 함께 남아요</small></div>
+<div class="flow f3" style="left:164px;top:330px">③ 배운 것은 위키에<small>인사이트 · 고칠 기준 ·<br>개선점을 남겨요</small></div>
+<div class="center"><div class="c1">돌수록 좋아져요</div>
+<div class="c2"><b>기준</b>은 더 정확하게<br><b>실행</b>은 더 빠르게<br><b>보고</b>는 더 풍부하게</div></div>
+</div>
+<div class="bottom"><div class="b1">이 순환의 출발점은 <em>지금, 위키 문서 업데이트</em>예요</div>
+<div class="b2">기준이 정확해야 자동화가 바르게 돌고, 실행의 근거가 남아야 실적에 '왜'가 붙어요</div></div>
+</div>
+<script>
+const g=document.getElementById('arcs'),cx=552,cy=500,r=330,ns='http://www.w3.org/2000/svg';
+const P=a=>[cx+r*Math.cos(a*Math.PI/180),cy+r*Math.sin(a*Math.PI/180)];
+[[-90+34,30-38,'#ff6b6b','h1'],[30+40,150-40,'#1f9e8a','h2'],[150+38,270-34,'#2f6fd6','h3']].forEach(([a,b,c,m])=>{
+ const [x1,y1]=P(a),[x2,y2]=P(b);const p=document.createElementNS(ns,'path');
+ p.setAttribute('d',`M${x1},${y1} A${r},${r} 0 0 1 ${x2},${y2}`);p.setAttribute('fill','none');p.setAttribute('stroke',c);
+ p.setAttribute('stroke-width','9');p.setAttribute('stroke-linecap','round');p.setAttribute('marker-end',`url(#${m})`);g.appendChild(p);});
+document.fonts.ready.then(()=>setTimeout(()=>document.body.dataset.ready=1,500));
+</script></body></html>
