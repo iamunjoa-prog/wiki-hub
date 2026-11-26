@@ -86,7 +86,8 @@ export function CliStatus() {
                   ) : (
                     <>
                       <span className="cli-warn">로그인이 필요해요</span>
-                      <button className="btn sm accent" onClick={() => loginEngine(e)}>
+                      {/* 계정 관리 버튼이라 본문 빨강을 쓰지 않는다 — 미연결 신호는 앰버 글자·안내 상자가 맡는다 */}
+                      <button className="btn sm" onClick={() => loginEngine(e)}>
                         로그인
                       </button>
                     </>

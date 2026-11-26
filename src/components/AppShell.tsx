@@ -586,7 +586,7 @@ function TodayKst() {
 
 /**
  * 상단바 — 위치 · 검색 · 오늘 · 묻기.
- * `ask="line"` 은 화면 안에 이미 빨간 묻기 버튼이 있을 때(홈 묻기 바) — 빨강 덩어리는 화면당 하나
+ * `ask="line"` 은 화면 안에 이미 빨간 버튼이 있을 때(홈 묻기 바·검색 결과·프로모션 자동화 넘김) — 빨강은 화면당 0~1개
  */
 export function TopBar({ children, ask = 'onair' }: { children?: React.ReactNode; ask?: 'onair' | 'line' }) {
   const navigate = useNavigate()

@@ -59,6 +59,10 @@ export function EngineSettings() {
     setChecking(false)
   }
 
+  // 모달 안 빨강은 하나 — [바로 물어보기 ›]가 있으면 그것, 없으면 로그인이 필요한 첫 계정의 [로그인] (UX A-3)
+  const justConnected = !!connected && dotState(status?.[connected]) === 'ok'
+  const firstLogin = justConnected ? undefined : CLI_ENGINES.find((e) => dotState(status?.[e]) === 'warn')
+
   // 연결 뒤 다음 걸음 — 창을 닫고 어시스턴트 입력칸에 커서를 둔다(빈 글로 채우면 커서만 옮긴다)
   const askNow = () => {
     closeEngineSettings()
@@ -139,7 +143,7 @@ export function EngineSettings() {
                           )}
                           <div className="form-actions">
                             <button
-                              className={`btn sm${state === 'ok' ? '' : ' accent'}`}
+                              className={`btn sm${e === firstLogin && waiting !== e ? ' accent' : ''}`}
                               disabled={waiting === e}
                               onClick={() => loginEngine(e)}
                             >

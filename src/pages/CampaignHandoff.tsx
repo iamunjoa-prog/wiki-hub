@@ -15,7 +15,8 @@ export function CampaignHandoff() {
   if (!draft) {
     return (
       <>
-        <TopBar />
+        {/* 본문 버튼이 이 화면의 다음 걸음이다 — 상단바 묻기는 테두리형으로 */}
+        <TopBar ask="line" />
         <div className="content">
           <div className="empty">
             <div className="box" />
@@ -45,7 +46,8 @@ export function CampaignHandoff() {
 
   return (
     <>
-      <TopBar />
+      {/* 본문 버튼이 이 화면의 다음 걸음이다 — 상단바 묻기는 테두리형으로 */}
+      <TopBar ask="line" />
       <div className="content">
         <div className="page-head">
           <span className="page-title">프로모션 자동화 연결 확인</span>

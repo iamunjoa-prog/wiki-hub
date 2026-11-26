@@ -37,7 +37,8 @@ export function SearchResults() {
 
   return (
     <>
-      <TopBar />
+      {/* 본문 [어시스턴트에게 묻기]가 검색어를 이어 받는 빨간 버튼이다 — 상단바 묻기는 테두리형으로 */}
+      <TopBar ask="line" />
       <div className="content">
         <div className="page-head">
           <span className="page-title">검색 결과</span>

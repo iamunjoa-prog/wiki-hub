@@ -65,7 +65,7 @@ function EngineLine() {
  * '이번 주 큐'는 편성표 데이터 연결 뒤(2차)에 붙인다 — 그 전에는 자리를 그리지 않는다
  */
 export function Dashboard() {
-  const { docs, proposals: prs, ensureProposals, promotions, systems, systemRequests, favoriteSystems, session, ask, openDock } = useApp()
+  const { docs, proposals: prs, ensureProposals, promotions, systems, systemRequests, favoriteSystems, session, ask, openDock, assistant } = useApp()
   const proposals = prs ?? []
   useEffect(() => ensureProposals(), [ensureProposals])
   const navigate = useNavigate()
@@ -114,7 +114,7 @@ export function Dashboard() {
 
   return (
     <>
-      {/* 묻기 바의 [묻기]가 이 화면의 빨간 버튼 하나다 — 상단바 묻기는 테두리형으로 */}
+      {/* 창이 닫혀 있으면 묻기 바의 [묻기]가 이 화면의 빨간 버튼 하나다 — 상단바 묻기는 테두리형으로 */}
       <TopBar ask="line" />
       <div className="content">
         <div className="dash-wrap">
@@ -140,7 +140,7 @@ export function Dashboard() {
               aria-label="문서 검색 또는 큐 어시스턴트에게 묻기"
             />
             <span className="ask-bar-hint">Enter 검색</span>
-            <button type="button" className="btn ask-bar-btn" onClick={() => askNow(q)} title="큐 어시스턴트에게 이 질문을 보내요">
+            <button type="button" className={`btn ask-bar-btn${assistant.open ? ' line' : ''}`} onClick={() => askNow(q)} title="큐 어시스턴트에게 이 질문을 보내요">
               <Icon name="ask" />
               묻기
             </button>
