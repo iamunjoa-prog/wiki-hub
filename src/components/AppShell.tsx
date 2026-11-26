@@ -106,7 +106,10 @@ function WikiTree() {
         {filledFirst(categories, (c) => docs.filter((d) => d.category === c.id).length).map((c) => {
           const open = openCategory === c.id
           const children = docs.filter((d) => d.category === c.id)
-          if (children.length === 0) return <div key={c.id} className="nav-cat" data-cat={c.id}>{emptyRow(c.id, c.label, 'cat')}</div>
+          // 열어 둔 카테고리(베타)는 0건이어도 들어가 첫 문서를 제안할 수 있게 한다
+          const collecting = children.length === 0 && Boolean(c.open)
+          if (children.length === 0 && !collecting)
+            return <div key={c.id} className="nav-cat" data-cat={c.id}>{emptyRow(c.id, c.label, 'cat')}</div>
           const catOn = activeCategory === c.id && !activeSub
           const catTrail = activeDoc?.category === c.id
           const subs = subcategories[c.id]
@@ -135,9 +138,21 @@ function WikiTree() {
                   <span className="cat-dot" aria-hidden="true" />
                   {c.label}
                 </button>
-                <span className="nav-count tc">{children.length}</span>
+                {collecting ? (
+                  <span className="nav-soon" title="문서를 모으는 중입니다">베타</span>
+                ) : (
+                  <span className="nav-count tc">{children.length}</span>
+                )}
               </div>
-              {open && subs.length === 0 && (
+              {/* 빈 서브메뉴 다섯 개를 늘어놓기보다 할 일 하나만 보여 준다 — 어느 서브메뉴로 가도 같은 빈 화면이다 */}
+              {open && collecting && (
+                <div className="nav-children depth2">
+                  <Link className="nav-item sub leaf" to={`/wiki/new?category=${c.id}`}>
+                    <span className="nav-ellipsis">+ 첫 문서를 제안해 주세요</span>
+                  </Link>
+                </div>
+              )}
+              {open && !collecting && subs.length === 0 && (
                 <div className="nav-children depth2">
                   {children.length === 0 ? (
                     <div className="nav-empty">문서 없음</div>
@@ -146,7 +161,7 @@ function WikiTree() {
                   )}
                 </div>
               )}
-              {open && subsWithOthers.length > 0 && (
+              {open && !collecting && subsWithOthers.length > 0 && (
                 <div className="nav-children depth2">
                   {filledFirst(subsWithOthers, (s) =>
                     s.id === '__unassigned__' ? unassigned.length : children.filter((d) => d.subcategory === s.id).length,

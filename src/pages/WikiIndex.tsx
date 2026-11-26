@@ -53,6 +53,15 @@ export function WikiIndex() {
   const firstGuide = docs.find((d) => d.category === 'guide')
   const filledFirst = <T,>(items: T[], count: (item: T) => number) =>
     [...items].sort((a, b) => Number(count(b) > 0) - Number(count(a) > 0))
+  // 열어 둔 카테고리(베타)는 0건이어도 칩을 눌러 들어와 첫 문서를 제안할 수 있다
+  const activeCat = categories.find((c) => c.id === active)
+  const isOpen = (id: CategoryId | null) => Boolean(categories.find((c) => c.id === id)?.open)
+  const proposeHref = () => {
+    const q = new URLSearchParams()
+    if (active) q.set('category', active)
+    if (activeSub && activeSub !== '__unassigned__') q.set('sub', activeSub)
+    return `/wiki/new${q.toString() ? `?${q}` : ''}`
+  }
 
   return (
     <>
@@ -66,12 +75,7 @@ export function WikiIndex() {
           <button
             className="btn sm primary"
             style={{ marginLeft: 'auto' }}
-            onClick={() => {
-              const q = new URLSearchParams()
-              if (active) q.set('category', active)
-              if (activeSub) q.set('sub', activeSub)
-              navigate(`/wiki/new${q.toString() ? `?${q}` : ''}`)
-            }}
+            onClick={() => navigate(proposeHref())}
           >
             + 새 문서
           </button>
@@ -94,8 +98,8 @@ export function WikiIndex() {
             <button
               key={c.id}
               className={`btn sm${active === c.id ? ' primary' : ''}`}
-              disabled={categoryCount(c.id) === 0}
-              title={categoryCount(c.id) === 0 ? '아직 문서가 없습니다' : undefined}
+              disabled={categoryCount(c.id) === 0 && !c.open}
+              title={categoryCount(c.id) === 0 ? (c.open ? '문서를 모으는 중입니다' : '아직 문서가 없습니다') : undefined}
               onClick={() => setParams({ category: c.id })}
             >
               {c.label} {categoryCount(c.id)}
@@ -115,8 +119,8 @@ export function WikiIndex() {
               <button
                 key={s.id}
                 className={`btn sm${activeSub === s.id ? ' primary' : ''}`}
-                disabled={subCount(s.id) === 0}
-                title={subCount(s.id) === 0 ? '아직 문서가 없습니다' : undefined}
+                disabled={subCount(s.id) === 0 && !isOpen(active)}
+                title={subCount(s.id) === 0 ? (isOpen(active) ? '문서를 모으는 중입니다' : '아직 문서가 없습니다') : undefined}
                 onClick={() => setParams({ category: active, sub: s.id })}
               >
                 {s.label} {subCount(s.id)}
@@ -146,7 +150,22 @@ export function WikiIndex() {
               ))}
             </div>
           ))}
-          {list.length === 0 && <div className="empty">해당 카테고리에 문서가 없습니다</div>}
+          {list.length === 0 &&
+            (isOpen(active) ? (
+              // 처음 오는 사람이 형식 걱정 없이 올리게 한다. 빨간 버튼은 쓰지 않는다 — 상단 [+ 새 문서]가 이미 남색이다
+              <div className="empty">
+                <p style={{ margin: 0 }}>
+                  아직 {activeCat?.label} 문서가 없어요. 알고 있는 {activeCat?.label} 정책·규칙을 올려 주세요.
+                  <br />
+                  형식은 몰라도 돼요 — 내용만 적으면 정리해 드려요.
+                </p>
+                <button className="btn sm" onClick={() => navigate(proposeHref())}>
+                  첫 문서 제안하기
+                </button>
+              </div>
+            ) : (
+              <div className="empty">해당 카테고리에 문서가 없습니다</div>
+            ))}
         </div>
       </div>
     </>
