@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import { hasMyAccount, hubKind } from '../lib/localHub'
+import { useApp } from '../store/AppStore'
 
 // 확정 문구(docs/ux/2026-11-13-engine-guide-copy.md ②·③) — 대시보드·챗봇 창이 같이 쓰므로 여기에만 둔다.
 // 사실은 HUB-04 v3 「한눈에 보는 차이」 표와 맞춘다 (assistant-engine-guide 1-3)
@@ -70,6 +72,16 @@ export function EngineGuide() {
 
 /** 차이 안내를 띄우는 창 — 대시보드 패널과 챗봇 창의 "차이 보기"가 같이 쓴다 */
 export function EngineGuideModal({ onClose }: { onClose: () => void }) {
+  const { assistant, openEngineSettings } = useApp()
+  // 대시보드 패널과 같은 상태값으로 판단 — 로컬 허브에서 이미 내 계정이 연결됐으면 권할 행동이 없다
+  const local = hubKind(assistant.engineStatus) === 'local'
+  const connected = local && hasMyAccount(assistant.engineStatus)
+  // 창 위에 창이 겹치지 않게 차이 창을 먼저 닫고 설정 창을 연다
+  const goSettings = () => {
+    onClose()
+    openEngineSettings()
+  }
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
     window.addEventListener('keydown', onKey)
@@ -87,6 +99,21 @@ export function EngineGuideModal({ onClose }: { onClose: () => void }) {
         </div>
         <div className="modal-body">
           <EngineGuide />
+          <div className="engine-guide-actions">
+            {!connected && (
+              <span className="cli-cta">
+                <button type="button" className="btn accent" onClick={goSettings}>
+                  {local ? '내 계정 연결하기' : '내 AI 계정으로 쓰기'}
+                </button>
+                <span className="cli-hint">
+                  {local ? 'Claude·ChatGPT 계정으로 로그인해요' : '처음 한 번 설치(5~10분) · 내 PC용 허브 내려받기'}
+                </span>
+              </span>
+            )}
+            <button type="button" className="btn" onClick={onClose}>
+              {connected ? '닫기' : '공용 AI로 계속 쓰기'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

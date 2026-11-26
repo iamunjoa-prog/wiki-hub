@@ -1420,6 +1420,8 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .engine-guide p { margin: 0; font-size: 12.5px; }
 .engine-guide-modal { max-height: 80vh; display: flex; flex-direction: column; }
 .engine-guide-modal .modal-body { overflow-y: auto; }
+/* 표를 다 읽은 자리에서 바로 행동하게 본문 끝에 둔다 — 주 버튼이 오른쪽 끝 */
+.engine-guide-actions { display: flex; flex-direction: row-reverse; flex-wrap: wrap; align-items: flex-start; gap: 8px; padding-top: 10px; border-top: 1px solid var(--rowsep); }
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 .engine-table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 13px; }
 .engine-table th, .engine-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
