@@ -254,7 +254,7 @@ export async function askGemini(input: AskInput, opts: GeminiOptions): Promise<C
           `thoughts=${u?.thoughtsTokenCount ?? '?'} output=${u?.candidatesTokenCount ?? '?'} cached=${u?.cachedContentTokenCount ?? 0}`,
       )
 
-      if (!response.text) throw new GeminiError('invalid', 'Gemini가 빈 응답을 반환했습니다')
+      if (!response.text) throw new GeminiError('invalid', '공용 AI가 빈 응답을 반환했습니다')
       try {
         return checkAskReply(JSON.parse(response.text), opts.knowledgeDir)
       } catch (err) {
@@ -284,7 +284,7 @@ export async function editGemini(
           abortSignal,
         },
       })
-      if (!response.text) throw new GeminiError('invalid', 'Gemini가 빈 응답을 반환했습니다')
+      if (!response.text) throw new GeminiError('invalid', '공용 AI가 빈 응답을 반환했습니다')
       try {
         return checkEditReply(JSON.parse(response.text))
       } catch (err) {
