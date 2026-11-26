@@ -608,7 +608,7 @@ function DeleteModal({
             </div>
           )}
           <div className="form-actions">
-            <button type="button" className="btn accent" disabled={busy} onClick={() => void run()}>
+            <button type="button" className="btn danger" disabled={busy} onClick={() => void run()}>
               {busy ? '지우는 중…' : '지우기'}
             </button>
             <button type="button" className="btn" ref={cancelRef} disabled={busy} onClick={onCancel}>

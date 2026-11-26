@@ -146,6 +146,9 @@ a { color: inherit; text-decoration: none; }
 .btn.primary:hover:not(:disabled) { background: var(--text-strong); }
 .btn.accent { background: var(--accent); border-color: var(--accent); color: var(--on-dark); }
 .btn.accent:hover:not(:disabled) { background: var(--accent-hover); }
+/* 되돌릴 수 없는 버튼은 온에어 빨강이 아니라 위험 색 테두리형 — 누르기 직전에만 채운다 */
+.btn.danger { background: var(--surface); border-color: var(--danger); color: var(--danger); }
+.btn.danger:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: var(--on-dark); }
 .btn.sm { padding: 3px 8px; font-size: 12px; }
 .btn.block { width: 100%; justify-content: center; }
 
@@ -1115,6 +1118,9 @@ textarea.field.edit-reference { min-height: 140px; font: 12.5px/1.6 var(--code);
   transition: transform 0.15s, box-shadow 0.15s, background-color 0.15s;
 }
 .fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 8px 24px color-mix(in srgb, var(--onair) 36%, transparent); }
+/* 편집 중에는 빨강을 편집 바 램프에 넘긴다 — .btn.topbar-ask.line 과 같은 결 */
+.fab.line { background: var(--surface); border: 1px solid var(--line); color: var(--text); box-shadow: var(--shadow-hover); }
+.fab.line:hover { background: var(--surface); border-color: var(--text); box-shadow: var(--shadow-hover); }
 /* 넓은 화면은 상단바 [묻기]를 쓴다 — 떠 있는 버튼은 휴대폰 폭에서만 */
 @media (min-width: 761px) { .fab { display: none; } }
 .fab-badge {
