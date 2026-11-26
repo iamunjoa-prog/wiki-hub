@@ -656,11 +656,12 @@ button.kpi:hover { background: var(--surface-subtle); }
 .dash-cols { display: flex; flex-wrap: wrap; gap: 14px; align-items: stretch; margin-top: 14px; }
 .dash-cols .left { flex: 1.6 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
 .dash-cols .right { flex: 1 1 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
-/* 오른쪽 열의 마지막 패널이 남는 세로 공간을 채워서 왼쪽 열과 바닥선이 맞도록 한다 */
-.dash-cols .right > .panel:last-child { flex: 1; display: flex; flex-direction: column; }
-.dash-cols .right > .panel:last-child .sys-grid,
-.dash-cols .right > .panel:last-child .empty { flex: 1; }
-.dash-cols .right > .panel:last-child .empty { justify-content: center; }
+/* 각 열의 마지막 칸이 남는 세로 공간을 채워 바닥선을 맞춘다 — 늘어난 몫은 칸 안 아래쪽 빈칸으로 두고 카드·줄은 위에 붙인다 */
+.dash-cols .left > :last-child,
+.dash-cols .right > :last-child { flex: 1; }
+/* 엔진 칸은 감싼 div 안에 패널이 있어 패널까지 늘린다 */
+.dash-cols #engine { display: flex; flex-direction: column; }
+.dash-cols #engine > .panel { flex: 1; }
 
 .row {
   display: flex;
@@ -726,6 +727,9 @@ button.row:hover { background: var(--surface-subtle); }
 .sys-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
 /* 대시보드 오른쪽 열은 폭이 좁아 두 칸으로 나누면 시스템명이 줄바꿈된다 */
 .right .sys-grid { grid-template-columns: minmax(0, 1fr); }
+/* 별표 상한을 넘은 나머지 — 머리 [전체 ›] 와 같은 시스템 화면으로 */
+.sys-more { display: block; padding: 0 12px 10px; text-align: right; font: 12px var(--mono); color: var(--muted); }
+.sys-more:hover { color: var(--text); }
 .sys-card { position: relative; }
 .sys-card .sys-main { height: 100%; padding-right: 30px; }
 .sys-card .link-card.off { color: var(--muted); cursor: default; }
@@ -1402,7 +1406,8 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .engine-table { width: 100%; min-width: 420px; border-collapse: collapse; font-size: 13px; }
 .engine-table th, .engine-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
 .engine-table thead th, .engine-table tbody th { background: var(--surface-subtle); font-weight: 600; color: var(--text); white-space: nowrap; }
-.engine-guide-link { margin-top: 6px; }
+/* 패널 테두리에 붙어 잘리지 않게 머리 줄과 같은 안쪽 여백을 준다 */
+.engine-guide-link { margin-top: 6px; padding: 0 12px 10px; }
 .msg .by.engine-by { margin-top: 0; }
 .msg .engine-by .cli-os-switch, .engine-guide-link .cli-os-switch { color: var(--muted); }
 .login-engine { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--rowsep); }
