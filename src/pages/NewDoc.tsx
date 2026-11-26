@@ -41,7 +41,7 @@ interface CheckState {
 }
 
 export function NewDoc() {
-  const { docs, session, refreshProposals, markReportSubmitted } = useApp()
+  const { docs, session, refreshProposals, markReportSubmitted, markChatDraftSubmitted } = useApp()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { prefill, check: handedCheck } = usePrefill()
@@ -135,7 +135,11 @@ export function NewDoc() {
         session.name,
       )
       clearPrefill()
-      if (prefill?.fromMessageId) markReportSubmitted(prefill.fromMessageId, res.code, res.prNumber)
+      if (prefill?.fromMessageId) {
+        // 챗봇 수정안 카드에서 왔으면 그 카드에, 리포트에서 왔으면 리포트 카드에 결과를 남긴다
+        if (via === 'chat') markChatDraftSubmitted(prefill.fromMessageId, res.prNumber, res.prUrl)
+        else markReportSubmitted(prefill.fromMessageId, res.code, res.prNumber)
+      }
       // 바로 [내 요청에서 보기]를 눌러도 방금 올린 제안이 보이게 목록을 다시 읽는다
       void refreshProposals()
       setResult(res)
@@ -199,6 +203,9 @@ export function NewDoc() {
               <div className="hint">
                 챗봇 리포트 「{prefill.reportTitle}」 내용을 채웠습니다. 위치·제목을 확인하고, 고친 뒤 제출해 주세요.
               </div>
+            )}
+            {via === 'chat' && (
+              <div className="hint">챗봇 대화에서 만든 새 문서 초안을 채웠습니다. 위치·제목·본문을 확인하고, 고친 뒤 제출해 주세요.</div>
             )}
 
             <div className="form-grid">

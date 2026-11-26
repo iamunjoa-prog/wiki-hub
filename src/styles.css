@@ -1348,6 +1348,14 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .report-refs ul { margin: 0; padding-left: 18px; }
 .report-refs a.ext { text-decoration: underline; text-underline-offset: 2px; }
 .report-refs a.ext::after { content: '↗'; margin-left: 2px; font-size: 0.8em; }
+/* 챗봇 수정안 카드 — 리포트 카드 틀을 쓴다. 제출은 편집·새 문서 화면에서 하므로 카드는 무엇을 고칠지만 보인다 */
+.draft-card-rows { margin: 0; display: flex; flex-direction: column; gap: 4px; font: 13px/1.55 var(--sans); }
+.draft-card-rows > div { display: flex; gap: var(--sp-2); }
+.draft-card-rows dt { flex: none; width: 48px; color: var(--muted); font: 11.5px/1.9 var(--mono); }
+.draft-card-rows dd { margin: 0; min-width: 0; color: var(--text); white-space: pre-wrap; word-break: keep-all; overflow-wrap: anywhere; }
+.draft-card-body summary { cursor: pointer; font: 11.5px var(--mono); color: var(--text-2); }
+.draft-card-body pre { margin: 6px 0 0; max-height: 220px; overflow: auto; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); font: 12px/1.6 var(--mono); white-space: pre-wrap; }
+.draft-card-closed { font: 11.5px var(--mono); color: var(--muted); }
 .modal-back.report-wide-back { padding: 4vh 0; }
 .modal.report-wide { width: min(1080px, 94vw); max-height: 92vh; display: flex; flex-direction: column; }
 .report-wide .modal-body { overflow: auto; min-height: 0; }
@@ -1589,6 +1597,7 @@ body.resizing-x { cursor: col-resize; user-select: none; }
   color: var(--text-2);
 }
 .ai-edit-result b { color: var(--ok); }
+.chat-edit-reason { font-size: 12.5px; }
 .hint { padding: 9px 10px; border: 1px solid var(--border); background: var(--surface-subtle); font: 13px/1.6 var(--mono); color: var(--text-2); }
 .seg { display: flex; gap: 6px; }
 .err { font: 13px var(--mono); color: var(--danger); }
