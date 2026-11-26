@@ -3,7 +3,7 @@ import { EngineToggle } from './AssistantDock'
 import { changeSummary } from './ChangeCards'
 import { DiffView } from './DiffView'
 import { EditIcon } from './EditIcons'
-import { requestAiEdit, type AiEditResult } from '../lib/assistant'
+import { displayEngineText, requestAiEdit, type AiEditResult } from '../lib/assistant'
 import { changeCards } from '../lib/blocks'
 import { sectionAnchor, sectionLabel } from '../lib/docEdit'
 import { splitSections } from '../lib/draft'
@@ -258,7 +258,7 @@ export const SectionEditor = memo(function SectionEditor({
         <div className="sec-suggest" role="region" aria-label="AI 제안">
           <div className="form-actions">
             <span className="label strong">
-              AI 제안 · {suggestion.by} · {changeSummary({ key: '', title, kind: 'changed', before: text, after: suggestion.body }, changeCards(text, suggestion.body, preamble))}
+              AI 제안 · {displayEngineText(suggestion.by)} · {changeSummary({ key: '', title, kind: 'changed', before: text, after: suggestion.body }, changeCards(text, suggestion.body, preamble))}
             </span>
             <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setSuggestion(null)}>
               버리기

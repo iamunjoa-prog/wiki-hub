@@ -6,7 +6,7 @@ import { freshnessOf, FreshLamp } from '../components/DocBits'
 import { Icon, type IconName } from '../components/Icon'
 import { SystemCard } from '../components/SystemCard'
 import { categories, subcategories } from '../data/docs'
-import { ENGINE_LABEL, SUGGESTED_QUESTIONS } from '../lib/assistant'
+import { ENGINE_NAME, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { kstToday } from '../lib/scheduleApi'
 import { useApp } from '../store/AppStore'
 import type { Engine, ProposalStatus } from '../types'
@@ -28,11 +28,11 @@ const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 // 별표가 늘어도 오른쪽 열이 왼쪽보다 길어지지 않게 — 나머지는 시스템 화면에서 본다
 const FAVORITE_LIMIT = 3
 
-/** 인사 줄 오른쪽 엔진 상태 한 줄 — 연결·설정은 하단 왼쪽 '챗봇 답변 엔진' 칸에서 한다 */
+/** 인사 줄 오른쪽 엔진 상태 한 줄 — 미연결이면 공용 설정 창을, 연결됐으면 하단 왼쪽 '챗봇 답변 엔진' 칸을 연다 */
 function EngineLine() {
-  const { assistant } = useApp()
+  const { assistant, openEngineSettings } = useApp()
   const engines = assistant.engines
-  const usable = engines ? (Object.keys(ENGINE_LABEL) as Engine[]).filter((e) => engines[e]) : []
+  const usable = engines ? (Object.keys(ENGINE_NAME) as Engine[]).filter((e) => engines[e]) : []
   const [lamp, text] =
     // 확인 전(undefined)을 먼저 본다 — 확인 전에도 engines 는 null 이라 '엔진 없음'으로 잘못 보인다
     assistant.engineStatus === undefined
@@ -40,7 +40,7 @@ function EngineLine() {
       : engines === null
         ? ['', '엔진 없이 문서 기준으로 답해요']
         : usable.length > 0
-          ? ['ok', `${usable.map((e) => ENGINE_LABEL[e]).join('·')} 연결됨`]
+          ? ['ok', `${usable.map((e) => ENGINE_NAME[e]).join('·')} 연결됨`]
           : ['warn', '엔진 연결 안 됨 · 연결 설정 ›']
   return (
     <a
@@ -48,7 +48,9 @@ function EngineLine() {
       className="dash-engine"
       onClick={(e) => {
         e.preventDefault()
-        document.getElementById('engine')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        // 연결하러 가는 사람은 칸까지 내려가지 않고 바로 [로그인]이 있는 창을 본다 (F2)
+        if (assistant.engineStatus && usable.length === 0) openEngineSettings()
+        else document.getElementById('engine')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }}
     >
       <span className={`lamp ${lamp}`} aria-hidden="true" />

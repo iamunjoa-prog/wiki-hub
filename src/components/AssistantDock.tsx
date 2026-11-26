@@ -2,17 +2,20 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ENGINE_LABEL,
+  ENGINE_NAME,
   ENGINE_TIMEOUT_MS,
   ENGINE_WAIT_HINT,
   PLAN_STARTER,
   RULE_BASED_LABEL,
-  SUGGESTED_QUESTIONS,
+  displayEngineText,
+  dockSuggestions,
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
+import { hasMyAccount, hubKind, isLocalStatus, type HubKind } from '../lib/localHub'
 import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine, PromotionBrief } from '../types'
+import type { ChatMessage, Engine, EngineTopic, PromotionBrief } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 import { ReportCard } from './ReportCard'
 import { SourceCards, sourceHref } from './SourceCards'
@@ -127,9 +130,59 @@ function BriefCard({ brief }: { brief: PromotionBrief }) {
   )
 }
 
-function Message({ msg }: { msg: ChatMessage }) {
+/** 엔진이 하나도 없어 문서 검색으로 답했을 때 답 아래 한 줄 (assistant-engine-guide F4) */
+const NO_ENGINE_NOTICE: Record<HubKind, string> = {
+  local: '내 AI 계정이 연결되지 않아 문서에서 찾은 내용만 보여 드렸어요.',
+  deploy: '지금은 AI 엔진을 쓸 수 없어 문서에서 찾은 내용만 보여 드렸어요. 계속되면 관리자에게 알려 주세요.',
+  unknown: 'AI 연결 상태를 확인하지 못해 문서에서 찾은 내용만 보여 드렸어요. 잠시 후 다시 물어보세요.',
+}
+
+/** 엔진이 없어서(실패가 아니라) 규칙 기반으로 답한 메시지 — 엔진 안내 답은 자기 버튼이 있어 뺀다 */
+const answeredWithoutEngine = (m: ChatMessage) => m.answeredBy === RULE_BASED_LABEL && !m.fallback?.length && !m.engineTopic
+
+/**
+ * 엔진 안내 답 끝 행동 버튼 — 메시지에는 주제만 두고 버튼은 **지금 상태**로 고른다. 연결한 뒤에는 같은 답의 버튼이 저절로 바뀐다.
+ * 모두 보통 버튼이다 — 강조 버튼은 입력칸 위 [연결하기] 하나 (assistant-engine-guide 3-3)
+ */
+function EngineTopicActions({ topic }: { topic: EngineTopic }) {
+  const { assistant, openEngineSettings } = useApp()
+  const [guideOpen, setGuideOpen] = useState(false)
+  const hub = hubKind(assistant.engineStatus)
+  if (hub === 'unknown') return null
+  const settings =
+    hub === 'local'
+      ? !hasMyAccount(assistant.engineStatus)
+        ? '연결하기'
+        : topic === 'connect' || topic === 'trouble'
+          ? '연결 설정 열기'
+          : null
+      : topic === 'connect' || topic === 'benefit' || topic === 'compare'
+        ? '내 PC에서 쓰기'
+        : null
+  if (!settings && topic !== 'compare') return null
+  return (
+    <div className="engine-actions">
+      {settings && (
+        <button type="button" className="btn sm" onClick={openEngineSettings}>
+          {settings}
+        </button>
+      )}
+      {topic === 'compare' && (
+        <button type="button" className="btn sm" onClick={() => setGuideOpen(true)}>
+          차이 표 보기
+        </button>
+      )}
+      {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
+    </div>
+  )
+}
+
+function Message({ msg, canAskAgain = false }: { msg: ChatMessage; canAskAgain?: boolean }) {
   const navigate = useNavigate()
-  const { session, assistant, askAgain, docs, closeDock } = useApp()
+  const { session, assistant, askAgain, docs, closeDock, openEngineSettings, askWithAccount } = useApp()
+  const hub = hubKind(assistant.engineStatus)
+  const linked = hasMyAccount(assistant.engineStatus)
+  const noEngine = answeredWithoutEngine(msg) ? NO_ENGINE_NOTICE[hub] : null
   // 근거는 문서 카드로 — 목록에 없는 문서(지워진 문서 등)만 예전처럼 글자 버튼으로 남긴다
   const sourceItems = (msg.sources ?? []).flatMap((s) => {
     const doc = docs.find((d) => d.id === s.docId)
@@ -179,13 +232,38 @@ function Message({ msg }: { msg: ChatMessage }) {
           ))}
         </div>
       )}
+      {msg.engineTopic && <EngineTopicActions topic={msg.engineTopic} />}
       {msg.brief && <BriefCard brief={msg.brief} />}
       {msg.intent && <IntentChip msg={msg} />}
       {msg.intentAnswer && <div className="intent-answer">선택 · {msg.intentAnswer}</div>}
       {notice && <div className="fallback-notice">{notice}</div>}
+      {noEngine && (
+        <div className="fallback-notice">
+          {noEngine}
+          {/* 연결하러 가는 길은 내 PC 허브에만 있다 — 이미 연결했으면 아래 다시 묻기 칩이 그 자리를 맡는다 */}
+          {hub === 'local' && !linked && (
+            <>
+              {' '}
+              <button type="button" className="btn sm" onClick={openEngineSettings}>
+                연결하기
+              </button>
+            </>
+          )}
+        </div>
+      )}
+      {canAskAgain && linked && assistant.engine && (
+        <div className="suggest report-chip">
+          <button type="button" disabled={assistant.pending} onClick={() => askWithAccount(msg.id)}>
+            내 계정으로 다시 묻기
+          </button>
+          <span className="muted">
+            같은 질문을 {assistant.engine === 'gemini' ? '공용 AI로' : `${ENGINE_NAME[assistant.engine]} 계정으로`} 다시 보내요
+          </span>
+        </div>
+      )}
       {msg.answeredBy && (
         <div className="by">
-          답변 · {msg.answeredBy}
+          답변 · {displayEngineText(msg.answeredBy)}
           {codes && ` · ${codes}`}
         </div>
       )}
@@ -215,7 +293,7 @@ function ReportWaiting({ engine, since }: { engine: Exclude<Engine, 'gemini'>; s
   return (
     <div className="typing report-wait">
       <span>
-        {ENGINE_LABEL[engine]}가 리포트를 정리하는 중입니다 · {REPORT_WAIT_HINT} · 최대 {maxMin}분 ·{' '}
+        {ENGINE_NAME[engine]}가 리포트를 정리하는 중입니다 · {REPORT_WAIT_HINT} · 최대 {maxMin}분 ·{' '}
         <b>
           {Math.floor(secs / 60)}분 {String(secs % 60).padStart(2, '0')}초
         </b>{' '}
@@ -229,11 +307,12 @@ function ReportWaiting({ engine, since }: { engine: Exclude<Engine, 'gemini'>; s
 }
 
 function engineTitle(e: Engine, usable: boolean, installed: boolean): string {
-  if (e === 'gemini') return usable ? 'Gemini API로 답변' : 'Gemini API 키가 설정되지 않았습니다'
-  if (usable) return `${ENGINE_LABEL[e]} CLI로 답변`
+  // 마우스를 올렸을 때도 화면 이름만 — CLI·API 같은 말은 설정 창 고급 설정(담당자용)에만 둔다
+  if (e === 'gemini') return usable ? '공용 AI로 답해요' : '이 허브에는 공용 AI가 설정돼 있지 않아요'
+  if (usable) return `${ENGINE_NAME[e]} 계정으로 답해요`
   return installed
-    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 메인에서 로그인`
-    : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
+    ? `${ENGINE_NAME[e]} 계정 로그인이 필요해요 — ⚙ 연결 설정에서 로그인`
+    : `이 PC에는 ${ENGINE_NAME[e]} 연결 프로그램이 없어요`
 }
 
 /** 서버가 알려준 엔진만 보인다 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini. 쓸 수 없는 엔진은 비활성화한다. */
@@ -260,12 +339,70 @@ export function EngineToggle({ label = '답변 엔진', busy = false }: { label?
             title={engineTitle(e, Boolean(engines[e]), Boolean(assistant.engineStatus?.[e]?.installed))}
             onClick={() => setEngine(e)}
           >
-            {ENGINE_LABEL[e]}
+            {ENGINE_NAME[e]}
           </button>
         ))}
       </div>
     </div>
   )
+}
+
+/**
+ * 어시스턴트 입력칸 위 엔진 상태 한 줄 — 이번 답을 누가 하는지 마우스를 올리지 않아도 글자로 보인다 (F1).
+ * 계정 관리는 공용 설정 창이 맡고, 여기서는 ⚙·[연결하기]로 그 창을 연다. 문구는 assistant-engine-guide 4-1.
+ */
+function DockEngineLine() {
+  const { assistant, openEngineSettings } = useApp()
+  const status = assistant.engineStatus
+  const [guideOpen, setGuideOpen] = useState(false)
+  const gear = (
+    <button type="button" className="btn sm dock-engine-gear" aria-label="챗봇 답변 엔진 설정" title="챗봇 답변 엔진 설정" onClick={openEngineSettings}>
+      ⚙
+    </button>
+  )
+  const line = (dot: string, text: React.ReactNode, end?: React.ReactNode) => (
+    <div className="engine-row dock-engine">
+      <span className={`status-dot ${dot}`} />
+      <span className="grow">{text}</span>
+      {end}
+    </div>
+  )
+
+  if (status === undefined) return line('loading', '연결 상태를 확인하는 중…')
+  if (status === null) return line('off', '문서에서 찾은 내용만 보여 드려요')
+  if (hasMyAccount(status))
+    return (
+      <div className="dock-engine">
+        <EngineToggle />
+        {gear}
+      </div>
+    )
+  if (assistant.engines?.gemini)
+    return (
+      <>
+        {line(
+          'ok',
+          <>
+            공용 AI로 답해요 ·{' '}
+            <button type="button" className="cli-os-switch" onClick={() => setGuideOpen(true)}>
+              차이 보기
+            </button>
+          </>,
+          gear,
+        )}
+        {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
+      </>
+    )
+  // 내 PC 허브에서 내 계정이 없으면 이 창의 강조 버튼은 [연결하기] 하나다 (UX 수용 기준 11)
+  if (isLocalStatus(status))
+    return line(
+      'warn',
+      '내 AI 계정이 연결 안 됐어요 · 문서에서 찾은 내용만 보여 드려요',
+      <button type="button" className="btn sm accent" onClick={openEngineSettings}>
+        연결하기
+      </button>,
+    )
+  return line('off', '지금은 AI 엔진을 쓸 수 없어요 · 문서에서 찾은 내용만 보여 드려요', gear)
 }
 
 /** 바로가기 버튼 아이콘 — 라벨 왼쪽에 붙는 14px 선 아이콘 */
@@ -443,6 +580,10 @@ export function AssistantDock() {
     setInput('')
   }
 
+  // [내 계정으로 다시 묻기]는 엔진 없이 받은 답 중 가장 최근 하나에만 — 진행 확인 칩이 붙은 답은 흐름이 따로 있다 (F3)
+  const lastWithoutEngine = [...assistant.messages].reverse().find((m) => m.role === 'assistant' && answeredWithoutEngine(m) && !m.intent)
+  const askAgainId = lastWithoutEngine && !lastWithoutEngine.askedAgain ? lastWithoutEngine.id : null
+
   return (
     <aside className="dock" style={{ width }}>
       <div
@@ -487,7 +628,7 @@ export function AssistantDock() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="label">이렇게 물어보세요</span>
             <div className="suggest">
-              {SUGGESTED_QUESTIONS.map((q) => (
+              {dockSuggestions(assistant.engineStatus).map((q) => (
                 <button key={q} onClick={() => send(q)}>
                   {q}
                 </button>
@@ -496,21 +637,21 @@ export function AssistantDock() {
           </div>
         )}
         {assistant.messages.map((m) => (
-          <Message key={m.id} msg={m} />
+          <Message key={m.id} msg={m} canAskAgain={m.id === askAgainId} />
         ))}
         {assistant.pending && assistant.pendingReport && assistant.engine && assistant.engine !== 'gemini' && assistant.pendingSince ? (
           <ReportWaiting engine={assistant.engine} since={assistant.pendingSince} />
         ) : assistant.pending && (
           <div className="typing">
             {assistant.engine
-              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${ENGINE_WAIT_HINT[assistant.engine]} 내외 · 최대 ${ENGINE_TIMEOUT_MS[assistant.engine] / 1000}초)`
+              ? `${ENGINE_NAME[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${ENGINE_WAIT_HINT[assistant.engine]} 내외 · 최대 ${ENGINE_TIMEOUT_MS[assistant.engine] / 1000}초)`
               : '문서를 찾는 중…'}
           </div>
         )}
       </div>
 
       <div className="dock-foot">
-        <EngineToggle />
+        <DockEngineLine />
         <form
           className="composer"
           onSubmit={(e) => {
