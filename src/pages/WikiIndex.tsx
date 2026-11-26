@@ -51,6 +51,7 @@ export function WikiIndex() {
     id === '__unassigned__' ? unassigned.length : byCategory.filter((d) => d.subcategory === id).length
   // 처음 온 사람이 이용 안내를 찾아 내려가지 않게 — 이용 안내 첫 문서로 바로 가는 줄 (IA-9)
   const firstGuide = docs.find((d) => d.category === 'guide')
+  const writingGuide = docs.find((d) => d.code === 'HUB-03')
   const filledFirst = <T,>(items: T[], count: (item: T) => number) =>
     [...items].sort((a, b) => Number(count(b) > 0) - Number(count(a) > 0))
   // 열어 둔 카테고리(베타)는 0건이어도 칩을 눌러 들어와 첫 문서를 제안할 수 있다
@@ -85,6 +86,13 @@ export function WikiIndex() {
         {!active && firstGuide && (
           <p className="wiki-first">
             처음이라면: <Link to={`/wiki/${firstGuide.id}`}>{firstGuide.title}</Link>
+            {/* 목록에서는 어느 문서인지 정해지지 않아 챗봇에 말할 거리가 없다 — 방법이 적힌 HUB-03 으로 보낸다 */}
+            {writingGuide && (
+              <>
+                {' · 고칠 곳이 있으면: '}
+                <Link to={`/wiki/${writingGuide.id}`}>말로 고치는 법</Link>
+              </>
+            )}
           </p>
         )}
 

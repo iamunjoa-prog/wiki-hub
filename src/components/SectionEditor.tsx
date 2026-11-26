@@ -99,7 +99,7 @@ function SectionAi({
                 run()
               }
             }}
-            placeholder="예: 이 표의 담당 칸을 최신 내용으로 바꾸고, 확인 필요 상자는 지워 줘"
+            placeholder="예) 결재 기준 줄을 팀장 전결로 바꿔줘 — 형식은 맞춰 드려요"
             aria-label="AI에게 부탁할 내용"
             disabled={busy}
           />

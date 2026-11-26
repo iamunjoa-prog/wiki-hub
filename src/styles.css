@@ -601,6 +601,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* 위키 목록 머리의 처음 쓰는 사람 안내 한 줄 */
 .wiki-first { margin: -6px 0 12px; font-size: 13.5px; color: var(--text-2); word-break: keep-all; }
 .wiki-first a { color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; }
+/* 글 속 글자 버튼 — .wiki-first a 와 같은 밑줄 모양. 빨강이 아니다 */
+.text-link { padding: 0; border: 0; background: none; font: inherit; color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--text-2); text-underline-offset: 2px; cursor: pointer; }
 
 /* ---------- dashboard ---------- */
 
@@ -798,6 +800,8 @@ button.row:hover { background: var(--surface-subtle); }
 .doc-info dt { flex: none; width: 34px; color: var(--muted); }
 .doc-info dd { margin: 0; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .btn.doc-ask { flex: none; justify-content: center; }
+.doc-ask-wrap { display: flex; flex-direction: column; gap: var(--sp-1); flex: none; }
+.doc-ask-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-2); word-break: keep-all; }
 .btn.doc-ask-inline { display: none; }
 .doc-toc a {
   display: block;

@@ -914,10 +914,14 @@ function WikiDocPage() {
                   </div>
                 </dl>
               </section>
-              <button className="btn block doc-ask" onClick={askDoc} title={`챗봇 창을 열고 「${doc.code} 기준으로: 」를 넣어 둬요`}>
-                <Icon name="ask" />
-                이 문서로 묻기
-              </button>
+              {/* 문구 B — 버튼 바로 아래라 "위 버튼"이라 쓴다. 자리를 옮기면 문구도 바꾼다 (docs/ux/2026-11-26-chat-edit-hints.md 2-1) */}
+              <div className="doc-ask-wrap">
+                <button className="btn block doc-ask" onClick={askDoc} title={`챗봇 창을 열고 「${doc.code} 기준으로: 」를 넣어 둬요`}>
+                  <Icon name="ask" />
+                  이 문서로 묻기
+                </button>
+                <p className="doc-ask-hint">틀린 곳은 위 버튼으로 말해 주세요. 형식에 맞춘 수정안을 만들어 드려요.</p>
+              </div>
               <nav className="doc-toc" ref={tocRef} aria-label="이 페이지 목차">
                 <div className="label" style={{ marginBottom: 8 }}>
                   이 페이지 목차

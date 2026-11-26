@@ -41,7 +41,7 @@ interface CheckState {
 }
 
 export function NewDoc() {
-  const { docs, session, refreshProposals, markReportSubmitted, markChatDraftSubmitted } = useApp()
+  const { docs, session, refreshProposals, markReportSubmitted, markChatDraftSubmitted, openDockWith } = useApp()
   const navigate = useNavigate()
   const [params] = useSearchParams()
   const { prefill, check: handedCheck } = usePrefill()
@@ -60,6 +60,13 @@ export function NewDoc() {
     const first = subsOf(category)
     return first.some((s) => s.id === initialSub) ? initialSub : (first[0]?.id ?? null)
   })
+  /** 문구 C 글자 버튼 — 지금 고른 위치를 앞말로 채워 창을 연다. 폼에 쓴 내용은 건드리지 않는다 */
+  const askNewDoc = () => {
+    const cat = categories.find((c) => c.id === category)?.label
+    const sub = subs.find((s) => s.id === subcategory)?.label
+    const place = [cat, sub].filter(Boolean).join(' › ')
+    openDockWith(place ? `새 문서로: ${place}에 ` : '새 문서로: ')
+  }
   const [title, setTitle] = useState(prefill?.title ?? '')
   const [scope, setScope] = useState<ProductScope | '공통'>(prefill?.scope ?? '공통')
   const [body, setBody] = useState(prefill?.body ?? '')
@@ -263,6 +270,16 @@ export function NewDoc() {
 
             <div className="form-row">
               <span className="label strong">본문 * (마크다운)</span>
+              {/* 문구 C — 직접 연 화면에만. 리포트·챗봇 초안에서 왔으면 위에 이미 안내가 있다 (chat-edit-hints 2-2) */}
+              {via === 'form' && (
+                <span className="muted" style={{ fontSize: 12 }}>
+                  마크다운을 몰라도 돼요. 그냥 쓰거나,{' '}
+                  <button type="button" className="text-link" onClick={askNewDoc}>
+                    챗봇에 '새 문서로 …'라고 말하면
+                  </button>{' '}
+                  형식을 맞춘 초안을 만들어 드려요.
+                </span>
+              )}
               {via === 'report' && (
                 <span className="muted" style={{ fontSize: 12 }}>
                   [위키]·[외부]·[추정] 표시는 지우지 말아 주세요. 읽는 사람이 무엇이 정해진 내용이고 무엇이 판단인지 구분하는
