@@ -497,6 +497,8 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 /* 문서가 아직 없는 위키 카테고리·서브메뉴 — 펼칠 수 없고 맨 아래로 내린다 */
 .nav-item.nav-unready { cursor: default; color: var(--console-muted); }
 .nav-item.nav-unready:hover { background: none; color: var(--console-muted); }
+/* 열어 둔 카테고리 서브 끝의 "+ 문서 추가" — 문서 줄과 구분되게 한 톤 낮춘다 */
+.nav-item.nav-add { color: var(--console-muted); }
 
 /* 편성/스케줄 자리표시 화면 */
 .schedule-soon { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }

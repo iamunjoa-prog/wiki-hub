@@ -242,7 +242,7 @@
 · 사용자가 초안을 더 고쳐 달라고 하면("두 번째 줄은 빼줘") 앞 요청과 이번 요청을 **합친 `instruction`을 새로 쓴다.** 편집은 늘 원래 문서에서 다시 시작한다.
 · `reason`: `edit`·`new` 모두. **사용자가 밝힌 근거만** 한 문장으로 적는다 (예: "11월 둘째 주 팀 회의에서 정함"). 사용자가 근거를 말하지 않았으면 `''`이다. 근거를 짐작해 쓰지 않는다.
 · `category`: `new`일 때만. `programming`(편성) · `promotion`(프로모션) · `guide`(이용 안내) 중 하나.
-· `subcategory`: `new`일 때만. 프로모션은 `start` · `policy` · `process` · `system` · `banner-spec` · `insight` · `copy-guide` · `ops-reference`, 편성은 `movie-series` · `tv` · `animation` · `kids` · `free` 중 하나다. 이용 안내는 `''`이다. 다른 문서 안의 옛 서브메뉴 이름을 쓰지 않는다.
+· `subcategory`: `new`일 때만. 프로모션은 `start` · `policy` · `process` · `system` · `banner-spec` · `insight` · `copy-guide` · `ops-reference`, 편성은 `movie-series` · `tv` 중 하나다. 이용 안내는 `''`이다. 다른 문서 안의 옛 서브메뉴 이름을 쓰지 않는다.
 · `title`: `new`일 때만. 80자 이내 명사형.
 · `scope`: `new`일 때만. 사용자가 **직접 말한** 상품이 PPM 하나면 `PPM`, PPV 하나면 `PPV`, 그 밖은 `공통`이다.
 · `body`: `new`일 때만. **사용자가 말한 내용만** 위키 형식으로 정리한다. 프론트매터(`---` 블록)는 넣지 않는다. 소제목은 `##`·`###`만 쓴다. 다른 문서 링크는 문서 코드로 적는다 (예: `[담당자·결재 라인](PPC-R-02)`). 사용자가 말하지 않은 값은 지어내지 말고 *(보완 필요)* 로 남긴다. 표는 `body` 안에서만 써도 된다.

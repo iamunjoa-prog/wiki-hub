@@ -74,7 +74,7 @@ export const REPLY_SCHEMA = {
  * 서버는 화면 모듈(import.meta.glob 을 쓰는 knowledgeDocs.ts)을 불러올 수 없어 id 만 옮겨 둔다
  */
 export const DOC_SUBCATEGORIES: Record<string, string[]> = {
-  programming: ['movie-series', 'tv', 'animation', 'kids', 'free'],
+  programming: ['movie-series', 'tv'],
   promotion: ['start', 'policy', 'process', 'system', 'banner-spec', 'insight', 'copy-guide', 'ops-reference'],
   guide: [],
 }

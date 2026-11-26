@@ -55,6 +55,7 @@ export function WikiIndex() {
     [...items].sort((a, b) => Number(count(b) > 0) - Number(count(a) > 0))
   // 열어 둔 카테고리(베타)는 0건이어도 칩을 눌러 들어와 첫 문서를 제안할 수 있다
   const activeCat = categories.find((c) => c.id === active)
+  const activeSubItem = subs.find((s) => s.id === activeSub)
   const isOpen = (id: CategoryId | null) => Boolean(categories.find((c) => c.id === id)?.open)
   const proposeHref = () => {
     const q = new URLSearchParams()
@@ -115,7 +116,8 @@ export function WikiIndex() {
             >
               전체 {byCategory.length}
             </button>
-            {filledFirst(subsWithOthers, (s) => subCount(s.id)).map((s) => (
+            {/* 열어 둔 카테고리는 사이드바처럼 정해 둔 서브 순서를 지킨다 */}
+            {(isOpen(active) ? subsWithOthers : filledFirst(subsWithOthers, (s) => subCount(s.id))).map((s) => (
               <button
                 key={s.id}
                 className={`btn sm${activeSub === s.id ? ' primary' : ''}`}
@@ -152,16 +154,22 @@ export function WikiIndex() {
           ))}
           {list.length === 0 &&
             (isOpen(active) ? (
-              // 처음 오는 사람이 형식 걱정 없이 올리게 한다. 빨간 버튼은 쓰지 않는다 — 상단 [+ 새 문서]가 이미 남색이다
+              // 서브(장르) 아래 하위 메뉴는 담당자가 문서로 직접 채운다. 빨간 버튼은 쓰지 않는다 — 상단 [+ 새 문서]가 이미 남색이다
               <div className="empty">
-                <p style={{ margin: 0 }}>
-                  아직 {activeCat?.label} 문서가 없어요. 알고 있는 {activeCat?.label} 정책·규칙을 올려 주세요.
-                  <br />
-                  형식은 몰라도 돼요 — 내용만 적으면 정리해 드려요.
-                </p>
-                <button className="btn sm" onClick={() => navigate(proposeHref())}>
-                  첫 문서 제안하기
-                </button>
+                {activeSubItem ? (
+                  <>
+                    <p style={{ margin: 0 }}>
+                      아직 {activeSubItem.label} 문서가 없어요. 이 메뉴 아래에 들어갈 문서를 직접 만들어 주세요.
+                    </p>
+                    <button className="btn sm" onClick={() => navigate(proposeHref())}>
+                      이 메뉴에 문서 추가
+                    </button>
+                  </>
+                ) : (
+                  <p style={{ margin: 0 }}>
+                    아직 {activeCat?.label} 문서가 없어요. {subs.map((s) => s.label).join('·')} 중 하나를 골라 문서를 추가해 주세요.
+                  </p>
+                )}
               </div>
             ) : (
               <div className="empty">해당 카테고리에 문서가 없습니다</div>
