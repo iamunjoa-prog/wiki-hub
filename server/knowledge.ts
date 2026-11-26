@@ -647,7 +647,7 @@ export function detectReportIntent(query: string, history: ChatTurn[] = [], mode
 
 /** 배포본·로컬 Gemini·규칙 기반에서 리포트성 질문을 받았을 때 — 최종 문구는 chatbot-planner 소관 */
 export const REPORT_LOCAL_ONLY_TEXT =
-  '비교·점검·인사이트 정리 같은 리포트는 로컬 허브의 Claude·Codex에서 만들 수 있습니다. 여기서는 위키 문서 기준의 짧은 답만 드립니다.'
+  '비교·점검·인사이트 정리 같은 리포트는 로컬 허브의 Claude·ChatGPT에서 만들 수 있습니다. 여기서는 위키 문서 기준의 짧은 답만 드립니다.'
 
 /** 리포트 근거로 위키 문서 대신 쓸 수 있는 편성표 표기 — sourcePaths 밖이어도 [추정]으로 내리지 않는다 */
 export const SCHEDULE_REFS = ['schedule:today-btv', 'schedule:big-banner']
