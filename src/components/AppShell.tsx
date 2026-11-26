@@ -106,7 +106,10 @@ function WikiTree() {
         {filledFirst(categories, (c) => docs.filter((d) => d.category === c.id).length).map((c) => {
           const open = openCategory === c.id
           const children = docs.filter((d) => d.category === c.id)
-          if (children.length === 0) return <div key={c.id} className="nav-cat" data-cat={c.id}>{emptyRow(c.id, c.label, 'cat')}</div>
+          // 열어 둔 카테고리(베타)는 0건이어도 들어가 첫 문서를 제안할 수 있게 한다
+          const collecting = children.length === 0 && Boolean(c.open)
+          if (children.length === 0 && !collecting)
+            return <div key={c.id} className="nav-cat" data-cat={c.id}>{emptyRow(c.id, c.label, 'cat')}</div>
           const catOn = activeCategory === c.id && !activeSub
           const catTrail = activeDoc?.category === c.id
           const subs = subcategories[c.id]
@@ -135,7 +138,11 @@ function WikiTree() {
                   <span className="cat-dot" aria-hidden="true" />
                   {c.label}
                 </button>
-                <span className="nav-count tc">{children.length}</span>
+                {collecting ? (
+                  <span className="nav-soon" title="문서를 모으는 중입니다">베타</span>
+                ) : (
+                  <span className="nav-count tc">{children.length}</span>
+                )}
               </div>
               {open && subs.length === 0 && (
                 <div className="nav-children depth2">
@@ -148,12 +155,18 @@ function WikiTree() {
               )}
               {open && subsWithOthers.length > 0 && (
                 <div className="nav-children depth2">
-                  {filledFirst(subsWithOthers, (s) =>
-                    s.id === '__unassigned__' ? unassigned.length : children.filter((d) => d.subcategory === s.id).length,
+                  {/* 열어 둔 카테고리는 담당자가 채워 갈 메뉴 틀이라 건수와 상관없이 정해 둔 순서를 지킨다 */}
+                  {(c.open
+                    ? subsWithOthers
+                    : filledFirst(subsWithOthers, (s) =>
+                        s.id === '__unassigned__' ? unassigned.length : children.filter((d) => d.subcategory === s.id).length,
+                      )
                   ).map((s) => {
                     const subOpen = openSub === s.id
                     const subChildren = s.id === '__unassigned__' ? unassigned : children.filter((d) => d.subcategory === s.id)
-                    if (subChildren.length === 0) return emptyRow(s.id, s.label)
+                    // 열어 둔 카테고리의 서브는 0건이어도 펼쳐 '+ 문서 추가'로 하위 메뉴를 직접 채울 수 있게 한다
+                    const addable = Boolean(c.open) && s.id !== '__unassigned__'
+                    if (subChildren.length === 0 && !addable) return emptyRow(s.id, s.label)
                     const subOn = activeCategory === c.id && activeSub === s.id
                     const subTrail = activeDoc?.category === c.id && activeDoc?.subcategory === s.id
                     return (
@@ -180,10 +193,16 @@ function WikiTree() {
                         </div>
                         {subOpen && (
                           <div className="nav-children depth3">
-                            {subChildren.length === 0 ? (
+                            {subChildren.length === 0 && !addable ? (
                               <div className="nav-empty">문서 없음</div>
                             ) : (
                               subChildren.map(docLeaf)
+                            )}
+                            {/* 담당자가 올린 문서가 곧 이 서브의 하위 메뉴다 — 맨 끝에서 바로 한 줄 더 만든다 */}
+                            {addable && (
+                              <Link className="nav-item sub leaf nav-add" to={`/wiki/new?category=${c.id}&sub=${s.id}`}>
+                                <span className="nav-ellipsis">+ 문서 추가</span>
+                              </Link>
                             )}
                           </div>
                         )}
@@ -431,7 +450,8 @@ function Sidebar({ drawerOpen }: { drawerOpen: boolean }) {
 
         <NavLink to="/jira-schedule" className={navOn}>
           <Icon name="calendar" />
-          Jira 스케줄 확인
+          <span className="nav-ellipsis">Jira 스케줄 확인</span>
+          <span className="nav-soon">준비중</span>
         </NavLink>
 
         {/* 위키의 '시스템 매뉴얼'과 헷갈리지 않게 접속 주소 화면이라는 것을 이름에 담는다 */}

@@ -14,6 +14,8 @@ export type CategoryId = 'programming' | 'promotion' | 'system' | 'guide'
 export interface Category {
   id: CategoryId
   label: string
+  /** 문서가 0건이어도 막지 않고 열어 둔다 — 첫 문서를 모으는 중인 카테고리(베타) */
+  open?: boolean
 }
 
 /** 카테고리 아래 2단 메뉴 — 서브메뉴가 없는 카테고리(시스템·이용 안내)는 등록하지 않는다 */
