@@ -583,7 +583,17 @@ export function intentPromptFor(query: string, alreadyAsked: boolean): IntentPro
   return { kind: 'confirm', question: INTENT_CONFIRM_QUESTION }
 }
 
+/** 저장·관리자용 엔진 이름 — answeredBy·대화 기록·관리자 코드 줄에 그대로 남는다. 화면에는 ENGINE_NAME 을 쓴다 */
 export const ENGINE_LABEL: Record<Engine, string> = { claude: 'Claude', codex: 'Codex', gemini: 'Gemini' }
+
+/** 실무자 화면에 보이는 이름 — Claude · ChatGPT · 공용 AI 셋만 쓴다 (home-engine-assistant-cards F5) */
+export const ENGINE_NAME: Record<Engine, string> = { claude: 'Claude', codex: 'ChatGPT', gemini: '공용 AI' }
+
+const LABEL_TO_NAME = new RegExp(`\\b(${Object.values(ENGINE_LABEL).join('|')})\\b`, 'g')
+
+/** 저장된 출처("Gemini (Claude·Codex 응답 실패)")를 화면 이름으로 — 저장값은 그대로 두고 보일 때만 바꾼다 */
+export const displayEngineText = (text: string): string =>
+  text.replace(LABEL_TO_NAME, (label) => ENGINE_NAME[(Object.keys(ENGINE_LABEL) as Engine[]).find((e) => ENGINE_LABEL[e] === label)!])
 
 /** 엔진이 없거나 모두 실패해 규칙 기반으로 답했을 때의 출처 — 규칙 기반도 위키 문서를 검색해 만든 답이다 */
 export const RULE_BASED_LABEL = '규칙 기반 (문서 기준)'

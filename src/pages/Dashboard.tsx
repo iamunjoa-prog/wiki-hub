@@ -6,7 +6,7 @@ import { freshnessOf, FreshLamp } from '../components/DocBits'
 import { Icon, type IconName } from '../components/Icon'
 import { SystemCard } from '../components/SystemCard'
 import { categories, subcategories } from '../data/docs'
-import { ENGINE_LABEL, SUGGESTED_QUESTIONS } from '../lib/assistant'
+import { ENGINE_NAME, SUGGESTED_QUESTIONS } from '../lib/assistant'
 import { kstToday } from '../lib/scheduleApi'
 import { useApp } from '../store/AppStore'
 import type { Engine, ProposalStatus } from '../types'
@@ -32,7 +32,7 @@ const FAVORITE_LIMIT = 3
 function EngineLine() {
   const { assistant, openEngineSettings } = useApp()
   const engines = assistant.engines
-  const usable = engines ? (Object.keys(ENGINE_LABEL) as Engine[]).filter((e) => engines[e]) : []
+  const usable = engines ? (Object.keys(ENGINE_NAME) as Engine[]).filter((e) => engines[e]) : []
   const [lamp, text] =
     // 확인 전(undefined)을 먼저 본다 — 확인 전에도 engines 는 null 이라 '엔진 없음'으로 잘못 보인다
     assistant.engineStatus === undefined
@@ -40,7 +40,7 @@ function EngineLine() {
       : engines === null
         ? ['', '엔진 없이 문서 기준으로 답해요']
         : usable.length > 0
-          ? ['ok', `${usable.map((e) => ENGINE_LABEL[e]).join('·')} 연결됨`]
+          ? ['ok', `${usable.map((e) => ENGINE_NAME[e]).join('·')} 연결됨`]
           : ['warn', '엔진 연결 안 됨 · 연결 설정 ›']
   return (
     <a

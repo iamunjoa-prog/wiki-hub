@@ -2,10 +2,12 @@ import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ENGINE_LABEL,
+  ENGINE_NAME,
   ENGINE_TIMEOUT_MS,
   ENGINE_WAIT_HINT,
   PLAN_STARTER,
   RULE_BASED_LABEL,
+  displayEngineText,
   SUGGESTED_QUESTIONS,
   fallbackCodes,
   fallbackNotice,
@@ -217,13 +219,13 @@ function Message({ msg, canAskAgain = false }: { msg: ChatMessage; canAskAgain?:
             내 계정으로 다시 묻기
           </button>
           <span className="muted">
-            같은 질문을 {assistant.engine === 'gemini' ? '공용 AI로' : `${ENGINE_LABEL[assistant.engine]} 계정으로`} 다시 보내요
+            같은 질문을 {assistant.engine === 'gemini' ? '공용 AI로' : `${ENGINE_NAME[assistant.engine]} 계정으로`} 다시 보내요
           </span>
         </div>
       )}
       {msg.answeredBy && (
         <div className="by">
-          답변 · {msg.answeredBy}
+          답변 · {displayEngineText(msg.answeredBy)}
           {codes && ` · ${codes}`}
         </div>
       )}
@@ -253,7 +255,7 @@ function ReportWaiting({ engine, since }: { engine: Exclude<Engine, 'gemini'>; s
   return (
     <div className="typing report-wait">
       <span>
-        {ENGINE_LABEL[engine]}가 리포트를 정리하는 중입니다 · {REPORT_WAIT_HINT} · 최대 {maxMin}분 ·{' '}
+        {ENGINE_NAME[engine]}가 리포트를 정리하는 중입니다 · {REPORT_WAIT_HINT} · 최대 {maxMin}분 ·{' '}
         <b>
           {Math.floor(secs / 60)}분 {String(secs % 60).padStart(2, '0')}초
         </b>{' '}
@@ -267,11 +269,12 @@ function ReportWaiting({ engine, since }: { engine: Exclude<Engine, 'gemini'>; s
 }
 
 function engineTitle(e: Engine, usable: boolean, installed: boolean): string {
-  if (e === 'gemini') return usable ? 'Gemini API로 답변' : 'Gemini API 키가 설정되지 않았습니다'
-  if (usable) return `${ENGINE_LABEL[e]} CLI로 답변`
+  // 마우스를 올렸을 때도 화면 이름만 — CLI·API 같은 말은 설정 창 고급 설정(담당자용)에만 둔다
+  if (e === 'gemini') return usable ? '공용 AI로 답해요' : '이 허브에는 공용 AI가 설정돼 있지 않아요'
+  if (usable) return `${ENGINE_NAME[e]} 계정으로 답해요`
   return installed
-    ? `${ENGINE_LABEL[e]} CLI 로그인이 필요합니다 — 메인에서 로그인`
-    : `${ENGINE_LABEL[e]} CLI가 설치되어 있지 않습니다`
+    ? `${ENGINE_NAME[e]} 계정 로그인이 필요해요 — ⚙ 연결 설정에서 로그인`
+    : `이 PC에는 ${ENGINE_NAME[e]} 연결 프로그램이 없어요`
 }
 
 /** 서버가 알려준 엔진만 보인다 — 로컬 허브는 CLI+Gemini, 배포 허브는 Gemini. 쓸 수 없는 엔진은 비활성화한다. */
@@ -298,7 +301,7 @@ export function EngineToggle({ label = '답변 엔진', busy = false }: { label?
             title={engineTitle(e, Boolean(engines[e]), Boolean(assistant.engineStatus?.[e]?.installed))}
             onClick={() => setEngine(e)}
           >
-            {ENGINE_LABEL[e]}
+            {ENGINE_NAME[e]}
           </button>
         ))}
       </div>
@@ -603,7 +606,7 @@ export function AssistantDock() {
         ) : assistant.pending && (
           <div className="typing">
             {assistant.engine
-              ? `${ENGINE_LABEL[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${ENGINE_WAIT_HINT[assistant.engine]} 내외 · 최대 ${ENGINE_TIMEOUT_MS[assistant.engine] / 1000}초)`
+              ? `${ENGINE_NAME[assistant.engine]}가 문서를 읽고 답을 정리하는 중… (${ENGINE_WAIT_HINT[assistant.engine]} 내외 · 최대 ${ENGINE_TIMEOUT_MS[assistant.engine] / 1000}초)`
               : '문서를 찾는 중…'}
           </div>
         )}
