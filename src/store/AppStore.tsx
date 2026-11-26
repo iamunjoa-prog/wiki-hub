@@ -63,6 +63,7 @@ import {
 import type {
   CampaignDraft,
   CategoryId,
+  ChatEditHandoff,
   ChatMessage,
   CliEngine,
   Engine,
@@ -169,6 +170,12 @@ interface AppState {
   closeReflect: (messageId: string) => void
   /** 새 문서 화면에서 제출이 성공하면 출처 리포트 카드에 결과 한 줄을 남긴다 */
   markReportSubmitted: (messageId: string, code: string, prNumber: number) => void
+  /** 수정안 카드 [제안 제출] — 대화로는 제출하지 않고 문서 편집 화면(edit)·새 문서 화면(new)을 채워 연다 */
+  openChatDraft: (messageId: string) => void
+  /** 수정안 카드 [취소] — 서버 호출 없이 카드를 접는다 */
+  dismissChatDraft: (messageId: string) => void
+  /** 편집·새 문서 화면에서 제출이 성공하면 출처 수정안 카드에 결과 한 줄을 남긴다 */
+  markChatDraftSubmitted: (messageId: string, prNumber: number, prUrl: string) => void
   /** 진행 의도 확인에 답한다 — '네'면 상품 유형만 더 묻고 어드민 화면을 연다 */
   resolveIntent: (messageId: string, choice: IntentChoice) => void
   setEngine: (engine: Engine) => void
@@ -516,6 +523,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           notice: reply.notice,
           reportFailed: reply.reportFailed,
           engineTopic: reply.engineTopic,
+          draft: reply.draft,
         }),
       ])
     })
@@ -599,6 +607,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const markReportSubmitted = useCallback(
     (messageId: string, code: string, prNumber: number) =>
       patchMessage(messageId, { reportReflect: { stage: 'submitted', code, prNumber } }),
+    [patchMessage],
+  )
+
+  const openChatDraft = useCallback(
+    (messageId: string) => {
+      const msg = messagesRef.current.find((m) => m.id === messageId)
+      const draft = msg?.draft
+      if (!draft || msg.draftState?.stage === 'submitted') return
+      if (draft.type === 'edit') {
+        const doc = docs.find((d) => d.path === draft.docPath)
+        if (!doc) return
+        const chatEdit: ChatEditHandoff = { instruction: draft.instruction, reason: draft.reason, fromMessageId: messageId }
+        // 문서 전체 편집으로 연다 — 요청이 어느 장을 고칠지 화면이 고르지 않는다
+        navigate(`/wiki/${doc.id}?edit=all`, { state: { chatEdit } })
+      } else {
+        // 같은 카드로 다시 열면 새 문서 화면이 sessionStorage 의 고치던 값을 먼저 쓴다(usePrefill)
+        openPrefill({
+          category: draft.category as CategoryId,
+          subcategory: draft.subcategory || null,
+          scope: draft.scope || '공통',
+          title: draft.title,
+          body: draft.body,
+          reason: `새 문서 등록 · 근거: ${draft.reason || '근거 미기재'}`,
+          via: 'chat',
+          fromMessageId: messageId,
+        })
+      }
+      patchMessage(messageId, { draftState: { stage: 'handed' } })
+    },
+    [docs, navigate, openPrefill, patchMessage],
+  )
+
+  const dismissChatDraft = useCallback((messageId: string) => patchMessage(messageId, { draftState: { stage: 'dismissed' } }), [patchMessage])
+
+  const markChatDraftSubmitted = useCallback(
+    (messageId: string, prNumber: number, prUrl: string) =>
+      patchMessage(messageId, { draftState: { stage: 'submitted', prNumber, prUrl } }),
     [patchMessage],
   )
 
@@ -974,6 +1019,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openReflectEditor,
     closeReflect,
     markReportSubmitted,
+    openChatDraft,
+    dismissChatDraft,
+    markChatDraftSubmitted,
     resolveIntent,
     setEngine: setPreferredEngine,
     refreshEngines,

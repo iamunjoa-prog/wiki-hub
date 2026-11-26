@@ -1,6 +1,8 @@
-import { categories, docs } from '../data/docs'
+import { categories, docs, subcategories } from '../data/docs'
 import type {
   CampaignDraft,
+  CategoryId,
+  ChatDraft,
   ChatMessage,
   ChatReport,
   Engine,
@@ -355,11 +357,21 @@ const KNOWLEDGE_FIX_CUES = ['수정', '고쳐', '고치', '고칠', '반영', '�
 const CORRECTION_PATTERN = /바뀌었|바뀐\s*거|변경됐|변경되었|달라졌|틀렸/
 /** "작성 규칙"·"있어?"는 문서를 묻는 질문이다 — 검색이 HUB-03 등을 직접 찾게 둔다 */
 const KNOWLEDGE_QUERY_PATTERN = /규칙|있(?:어|나|니|는지|을까|습니까)/
+/**
+ * 문서를 쓰는 법·고치는 법을 묻는 말 — "작성 규칙이 어려워"는 규칙 내용이 아니라 쓰는 길을 묻는 것이라 위 질문 규칙보다 먼저 본다.
+ * 문서 명사가 함께 있어야 한다 — "쿠폰 어떻게 써?"·"오퍼 등록하는 방법"(시스템 사용법)을 끌어오지 않게
+ */
+const WRITING_NOUN = /문서|위키|지식|작성\s*규칙|작성법/
+const WRITING_HOWTO =
+  /(?:쓰는|작성하는|고치는|수정하는|올리는|만드는)\s*(?:법|방법)|작성\s*(?:법|방법)|어떻게\s*(?:써|쓰|작성|고쳐|고치|고칠|수정|올려|올리|만들)/
+const WRITING_HARD = /(?:작성|쓰기|형식|규칙|양식).{0,8}(?:어려|복잡|헷갈|모르겠)/
+const WRITING_FIX = /고치|고쳐|고칠|수정/
 
 export type KnowledgeEditKind = 'new' | 'fix'
 
 export function detectKnowledgeEdit(query: string): KnowledgeEditKind | null {
   const q = query.replace(/\s+/g, ' ')
+  if (WRITING_NOUN.test(q) && (WRITING_HOWTO.test(q) || WRITING_HARD.test(q))) return WRITING_FIX.test(q) ? 'fix' : 'new'
   if (KNOWLEDGE_QUERY_PATTERN.test(q)) return null
   // "어떻게 고쳐?"는 안내가 답이지만, "언제 바뀌었어?"·"누가 수정했어?"는 이력을 묻는 사실 질문이다
   const asksFact = QUESTION_WORDS.some((k) => k !== '어떻게' && k !== '어디' && q.includes(k))
@@ -611,6 +623,8 @@ export interface AssistantReply {
   cancelled?: boolean
   /** 답변 엔진 안내 질문이었다 — 화면이 답 끝 행동 버튼을 붙이고 F4 줄·다시 묻기 칩은 붙이지 않는다 */
   engineTopic?: EngineTopic
+  /** 엔진이 만든 수정안 재료 — 화면이 답 아래 수정안 카드로 그린다 */
+  draft?: ChatDraft
 }
 
 /** 이번 답변에 진행 확인을 붙일지. 이미 묻거나 답을 들은 대화에는 다시 붙이지 않는다. */
@@ -827,7 +841,10 @@ function knowledgeEditReply(query: string, kind: KnowledgeEditKind): AssistantRe
   if (kind === 'new' && category) lines.push(`· 새 문서 화면의 카테고리 칸에서 **${category}** 메뉴를 고르시면 됩니다.`)
   // 정정만 들은 값은 문서가 고쳐지기 전까지 근거가 아니다 — 고친 척하지 않는다
   if (CORRECTION_PATTERN.test(query)) lines.push('말씀하신 변경은 문서가 고쳐지기 전까지 답변 근거로 쓰지 않습니다.')
-  const refs = kind === 'fix' ? [guide, flow] : [guide]
+  // 규칙 기반 답은 AI 가 없을 때만 나온다 — 말로 고치는 길(챗봇 수정안 카드)은 연결 뒤에 열린다고 알린다
+  lines.push('AI를 연결하면 말로 고칠 곳을 알려 주셔도 형식에 맞춘 수정안을 만들어 드립니다. 연결 방법은 챗봇 답변 엔진 안내(HUB-04)에 있습니다.')
+  const engines = docs.find((d) => d.code === ENGINE_GUIDE_CODE)
+  const refs = kind === 'fix' ? [guide, flow, engines] : [guide, engines]
   return {
     text: lines.join('\n'),
     sources: refs
@@ -1270,6 +1287,34 @@ interface AskResponseBody {
   reportHint?: 'offer' | 'local-only'
   notice?: string
   report?: ChatReport
+  /** 서버(server/knowledge.ts checkAskReply)가 검사를 마친 수정안 재료 — 로컬 중계와 배포 함수가 같은 모양으로 준다 */
+  action?: Partial<Record<keyof ChatDraft, unknown>> & { type?: unknown }
+}
+
+const actionText = (v: unknown) => (typeof v === 'string' ? v : '')
+
+/**
+ * 수정안 재료를 카드에 쓸 모양으로 고른다. 서버가 이미 검사하지만 화면 문서 목록에 없는 문서·메뉴면 카드를 띄우지 않는다 —
+ * 엉뚱한 문서의 편집 화면이 열리지 않게
+ */
+function draftFromAction(raw: AskResponseBody['action']): ChatDraft | undefined {
+  if (!raw || (raw.type !== 'edit' && raw.type !== 'new')) return undefined
+  const scope = raw.scope === 'PPM' || raw.scope === 'PPV' ? raw.scope : '공통'
+  const draft: ChatDraft = {
+    type: raw.type,
+    docPath: actionText(raw.docPath).trim().replace(/\\/g, '/').replace(/^\.?\//, '').replace(/^지식\//, ''),
+    instruction: actionText(raw.instruction).trim(),
+    reason: actionText(raw.reason).trim(),
+    category: actionText(raw.category).trim(),
+    subcategory: actionText(raw.subcategory).trim(),
+    title: actionText(raw.title).trim(),
+    scope,
+    body: actionText(raw.body),
+  }
+  if (draft.type === 'edit') return draft.instruction && docs.some((d) => d.path === draft.docPath) ? draft : undefined
+  const subs = subcategories[draft.category as CategoryId]
+  if (!subs || !draft.title || !draft.body.trim()) return undefined
+  return (subs.length === 0 ? draft.subcategory === '' : subs.some((s) => s.id === draft.subcategory)) ? draft : undefined
 }
 
 async function requestEngine(
@@ -1323,6 +1368,7 @@ async function requestEngine(
     answeredBy: ENGINE_LABEL[engine],
     reportHint: data.reportHint,
     notice: data.notice,
+    draft: draftFromAction(data.action),
   }
 }
 

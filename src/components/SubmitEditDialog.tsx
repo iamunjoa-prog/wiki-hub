@@ -45,6 +45,7 @@ export function SubmitEditDialog({
   onRebase,
   onReEdit,
   onSubmitted,
+  via = 'propose',
 }: {
   doc: WikiDoc
   base: EditBase
@@ -63,6 +64,8 @@ export function SubmitEditDialog({
   /** 최신본에서 다시 고치기 — 창을 닫고 겹친 장을 연다. 내 글은 패널 「참고」로 남긴다 */
   onReEdit: (next: EditBase, body: string, mine: string, keys: string[]) => void
   onSubmitted: (result: EditProposalResult) => void
+  /** PR 본문 진입 표시 — 챗봇 수정안 카드에서 열린 편집이면 'chat' */
+  via?: 'propose' | 'chat'
 }) {
   const { session } = useApp()
   const admin = session.role === 'admin'
@@ -115,7 +118,7 @@ export function SubmitEditDialog({
     setServerBlocks(null)
     const at = key
     try {
-      const res = await requestDocEdit({ ...doc, version: base.version }, body, sendReason, session.name)
+      const res = await requestDocEdit({ ...doc, version: base.version }, body, sendReason, session.name, via)
       onSubmitted(res)
     } catch (err) {
       if (err instanceof PublicLeakError) setServerBlocks({ blocks: err.blocks, key: at })

@@ -8,6 +8,7 @@ import remarkGfm from 'remark-gfm'
 import { TopBar } from '../components/AppShell'
 import { DocEditPanel, DraftBanner, PendingProposalsNote, useEditChecks } from '../components/DocEditPanel'
 import { agoLabel, categoryLabel, freshnessOf, FreshLamp, ScopeChip } from '../components/DocBits'
+import { ChatEditRequest } from '../components/ChatEditRequest'
 import { Icon } from '../components/Icon'
 import { SectionEditor } from '../components/SectionEditor'
 import { SubmitDoneDialog, SubmitEditDialog, type EditBase } from '../components/SubmitEditDialog'
@@ -27,6 +28,7 @@ import {
 } from '../lib/draft'
 import { fetchDocVersion, type DocVersion, type EditProposalResult } from '../lib/proposeEdit'
 import { useApp } from '../store/AppStore'
+import type { ChatEditHandoff } from '../types'
 
 interface Heading {
   level: 2 | 3
@@ -110,7 +112,7 @@ function WikiDocPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [searchParams, setSearchParams] = useSearchParams()
-  const { docs, session, proposals, ensureProposals, refreshProposals, showToast, openDockWith } = useApp()
+  const { docs, session, proposals, ensureProposals, refreshProposals, showToast, openDockWith, markChatDraftSubmitted } = useApp()
   const doc = docs.find((d) => d.id === docId)
   const [showHistory, setShowHistory] = useState(false)
   const [activeHeading, setActiveHeading] = useState<string | null>(null)
@@ -225,6 +227,12 @@ function WikiDocPage() {
   const [exitAsk, setExitAsk] = useState(false)
   const [pendingSeen, setPendingSeen] = useState(false)
   const [flash, setFlash] = useState<number | null>(null)
+  /** 챗봇 수정안 카드에서 넘어온 요청 — 화면 이동 state 로만 받는다. 같은 문서에서 카드를 다시 눌러도 새 요청으로 바꾼다 */
+  const [chatEdit, setChatEdit] = useState<ChatEditHandoff | null>(null)
+  useEffect(() => {
+    const handoff = (location.state as { chatEdit?: ChatEditHandoff } | null)?.chatEdit
+    if (handoff) setChatEdit(handoff)
+  }, [location.key, location.state])
 
   const viewParts = useMemo(() => (bundleBase ? splitSections(bundleBase.body).map((s) => s.text) : []), [bundleBase])
   const slots = parts ?? viewParts
@@ -505,6 +513,17 @@ function WikiDocPage() {
     [reasonTouched],
   )
 
+  /** 문서 전체 AI 결과를 편집 칸에 넣는다 — 바뀐 장은 표시·「바뀐 곳」 목록으로 보이고, 제출은 사람이 한다 */
+  const onChatEditResult = useCallback(
+    (result: AiEditResult) => {
+      setParts(splitSections(result.body).map((s) => s.text))
+      setOpen([])
+      setReason(`${result.summary || 'AI 수정'} (AI 수정 · ${result.by}) · 근거: ${chatEdit?.reason || '근거 미기재'}`)
+      setReasonTouched(true)
+    },
+    [chatEdit],
+  )
+
   const outline = useMemo(() => slots.map(sectionTitleOf).filter(Boolean), [slots])
   const renderMd = useCallback(
     (text: string, preamble: boolean) => <SectionView text={text} components={md.body} preamble={preamble} />,
@@ -667,6 +686,9 @@ function WikiDocPage() {
                   pickDraft(null)
                 }}
               />
+            )}
+            {editing && parts && chatEdit && (
+              <ChatEditRequest key={chatEdit.fromMessageId} doc={doc} body={body} handoff={chatEdit} onResult={onChatEditResult} onClose={() => setChatEdit(null)} />
             )}
             {/* 문서 머리 — 왼쪽 카테고리 띠 + 타임코드 메타 + 적용대상 칩 + 최신성 램프 (identity-redesign 4-2) */}
             <div className="doc-head" data-cat={doc.category}>
@@ -892,10 +914,14 @@ function WikiDocPage() {
                   </div>
                 </dl>
               </section>
-              <button className="btn block doc-ask" onClick={askDoc} title={`챗봇 창을 열고 「${doc.code} 기준으로: 」를 넣어 둬요`}>
-                <Icon name="ask" />
-                이 문서로 묻기
-              </button>
+              {/* 문구 B — 버튼 바로 아래라 "위 버튼"이라 쓴다. 자리를 옮기면 문구도 바꾼다 (docs/ux/2026-11-26-chat-edit-hints.md 2-1) */}
+              <div className="doc-ask-wrap">
+                <button className="btn block doc-ask" onClick={askDoc} title={`챗봇 창을 열고 「${doc.code} 기준으로: 」를 넣어 둬요`}>
+                  <Icon name="ask" />
+                  이 문서로 묻기
+                </button>
+                <p className="doc-ask-hint">틀린 곳은 위 버튼으로 말해 주세요. 형식에 맞춘 수정안을 만들어 드려요.</p>
+              </div>
               <nav className="doc-toc" ref={tocRef} aria-label="이 페이지 목차">
                 <div className="label" style={{ marginBottom: 8 }}>
                   이 페이지 목차
@@ -936,7 +962,12 @@ function WikiDocPage() {
             startSession({ body: nextBody, base: next, reason, reference: { label: '내가 쓴 글', text: mine }, keys: clashKeys })
             setSubmitOpen(false)
           }}
+          via={chatEdit ? 'chat' : 'propose'}
           onSubmitted={(result) => {
+            if (chatEdit) {
+              markChatDraftSubmitted(chatEdit.fromMessageId, result.prNumber, result.prUrl)
+              setChatEdit(null)
+            }
             // 초안은 PR 이 실제로 만들어진 뒤에만 지운다 — 실패하면 긴 수정이 그대로 남아야 한다
             removeDraft(accountId, doc.id)
             lastSaved.current = null

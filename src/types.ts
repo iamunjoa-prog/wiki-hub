@@ -272,7 +272,44 @@ export interface ChatMessage {
   engineTopic?: EngineTopic
   /** 「내 계정으로 다시 묻기」를 이미 눌렀다 — 같은 답에 칩을 다시 붙이지 않는다 */
   askedAgain?: boolean
+  /** 챗봇이 만든 수정안 재료 — 있으면 답 아래 수정안 카드를 붙인다 */
+  draft?: ChatDraft
+  draftState?: ChatDraftState
 }
+
+/**
+ * /api/ask 의 action(server/knowledge.ts AskAction) 중 화면이 쓰는 것. type 'none' 은 싣지 않는다.
+ * 대화로는 제출하지 않는다 — 카드의 [제안 제출]이 편집 화면·새 문서 화면을 채워 열고, 사람이 그 화면에서 확인해 낸다
+ */
+export interface ChatDraft {
+  type: 'edit' | 'new'
+  /** edit — `지식/` 기준 경로 */
+  docPath: string
+  /** edit — 편집 화면의 AI 부탁 칸에 그대로 넣는다 */
+  instruction: string
+  /** 사용자가 밝힌 근거. 비면 화면이 "근거 미기재"를 붙인다 */
+  reason: string
+  category: string
+  /** 서브메뉴 없는 카테고리(이용 안내)는 '' */
+  subcategory: string
+  title: string
+  scope: ProductScope | '공통' | ''
+  body: string
+}
+
+/** 수정안 카드 → 문서 편집 화면으로 넘기는 화면 이동 state — 주소창에는 싣지 않는다 */
+export interface ChatEditHandoff {
+  instruction: string
+  reason: string
+  /** 출처 대화 메시지 — 제출이 성공하면 그 카드에 결과 한 줄을 남긴다 */
+  fromMessageId: string
+}
+
+/** 수정안 카드 상태 — 없으면 막 받은 카드다 */
+export type ChatDraftState =
+  | { stage: 'handed' }
+  | { stage: 'dismissed' }
+  | { stage: 'submitted'; prNumber: number; prUrl: string }
 
 /** 시스템 메뉴의 구분 — 편성 관련 / 마케팅 관련 */
 export type SystemGroupId = 'programming' | 'marketing'

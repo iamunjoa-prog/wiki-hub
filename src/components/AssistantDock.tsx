@@ -12,10 +12,11 @@ import {
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
+import { categories, subcategories } from '../data/docs'
 import { hasMyAccount, hubKind, isLocalStatus, type HubKind } from '../lib/localHub'
 import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine, EngineTopic, PromotionBrief } from '../types'
+import type { CategoryId, ChatDraft, ChatMessage, Engine, EngineTopic, PromotionBrief } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 import { ReportCard } from './ReportCard'
 import { SourceCards, sourceHref } from './SourceCards'
@@ -177,6 +178,108 @@ function EngineTopicActions({ topic }: { topic: EngineTopic }) {
   )
 }
 
+/** 새 문서 위치 — id 가 아니라 메뉴 이름으로 보인다 */
+function draftPlace(draft: ChatDraft): string {
+  const cat = categories.find((c) => c.id === draft.category)
+  const sub = subcategories[draft.category as CategoryId]?.find((s) => s.id === draft.subcategory)
+  return [cat?.label ?? draft.category, sub?.label].filter(Boolean).join(' › ')
+}
+
+const SCOPE_NAME: Record<string, string> = { PPM: 'PPM(월정액)', PPV: 'PPV(단건)', 공통: '공통' }
+
+/**
+ * 챗봇 수정안 카드 — 대화로는 제출하지 않는다. [제안 제출]은 문서 편집 화면·새 문서 화면을 채워 열고, 사람이 그 화면에서 확인해 낸다.
+ * 빨강은 입력칸 [↩]·[연결하기] 몫이라 카드 버튼은 보통·검정 버튼만 쓴다 (home-engine-assistant-cards R1)
+ */
+function ChatDraftCard({ msg }: { msg: ChatMessage }) {
+  const navigate = useNavigate()
+  const { docs, openChatDraft, dismissChatDraft, closeDock } = useApp()
+  const draft = msg.draft!
+  const state = msg.draftState
+  if (state?.stage === 'dismissed') return <div className="draft-card-closed">초안을 버렸습니다.</div>
+
+  const doc = draft.type === 'edit' ? docs.find((d) => d.path === draft.docPath) : undefined
+  if (draft.type === 'edit' && !doc) return null
+  // 휴대폰 폭에서는 창이 본문을 덮는다 — 열린 화면을 볼 수 있게 닫는다
+  const leave = () => window.innerWidth <= 760 && closeDock()
+  const open = () => {
+    openChatDraft(msg.id)
+    leave()
+  }
+  const lines = draft.body.split('\n').length
+
+  return (
+    <div className="report-card draft-card" role="group" aria-label="수정안 카드">
+      <div className="report-head">
+        <b>{doc ? `「${doc.title} (${doc.code})」 수정안` : `새 문서 초안 · ${draftPlace(draft)}`}</b>
+        <span className="muted">
+          {doc
+            ? `v${doc.version} 기준 · 편집 화면에서 AI가 고친 뒤 확인하고 제출합니다`
+            : `제목 「${draft.title}」 · 적용 상품 ${SCOPE_NAME[draft.scope || '공통']} · 문서 코드는 제출할 때 자동으로 매겨집니다`}
+        </span>
+      </div>
+      <dl className="draft-card-rows">
+        {doc && (
+          <div>
+            <dt>고칠 것</dt>
+            <dd>{draft.instruction}</dd>
+          </div>
+        )}
+        <div>
+          <dt>근거</dt>
+          <dd className={draft.reason ? undefined : 'muted'}>{draft.reason || '근거 미기재'}</dd>
+        </div>
+      </dl>
+      {!doc && (
+        <details className="draft-card-body">
+          <summary>본문 미리보기 ({lines}줄)</summary>
+          <pre>{draft.body}</pre>
+        </details>
+      )}
+      {state?.stage === 'submitted' ? (
+        <>
+          <div className="report-note">제안을 올렸습니다 · 대기 중 · 승인(머지)되면 다음 배포 때 위키에 반영됩니다.</div>
+          <div className="report-actions">
+            <button
+              type="button"
+              className="btn sm"
+              onClick={() => {
+                navigate('/requests')
+                leave()
+              }}
+            >
+              내 요청에서 보기
+            </button>
+            {state.prUrl && (
+              <a className="btn sm" href={state.prUrl} target="_blank" rel="noreferrer noopener">
+                제안 보기 ↗
+              </a>
+            )}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="report-note">
+            {state?.stage === 'handed'
+              ? `${doc ? '문서 편집 화면' : '새 문서 화면'}을 열었습니다. 그 화면에서 확인하고 제출해 주세요. 아직 제출되지 않았습니다.`
+              : doc
+                ? '[제안 제출]을 누르면 문서 편집 화면이 열리고 이 요청이 AI 부탁 칸에 채워집니다. 바뀐 곳을 확인한 뒤 그 화면에서 제출합니다.'
+                : '[제안 제출]을 누르면 새 문서 화면이 이 초안으로 채워집니다. 위치·제목·본문을 확인한 뒤 그 화면에서 제출합니다.'}
+          </div>
+          <div className="report-actions">
+            <button type="button" className="btn sm primary" onClick={open}>
+              {state?.stage === 'handed' ? '다시 열기' : '제안 제출'}
+            </button>
+            <button type="button" className="btn sm" onClick={() => dismissChatDraft(msg.id)}>
+              취소
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function Message({ msg, canAskAgain = false }: { msg: ChatMessage; canAskAgain?: boolean }) {
   const navigate = useNavigate()
   const { session, assistant, askAgain, docs, closeDock, openEngineSettings, askWithAccount } = useApp()
@@ -206,9 +309,10 @@ function Message({ msg, canAskAgain = false }: { msg: ChatMessage; canAskAgain?:
     )
 
   return (
-    <div className={`msg bot${msg.report ? ' has-report' : ''}`}>
+    <div className={`msg bot${msg.report || msg.draft ? ' has-report' : ''}`}>
       {msg.text && <RichText text={msg.text} />}
       {msg.report && <ReportCard msg={msg} />}
+      {msg.draft && <ChatDraftCard msg={msg} />}
       {msg.notice && <div className="fallback-notice">{msg.notice}</div>}
       {(msg.reportHint === 'offer' || msg.reportFailed) && (
         <div className="suggest report-chip">
