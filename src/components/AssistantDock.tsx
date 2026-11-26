@@ -8,14 +8,14 @@ import {
   PLAN_STARTER,
   RULE_BASED_LABEL,
   displayEngineText,
-  SUGGESTED_QUESTIONS,
+  dockSuggestions,
   fallbackCodes,
   fallbackNotice,
 } from '../lib/assistant'
 import { hasMyAccount, hubKind, isLocalStatus, type HubKind } from '../lib/localHub'
 import { REPORT_TIMEOUT_MS, REPORT_WAIT_HINT } from '../lib/report'
 import { useApp, type IntentChoice } from '../store/AppStore'
-import type { ChatMessage, Engine, PromotionBrief } from '../types'
+import type { ChatMessage, Engine, EngineTopic, PromotionBrief } from '../types'
 import { EngineGuideModal } from './EngineGuide'
 import { ReportCard } from './ReportCard'
 import { SourceCards, sourceHref } from './SourceCards'
@@ -137,8 +137,45 @@ const NO_ENGINE_NOTICE: Record<HubKind, string> = {
   unknown: 'AI 연결 상태를 확인하지 못해 문서에서 찾은 내용만 보여 드렸어요. 잠시 후 다시 물어보세요.',
 }
 
-/** 엔진이 없어서(실패가 아니라) 규칙 기반으로 답한 메시지 */
-const answeredWithoutEngine = (m: ChatMessage) => m.answeredBy === RULE_BASED_LABEL && !m.fallback?.length
+/** 엔진이 없어서(실패가 아니라) 규칙 기반으로 답한 메시지 — 엔진 안내 답은 자기 버튼이 있어 뺀다 */
+const answeredWithoutEngine = (m: ChatMessage) => m.answeredBy === RULE_BASED_LABEL && !m.fallback?.length && !m.engineTopic
+
+/**
+ * 엔진 안내 답 끝 행동 버튼 — 메시지에는 주제만 두고 버튼은 **지금 상태**로 고른다. 연결한 뒤에는 같은 답의 버튼이 저절로 바뀐다.
+ * 모두 보통 버튼이다 — 강조 버튼은 입력칸 위 [연결하기] 하나 (assistant-engine-guide 3-3)
+ */
+function EngineTopicActions({ topic }: { topic: EngineTopic }) {
+  const { assistant, openEngineSettings } = useApp()
+  const [guideOpen, setGuideOpen] = useState(false)
+  const hub = hubKind(assistant.engineStatus)
+  if (hub === 'unknown') return null
+  const settings =
+    hub === 'local'
+      ? !hasMyAccount(assistant.engineStatus)
+        ? '연결하기'
+        : topic === 'connect' || topic === 'trouble'
+          ? '연결 설정 열기'
+          : null
+      : topic === 'connect' || topic === 'benefit' || topic === 'compare'
+        ? '내 PC에서 쓰기'
+        : null
+  if (!settings && topic !== 'compare') return null
+  return (
+    <div className="engine-actions">
+      {settings && (
+        <button type="button" className="btn sm" onClick={openEngineSettings}>
+          {settings}
+        </button>
+      )}
+      {topic === 'compare' && (
+        <button type="button" className="btn sm" onClick={() => setGuideOpen(true)}>
+          차이 표 보기
+        </button>
+      )}
+      {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
+    </div>
+  )
+}
 
 function Message({ msg, canAskAgain = false }: { msg: ChatMessage; canAskAgain?: boolean }) {
   const navigate = useNavigate()
@@ -195,6 +232,7 @@ function Message({ msg, canAskAgain = false }: { msg: ChatMessage; canAskAgain?:
           ))}
         </div>
       )}
+      {msg.engineTopic && <EngineTopicActions topic={msg.engineTopic} />}
       {msg.brief && <BriefCard brief={msg.brief} />}
       {msg.intent && <IntentChip msg={msg} />}
       {msg.intentAnswer && <div className="intent-answer">선택 · {msg.intentAnswer}</div>}
@@ -590,7 +628,7 @@ export function AssistantDock() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <span className="label">이렇게 물어보세요</span>
             <div className="suggest">
-              {SUGGESTED_QUESTIONS.map((q) => (
+              {dockSuggestions(assistant.engineStatus).map((q) => (
                 <button key={q} onClick={() => send(q)}>
                   {q}
                 </button>

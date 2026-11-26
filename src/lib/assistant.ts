@@ -6,6 +6,7 @@ import type {
   Engine,
   EngineFailure,
   EngineFailureCode,
+  EngineTopic,
   IntentPrompt,
   ProductScope,
   PromotionBrief,
@@ -22,6 +23,7 @@ import {
   type DocSection,
   type SearchInput,
 } from './retrieval'
+import { hasMyAccount, hubKind, type HubKind } from './localHub'
 import { mayBeReport, REPORT_TIMEOUT_MS } from './report'
 
 /** PPC 상품 유형 — 근거 문서를 고르는 1차 기준 */
@@ -370,6 +372,36 @@ export function detectKnowledgeEdit(query: string): KnowledgeEditKind | null {
   return null
 }
 
+/** 답변 엔진을 가리키는 말 — '계정' 단독은 ACS 사번·계정 관리와 겹쳐 세지 않는다 */
+const ENGINE_NOUNS =
+  /ai\s*계정|내\s*계정|개인\s*계정|구독\s*계정|유료\s*구독|계정\s*연결|claude|클로드|chatgpt|챗\s*gpt|챗지피티|codex|코덱스|gemini|제미나이|공용\s*ai|공용\s*엔진|답변\s*엔진|ai\s*엔진|챗봇\s*엔진|pc\s*용?\s*허브|로컬\s*허브/i
+/** 엔진 이름 없이 챗봇 자체를 묻는 말 — tips·short·which 만 받는다 ("지금 어떤 AI로 답해?"도 여기서 잡는다) */
+const CHATBOT_NOUNS = /챗봇|어시스턴트|어떤\s*ai\s*(?:로|가)|무슨\s*ai/i
+const CHATBOT_TOPICS: EngineTopic[] = ['tips', 'short', 'which']
+
+// 위에서부터 처음 걸리는 것 — "연결하면 뭐가 좋아?"는 connect 보다 benefit 이 먼저다
+const ENGINE_TOPIC_CUES: [EngineTopic, RegExp][] = [
+  ['trouble', /안\s*(?:돼|되|열|바뀌)|실패|오류|에러|막혀|멈춰/],
+  ['compare', /차이|달라|다른\s*점|다르|비교|장단점|단점|vs|어느\s*(?:게|쪽)|뭐가\s*나아|뭘\s*써|무엇을\s*쓸/i],
+  ['benefit', /좋은\s*점|장점|이점|뭐가\s*좋|좋아\??$|왜\s*연결|연결해야|필요해/],
+  ['tips', /잘\s*(?:묻|물어|쓰|답|질문)|효과적|팁|어떻게\s*물어/],
+  ['short', /왜\s*(?:짧|이상|엉뚱)|답이\s*짧|규칙\s*기반|ai\s*없이/i],
+  ['which', /누가\s*답|어떤\s*ai\s*(?:로|가)|무슨\s*ai|지금.*(?:엔진|ai)/i],
+  ['connect', /연결|로그인|설치|받(?:아|을|는)|다운|켜|쓰는\s*(?:법|방법)|사용\s*(?:법|방법)|어떻게\s*(?:써|쓰)/],
+]
+
+/**
+ * 답변 엔진·AI 계정 연결을 묻는 질문의 주제. 시스템 이름·Jira·업무어가 있으면 그 문서가 답이라 보지 않는다 —
+ * "ACS 계정 신청"·"Jira 스케줄 확인은 어떤 계정으로"는 기존 검색이 맞는 문서를 찾는다 (assistant-engine-guide 3-1).
+ */
+export function detectEngineTopic(query: string): EngineTopic | null {
+  const q = query.toLowerCase()
+  if (Object.keys(SYSTEM_DOCS).some((k) => q.includes(k)) || q.includes('jira') || WORK_TERMS.some((k) => q.includes(k))) return null
+  if (ENGINE_NOUNS.test(q)) return ENGINE_TOPIC_CUES.find(([, cue]) => cue.test(q))?.[0] ?? 'about'
+  if (CHATBOT_NOUNS.test(q)) return ENGINE_TOPIC_CUES.find(([t, cue]) => CHATBOT_TOPICS.includes(t) && cue.test(q))?.[0] ?? null
+  return null
+}
+
 /** 발화에 드러난 위키 카테고리 — 새 문서 화면에서 고를 이름을 그대로 돌려준다 */
 const CATEGORY_CUES: { id: (typeof categories)[number]['id']; keywords: string[] }[] = [
   { id: 'programming', keywords: ['편성'] },
@@ -431,6 +463,8 @@ export interface CampaignSlots {
 function latestProduct(turns: ChatTurn[], upto: number): CampaignSlots['product'] {
   for (let i = upto; i >= 0; i--) {
     if (turns[i].role !== 'user') continue
+    // "유료 구독 계정 연결하면 뭐가 좋아?"의 '구독'은 월정액이 아니다 — 엔진 질문은 상품 판별에서 뺀다
+    if (detectEngineTopic(turns[i].text)) continue
     if (mentionedProducts(turns[i].text).length === 0) continue
     return detectProduct(turns[i].text)
   }
@@ -445,6 +479,7 @@ function readPpmDetail(turns: ChatTurn[], product: CampaignSlots['product']): Pp
   if (product?.scope !== 'PPM') return null
   for (let i = turns.length - 1; i >= 0; i--) {
     if (turns[i].role !== 'user') continue
+    if (detectEngineTopic(turns[i].text)) continue
     if (mentionedPpmDetails(turns[i].text).length === 0) continue
     const detail = detectPpmDetail(turns[i].text)
     return detail && latestProduct(turns, i)?.scope === 'PPM' ? detail : null
@@ -574,6 +609,8 @@ export interface AssistantReply {
   reportFailed?: boolean
   /** 사용자가 「그만하고 짧게 답 받기」로 끊었다 — 화면은 이 답을 그리지 않고 짧은 답을 다시 요청한다 */
   cancelled?: boolean
+  /** 답변 엔진 안내 질문이었다 — 화면이 답 끝 행동 버튼을 붙이고 F4 줄·다시 묻기 칩은 붙이지 않는다 */
+  engineTopic?: EngineTopic
 }
 
 /** 이번 답변에 진행 확인을 붙일지. 이미 묻거나 답을 들은 대화에는 다시 붙이지 않는다. */
@@ -622,7 +659,8 @@ const ADMIN_ACTION: Record<Exclude<FailureAction, 'retry'>, string> = {
 /** 규칙 기반으로 떨어진 답 위에 붙는 한 줄 — 여러 엔진이 실패했으면 마지막(답 직전) 실패로 고른다 */
 export function fallbackNotice(fallback: EngineFailure[]): string {
   const [cause, action] = FAILURE_CAUSE[fallback[fallback.length - 1].code]
-  return `${cause} 문서 기준 규칙 기반으로 답했습니다. ${action === 'retry' ? '잠시 후 다시 물어보세요.' : ADMIN_ACTION[action]}`
+  // 엔진이 없을 때의 안내(F4)와 같은 말투 — 같은 자리에 뜨는 줄이다
+  return `${cause} 문서에서 찾은 내용만 보여 드렸어요. ${action === 'retry' ? '잠시 후 다시 물어보세요.' : ADMIN_ACTION[action]}`
 }
 
 /** AI 수정 실패 문구 — 수정은 규칙 기반 대체가 없어 "하지 못했습니다"로 끝난다 */
@@ -798,16 +836,72 @@ function knowledgeEditReply(query: string, kind: KnowledgeEditKind): AssistantRe
   }
 }
 
-/** 결과물 요청에 규칙 기반이 하는 말 — 지어내지 못한다고 먼저 밝히고, 위키 기준만 짚는다 */
-const DELIVERABLE_LEAD: Record<DeliverableKind, string> = {
-  copy: '지금은 규칙 기반으로 답하고 있어 카피 후보를 직접 만들 수 없습니다. 대신 위키의 카피 기준을 짚어 드립니다.',
-  name: '지금은 규칙 기반으로 답하고 있어 이벤트명 후보를 직접 만들 수 없습니다. 대신 위키의 카피 기준을 짚어 드립니다.',
-  placement: '지금은 규칙 기반으로 답하고 있어 구좌를 골라 드리지는 못하고, 위키 조합표에서 맞는 줄을 보여 드립니다.',
+/** 답변 엔진 안내 문서 — 엔진 질문은 검색 점수 대신 이 문서의 절을 제목으로 집어 인용한다 */
+const ENGINE_GUIDE_CODE = 'HUB-04'
+
+/** 주제별로 인용할 절 — 제목은 HUB-04 v3 그대로. 제목이 바뀌면 null 로 떨어져 기존 검색이 받는다 */
+const ENGINE_GUIDE_SECTION: Record<Exclude<EngineTopic, 'connect'>, { heading: string; list: [from: number, to: number] }> = {
+  about: { heading: '챗봇은 어떤 AI로 답하나요?', list: [1, 4] },
+  which: { heading: '어떤 AI가 답했는지 보는 법', list: [1, 4] },
+  benefit: { heading: '내 AI 계정으로 쓰면 좋은 점', list: [1, 5] },
+  trouble: { heading: '연결이 안 될 때', list: [1, 5] },
+  compare: { heading: '공용 AI와 내 AI 계정, 무엇을 쓸까요', list: [1, 5] },
+  short: { heading: 'AI 없이 답할 때', list: [1, 5] },
+  tips: { heading: '챗봇에 잘 묻는 법', list: [1, 5] },
 }
-const DELIVERABLE_TAIL: Record<DeliverableKind, string> = {
-  copy: 'AI 답변 엔진이 연결되면 같은 질문으로 방향이 다른 카피 3안을 받을 수 있습니다.',
-  name: 'AI 답변 엔진이 연결되면 같은 질문으로 이벤트명 후보 3개를 받을 수 있습니다.',
-  placement: 'AI 답변 엔진이 연결되면 같은 질문으로 구좌 2~3개와 고른 이유를 받을 수 있습니다.',
+const CONNECT_SECTION: Record<HubKind, string> = {
+  local: '내 PC용 허브에서 로그인할 때',
+  deploy: '웹 주소 허브에서 처음 시작할 때',
+  unknown: '내 AI 계정 연결하기',
+}
+
+/** which·short 의 첫 줄 — 규칙 기반은 엔진이 없을 때만 돌아 늘 "AI 없이" 상태다. 엔진이 실패했으면 절 첫 줄을 쓴다 */
+const NO_ENGINE_LEAD: Record<HubKind, string> = {
+  local: '지금은 내 AI 계정이 연결되지 않아 문서에서 찾은 문장만 모아 보여 드리고 있습니다.',
+  deploy: '지금은 공용 AI를 쓸 수 없어 문서에서 찾은 문장만 모아 보여 드리고 있습니다.',
+  unknown: '지금은 AI 연결 상태를 확인하지 못해 문서에서 찾은 문장만 모아 보여 드리고 있습니다.',
+}
+
+/**
+ * 엔진 질문의 규칙 기반 답 — HUB-04 의 절 하나를 그대로 인용한다. 첫 줄(결론) + 목록 4줄 이내, 문서 제목 줄은 넣지 않는다
+ * (근거는 문서 카드가 보여 준다). 진행 확인·상품 확인 칩은 붙이지 않는다 (assistant-engine-guide 3-2).
+ */
+function engineGuideReply(topic: EngineTopic, hub: HubKind, failed: boolean): AssistantReply | null {
+  const doc = docs.find((d) => d.code === ENGINE_GUIDE_CODE)
+  if (!doc) return null
+  const sections = parseSections(doc.body)
+  const sectionOf = (heading: string) => sections.find((s) => s.heading === heading)
+  const reply = (anchor: string, lines: string[]): AssistantReply | null =>
+    lines.length < 2
+      ? null
+      : { text: lines.join('\n'), sources: [{ docId: doc.id, anchor, label: '출처 · 챗봇 답변 엔진 안내' }], engineTopic: topic }
+
+  if (topic === 'connect') {
+    const heading = CONNECT_SECTION[hub]
+    const section = sectionOf(heading)
+    if (!section) return null
+    // 허브를 모르면 두 갈래의 첫 단계를 한 줄씩 — 목록 앞에 리드를 두지 않는 규칙은 단계 목록에만 해당한다
+    if (hub === 'unknown') {
+      const firsts = [CONNECT_SECTION.deploy, CONNECT_SECTION.local].map((h) => sectionOf(h)?.lines[0]).filter((l): l is string => Boolean(l))
+      return section.lines[0] ? reply(heading, [section.lines[0], ...firsts.map((l) => `· ${l}`)]) : null
+    }
+    return reply(heading, section.lines.slice(0, 4).map((l) => `· ${l}`))
+  }
+
+  const { heading, list } = ENGINE_GUIDE_SECTION[topic]
+  const section = sectionOf(heading)
+  if (!section?.lines.length) return null
+  const lead = (topic === 'which' || topic === 'short') && !failed ? NO_ENGINE_LEAD[hub] : section.lines[0]
+  // which 는 첫 줄 + 3줄, 나머지는 첫 줄 + 4줄 — 모든 답이 5줄 이내다
+  const items = section.lines.slice(list[0], topic === 'which' ? list[0] + 3 : list[1])
+  return reply(heading, [lead, ...items.map((l) => `· ${l}`)])
+}
+
+/** 결과물 요청에 규칙 기반이 하는 말 — 지어내지 못한다고 먼저 밝히고, 위키 기준만 짚는다. 엔진이 없다는 안내는 답 아래 한 줄(F4)이 맡는다 */
+const DELIVERABLE_LEAD: Record<DeliverableKind, string> = {
+  copy: '지금은 AI 없이 답하고 있어 카피 후보를 직접 만들 수 없습니다. 대신 위키의 카피 기준을 짚어 드립니다.',
+  name: '지금은 AI 없이 답하고 있어 이벤트명 후보를 직접 만들 수 없습니다. 대신 위키의 카피 기준을 짚어 드립니다.',
+  placement: '지금은 AI 없이 답하고 있어 구좌를 골라 드리지는 못하고, 위키 조합표에서 맞는 줄을 보여 드립니다.',
 }
 
 /** 플레이북 조합표에서 구좌를 고르는 칸 — 이 두 칸이 "어디에 띄우나"의 답이다 */
@@ -907,16 +1001,27 @@ function deliverableReply(kind: DeliverableKind, query: string, history: ChatTur
     }
   }
 
-  lines.push(DELIVERABLE_TAIL[kind])
   return { text: lines.join('\n'), sources: used.map((d) => ({ docId: d.id, label: `출처 · ${d.title}` })) }
 }
 
-export function answer(query: string, history: ChatTurn[] = [], intentAsked = false): AssistantReply {
+/** 규칙 기반 답의 상황 — 엔진 안내 답의 첫 줄·연결 절이 허브 종류와 엔진 실패 여부로 갈린다 */
+export interface AnswerContext {
+  hub?: HubKind
+  /** 쓸 수 있는 엔진이 있었지만 모두 실패했다 */
+  failed?: boolean
+}
+
+export function answer(query: string, history: ChatTurn[] = [], intentAsked = false, ctx: AnswerContext = {}): AssistantReply {
   const turns: ChatTurn[] = [...history, { role: 'user', text: query }]
 
   // 문서를 쓰거나 고치겠다는 발화에 검색 문장을 쏟으면 관계없는 정책이 답처럼 보인다 — 제출 화면만 짧게 안내한다.
   const edit = detectKnowledgeEdit(query)
   if (edit) return knowledgeEditReply(query, edit)
+
+  // 엔진 질문은 점수순 검색이 소개 문장·다른 계정(ACS 사번) 줄을 뽑는다 — 안내 문서의 그 절만 인용한다
+  const topic = detectEngineTopic(query)
+  const guide = topic ? engineGuideReply(topic, ctx.hub ?? 'unknown', ctx.failed ?? false) : null
+  if (guide) return guide
 
   // 카피·이벤트명·구좌를 만들어 달라는 말에는 진행 확인·정리 카드 대신 결과물의 기준부터 답한다
   const deliverable = detectDeliverable(query)
@@ -1108,6 +1213,8 @@ export interface AskOptions {
   turnId?: string
   /** 칩으로 다시 물은 경로(참고값) — 직접 친 질문이면 없다 */
   via?: string
+  /** 허브 종류 — 엔진 없이 답할 때 엔진 안내 답의 첫 줄·연결 절을 고른다 */
+  hub?: HubKind
 }
 
 async function askEngine(
@@ -1275,7 +1382,11 @@ export async function askAssistant(
     if (!next) return reply
     return { ...reply, intent: next, brief: reply.brief ?? readBrief(turns) }
   }
-  const settle = (reply: AssistantReply) => withRefine(withNextStep(reply), query, turns, refineAsked)
+  // 엔진 질문은 사실 질문이다 — "뭐가 나아?"가 리포트로 번지거나 PPM 세부 칩·다음 단계 안내가 붙지 않게 한다 (3-4)
+  const topic = detectEngineTopic(query)
+  if (topic && !opts.modeOverride) opts = { ...opts, modeOverride: 'qa' }
+  const settle = (reply: AssistantReply): AssistantReply =>
+    topic ? { ...reply, engineTopic: reply.engineTopic ?? topic } : withRefine(withNextStep(reply), query, turns, refineAsked)
 
   const failed: EngineFailure[] = []
   for (const engine of engines) {
@@ -1297,7 +1408,7 @@ export async function askAssistant(
     }
   }
   return settle({
-    ...answer(query, history, intentAsked),
+    ...answer(query, history, intentAsked, { hub: opts.hub, failed: failed.length > 0 }),
     answeredBy: RULE_BASED_LABEL,
     fallback: failed.length ? failed : undefined,
   })
@@ -1387,3 +1498,24 @@ export const SUGGESTED_QUESTIONS = [
   '모바일 B tv 마케팅 프로세스 알려줘',
   '모바일 B tv 외부연동 규격 알려줘',
 ]
+
+/**
+ * 어시스턴트 첫 화면의 엔진 예시 질문 — 버튼 글자가 곧 보내는 말이다. 'Gemini'·'Codex'·'비교해'·'구독'은 쓰지 않는다
+ * (이름 규칙 F5, 리포트 판정, PPM 오판 — assistant-engine-guide 2-1)
+ */
+export const ENGINE_QUESTIONS = {
+  connect: '내 AI 계정은 어떻게 연결해?',
+  benefit: '내 AI 계정을 연결하면 뭐가 좋아?',
+  compare: '공용 AI와 내 AI 계정은 뭐가 달라?',
+  tips: '챗봇에 어떻게 물어보면 잘 답해?',
+} as const
+
+/** 어시스턴트 첫 화면 예시 질문 — 엔진 상태로 앞뒤에 엔진 질문을 더한다. 늘 8개 이하. 홈은 SUGGESTED_QUESTIONS 를 그대로 쓴다 */
+export function dockSuggestions(status: Partial<Record<Engine, import('../types').EngineStatus>> | null | undefined): string[] {
+  const hub = hubKind(status)
+  // 앞에 둘을 넣을 때는 기존 마지막(모바일 B tv 외부연동 규격)을 뺀다
+  const base = SUGGESTED_QUESTIONS.slice(0, 6)
+  if (hub === 'local' && !hasMyAccount(status)) return [ENGINE_QUESTIONS.connect, ENGINE_QUESTIONS.benefit, ...base]
+  if (hub === 'deploy') return [ENGINE_QUESTIONS.compare, ENGINE_QUESTIONS.benefit, ...base]
+  return [...SUGGESTED_QUESTIONS, ENGINE_QUESTIONS.tips]
+}

@@ -64,7 +64,7 @@ export function CliStatus() {
       {status === null && (
         <div className="row cli-row">
           <span className="status-dot off" />
-          <span className="grow">간단한 답변만 하는 중이에요</span>
+          <span className="grow">문서에서 찾은 내용만 보여 드리는 중이에요</span>
         </div>
       )}
 
@@ -97,7 +97,7 @@ export function CliStatus() {
           {gemini?.loggedIn && geminiRow}
           {noAccount && !gemini?.loggedIn && (
             <p className="cli-note cli-alert">
-              지금은 내 계정이 연결되지 않아 간단한 답만 드려요. 연결하려면 [로그인]을 눌러 주세요.
+              지금은 내 계정이 연결되지 않아 문서에서 찾은 내용만 보여 드려요. 연결하려면 [로그인]을 눌러 주세요.
             </p>
           )}
         </>

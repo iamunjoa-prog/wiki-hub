@@ -18,6 +18,7 @@ import {
   buildCampaignDraft,
   detectCampaignIntent,
   detectDecision,
+  detectEngineTopic,
   ENGINE_PRIORITY,
   fetchEngines,
   INTENT_PRODUCT_QA_QUESTION,
@@ -34,7 +35,7 @@ import {
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
 import { fetchChatLogStatus, makeChatId, type ChatLogStatus } from '../lib/chatLog'
-import { ACCOUNT_NAME } from '../lib/localHub'
+import { ACCOUNT_NAME, hubKind } from '../lib/localHub'
 import { fetchProposals } from '../lib/proposeEdit'
 import { requestPublicCheck } from '../lib/publicCheck'
 import {
@@ -296,6 +297,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
   const [engineStatus, setEngineStatus] = useState<Partial<Record<Engine, EngineStatus>> | null | undefined>(undefined)
   const refreshEngines = useCallback(() => fetchEngines().then(setEngineStatus), [])
+  // ask 콜백을 엔진 상태가 바뀔 때마다 새로 만들지 않도록 최신 상태는 ref 로 읽는다
+  const engineStatusRef = useRef(engineStatus)
+  engineStatusRef.current = engineStatus
   const [engineSettingsOpen, setEngineSettingsOpen] = useState(false)
   const [engineLogin, setEngineLogin] = useState<EngineLoginState>({ waiting: null, timedOut: null, connected: null })
   const loginStart = useRef(0)
@@ -453,7 +457,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const userMsg = makeMessage('user', said, opts.via ? { via: opts.via } : undefined)
     setMessages((prev) => [...prev, userMsg])
     setPending(true)
-    const reportLikely = usableEngines[0] !== undefined && usableEngines[0] !== 'gemini' && mayBeReport(q, modeOverride)
+    // 엔진 질문은 askAssistant 가 짧은 답(qa)으로 보낸다 — 대기 문구도 같은 기준으로 고른다
+    const reportLikely =
+      usableEngines[0] !== undefined && usableEngines[0] !== 'gemini' && mayBeReport(q, modeOverride ?? (detectEngineTopic(q) ? 'qa' : undefined))
     setPendingReport(reportLikely)
     setPendingSince(Date.now())
     const ctrl = new AbortController()
@@ -467,7 +473,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       intentAskedRef.current,
       nextAskedRef.current,
       { product: productRefineAskedRef.current, detail: detailAskedRef.current },
-      { modeOverride, signal: ctrl.signal, chatId: chatIdRef.current, turnId: userMsg.id, via: opts.via },
+      { modeOverride, signal: ctrl.signal, chatId: chatIdRef.current, turnId: userMsg.id, via: opts.via, hub: hubKind(engineStatusRef.current) },
     ).then((reply) => {
       if (abortRef.current === ctrl) abortRef.current = null
       setPending(false)
@@ -509,6 +515,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           reportHint: reply.reportHint,
           notice: reply.notice,
           reportFailed: reply.reportFailed,
+          engineTopic: reply.engineTopic,
         }),
       ])
     })

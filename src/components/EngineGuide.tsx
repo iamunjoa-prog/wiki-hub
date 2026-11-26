@@ -1,13 +1,15 @@
 import { useEffect } from 'react'
 
-// 확정 문구(docs/ux/2026-11-13-engine-guide-copy.md ②·③) — 대시보드·챗봇 창이 같이 쓰므로 여기에만 둔다
+// 확정 문구(docs/ux/2026-11-13-engine-guide-copy.md ②·③) — 대시보드·챗봇 창이 같이 쓰므로 여기에만 둔다.
+// 사실은 HUB-04 v3 「한눈에 보는 차이」 표와 맞춘다 (assistant-engine-guide 1-3)
 const DIFF_ROWS: [label: string, mine: string, shared: string][] = [
   ['준비', '내 PC에 한 번 설치', '없음, 바로 사용'],
   ['답의 깊이', '문서를 꼼꼼히 읽음', '전체를 훑어 빠르게 찾음. 간단한 질문에 맞음'],
-  ['AI로 문서 수정', '됨 · Claude는 관련 문서도 참고', '됨 · 고칠 문서만 봄'],
-  ['붐빌 때', '영향 없음', '느려지거나 보조 AI로 바뀔 수 있음'],
+  ['리포트', '됨', '안 됨'],
+  ['AI에게 부탁 (문서 수정)', '됨', '됨'],
+  ['붐빌 때', '다른 사람 사용량 영향 없음', '느려지거나 예비 AI로 바뀔 수 있음'],
   ['Jira 스케줄 확인', '됨 (Claude)', '안 됨'],
-  ['응답 시간', '조금 더 걸릴 수 있음', '대체로 빠름'],
+  ['응답 시간', 'Claude 30초~1분, ChatGPT 1~2분', '보통 20~40초'],
   ['비용', '내 구독에 포함', '회사 공용'],
 ]
 
@@ -22,8 +24,10 @@ export function EngineGuide() {
           조건이 여러 개 엮인 기획 상담에 강해요.
         </li>
         <li>
-          <b>문서 수정도 꼼꼼해요</b> — 수정 제안의 <b>AI에게 부탁</b>도 내 계정으로 돌아요. Claude 계정은 고칠 때 관련된
-          다른 문서도 찾아보고 맞춰 고쳐요.
+          <b>리포트로 받을 수 있어요</b> — 비교·점검·인사이트 정리 같은 질문은 내 계정에서만 근거를 갖춘 리포트로 받아요.
+        </li>
+        <li>
+          <b>문서 수정도 내 계정으로</b> — 문서를 고칠 때 장 도구줄의 <b>AI에게 부탁</b>도 내 계정으로 돌아요.
         </li>
         <li>
           <b>붐벼도 괜찮아요</b> — 내 구독으로 돌아서 다른 사람 사용량 때문에 느려지거나 막히지 않아요.
@@ -34,7 +38,7 @@ export function EngineGuide() {
         <li>처음 한 번만 설치하면(5~10분) 그다음엔 바탕화면 아이콘으로 켜면 돼요.</li>
       </ul>
 
-      <b>공용 AI 엔진(Gemini)과 다른 점</b>
+      <b>공용 AI(Gemini)와 다른 점</b>
       {/* 좁은 창에서는 표만 가로로 밀어 본다 */}
       <div className="table-scroll">
         <table className="engine-table">
@@ -42,7 +46,7 @@ export function EngineGuide() {
             <tr>
               <th />
               <th>내 AI 계정</th>
-              <th>공용 AI 엔진 (Gemini)</th>
+              <th>공용 AI (Gemini)</th>
             </tr>
           </thead>
           <tbody>
@@ -57,7 +61,7 @@ export function EngineGuide() {
         </table>
       </div>
       <p className="muted">
-        간단히 찾아보는 질문은 공용 엔진으로도 충분해요. 편성 기획처럼 여러 조건을 따져야 하거나 문서를 고칠 때는 내 AI 계정을
+        간단히 찾아보는 질문은 공용 AI로도 충분해요. 편성 기획처럼 여러 조건을 따져야 하거나 문서를 고칠 때는 내 AI 계정을
         권해요.
       </p>
     </div>

@@ -157,6 +157,9 @@ export type Engine = 'claude' | 'codex' | 'gemini'
 /** 로그인·설치가 필요한 로컬 CLI 엔진 (Gemini는 서버의 API 키로 동작) */
 export type CliEngine = Exclude<Engine, 'gemini'>
 
+/** 답변 엔진·AI 계정을 묻는 질문의 주제 — 답 끝 행동 버튼을 고르는 데 쓴다 (assistant-engine-guide 3-1) */
+export type EngineTopic = 'about' | 'which' | 'benefit' | 'connect' | 'trouble' | 'compare' | 'short' | 'tips'
+
 /**
  * 엔진 실패 분류 — 서버 502 의 `code` 와 같은 값. `config` 는 code 없이 온 503·500(키 미설정·배포 구성 누락)을
  * 화면에서 붙인 것이다. `maintenance`(운영 점검 503)·`rate`(호출 횟수 초과 429)는 서버 입구(server/guard.ts)가 준다.
@@ -263,6 +266,8 @@ export interface ChatMessage {
   answeredBy?: string
   /** 이 답 전에 실패한 엔진들 — 없던 시절 메시지는 answeredBy 만 있으므로 비어 있어도 그린다 */
   fallback?: EngineFailure[]
+  /** 답변 엔진 안내 답이면 그 주제 — 버튼은 저장하지 않고 그릴 때 지금 상태로 고른다 */
+  engineTopic?: EngineTopic
   /** 「내 계정으로 다시 묻기」를 이미 눌렀다 — 같은 답에 칩을 다시 붙이지 않는다 */
   askedAgain?: boolean
 }
