@@ -351,7 +351,7 @@ export function EngineToggle({ label = '답변 엔진', busy = false }: { label?
  * 어시스턴트 입력칸 위 엔진 상태 한 줄 — 이번 답을 누가 하는지 마우스를 올리지 않아도 글자로 보인다 (F1).
  * 계정 관리는 공용 설정 창이 맡고, 여기서는 ⚙·[연결하기]로 그 창을 연다. 문구는 assistant-engine-guide 4-1.
  */
-function DockEngineLine() {
+function DockEngineLine({ typing }: { typing: boolean }) {
   const { assistant, openEngineSettings } = useApp()
   const status = assistant.engineStatus
   const [guideOpen, setGuideOpen] = useState(false)
@@ -393,12 +393,12 @@ function DockEngineLine() {
         {guideOpen && <EngineGuideModal onClose={() => setGuideOpen(false)} />}
       </>
     )
-  // 내 PC 허브에서 내 계정이 없으면 이 창의 강조 버튼은 [연결하기] 하나다 (UX 수용 기준 11)
+  // 입력이 비었을 때만 [연결하기]를 강조한다 — 글자를 쓰면 다음 걸음은 보내기라 빨강이 [↩]로 옮겨 간다 (UX A-3)
   if (isLocalStatus(status))
     return line(
       'warn',
       '내 AI 계정이 연결 안 됐어요 · 문서에서 찾은 내용만 보여 드려요',
-      <button type="button" className="btn sm accent" onClick={openEngineSettings}>
+      <button type="button" className={typing ? 'btn sm' : 'btn sm accent'} onClick={openEngineSettings}>
         연결하기
       </button>,
     )
@@ -651,7 +651,7 @@ export function AssistantDock() {
       </div>
 
       <div className="dock-foot">
-        <DockEngineLine />
+        <DockEngineLine typing={!!input.trim()} />
         <form
           className="composer"
           onSubmit={(e) => {
@@ -668,7 +668,8 @@ export function AssistantDock() {
             aria-label="어시스턴트에게 질문"
             aria-describedby={notice ? 'dock-notice' : undefined}
           />
-          <button className="btn accent" disabled={!input.trim()}>
+          {/* 비었을 때는 누를 수 없으니 테두리형 — 흐린 빨강은 눌러지는 것처럼 보인다 (UX R4) */}
+          <button className={input.trim() ? 'btn accent' : 'btn'} disabled={!input.trim()} aria-label="보내기" title="보내기 (Enter)">
             ↩
           </button>
         </form>

@@ -609,13 +609,16 @@ textarea.field { resize: vertical; line-height: 1.6; font-family: var(--mono); f
 .dash-engine { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font: 600 13px var(--mono); color: var(--text-2); }
 .dash-engine:hover { color: var(--text); }
 
-/* 묻기 바 — Enter 는 검색, [묻기]는 큐 어시스턴트에게. 이 화면의 빨간 버튼은 [묻기] 하나 */
+/* 묻기 바 — Enter 는 검색, [묻기]는 큐 어시스턴트에게. 창이 닫혀 있을 때 이 화면의 빨간 버튼은 [묻기] 하나 */
 .ask-bar { display: flex; align-items: center; gap: var(--sp-3); height: 56px; padding: 0 8px 0 16px; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--muted); }
 .ask-bar:focus-within { border-color: var(--text); }
 .ask-bar input { flex: 1; min-width: 0; border: 0; outline: none; background: none; font: 16px var(--sans); color: var(--text); }
 .ask-bar-hint { flex: none; font: 500 12px var(--mono); color: var(--muted); }
 .btn.ask-bar-btn { flex: none; height: 40px; padding: 0 18px; border-radius: var(--radius-pill); background: var(--onair); border-color: var(--onair); color: var(--on-dark); font-size: 14px; }
 .btn.ask-bar-btn:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+/* 어시스턴트 창이 열리면 빨강은 창 안에만 — 묻기 바 [묻기]는 상단바처럼 테두리형 (UX R3) */
+.btn.ask-bar-btn.line { background: var(--surface); border-color: var(--line); color: var(--text); }
+.btn.ask-bar-btn.line:hover:not(:disabled) { background: var(--surface); border-color: var(--text); }
 .ask-bar-chips { margin-top: calc(var(--sp-2) - var(--sp-4)); }
 
 /* 카테고리 타일 3개 — 왼쪽 띠 + 이름 + 2단 바로가기 */
@@ -1350,7 +1353,8 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .engine-toggle { display: flex; border: 1px solid var(--border); }
 .engine-toggle button { border: 0; background: none; padding: 3px 10px; font: 12px var(--mono); color: var(--muted); cursor: pointer; }
 .engine-toggle button + button { border-left: 1px solid var(--border); }
-.engine-toggle button.on { background: var(--accent); color: var(--on-dark); }
+/* 선택된 칸은 상태라 빨강이 아니라 남색 — .btv-seg button.on 과 같은 모양 (UX R2) */
+.engine-toggle button.on { background: var(--text); color: var(--on-dark); }
 .engine-toggle button:disabled:not(.on) { opacity: 0.4; cursor: not-allowed; }
 /* 어시스턴트 입력칸 위 상태 줄 — 연결 상태를 글자로, 끝에 ⚙ 또는 [연결하기] (F1) */
 .dock-engine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.5; }
