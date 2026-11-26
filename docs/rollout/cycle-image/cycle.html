@@ -1,69 +1,135 @@
 <!doctype html><html lang="ko"><head><meta charset="utf-8">
-<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
 <style>
-:root{--navy:#1f2a44;--coral:#ff6b6b;--mint:#1f9e8a;--pink:#e5487b;--yellow:#ffd84d;--bg:#fff8ef}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);font-family:'Gowun Dodum',sans-serif;color:var(--navy)}
-.page{width:1200px;padding:44px 48px 40px;position:relative}
-.top{text-align:center}
-.top .tag{display:inline-block;background:var(--yellow);font-family:Jua;font-size:20px;padding:5px 16px;border-radius:99px}
-.top h1{font-family:Jua;font-weight:400;font-size:48px;margin:14px 0 6px}
-.top p{font-size:21px;color:#475467;margin:0}
-.wheel{position:relative;width:1104px;height:980px;margin-top:10px}
+:root{--ink:#0f1f3d;--sub:#475569;--mute:#94a3b8;--line:#d7dde6;--bg:#f6f8fb;--k:#1d4ed8;--e:#0e7490;--p:#0f766e;--accent:#c2410c}
+*{box-sizing:border-box}
+body{margin:0;word-break:keep-all;background:#fff;font-family:'Noto Sans KR',sans-serif;color:var(--ink);letter-spacing:-.2px}
+.page{width:1600px;padding:44px 56px 40px;position:relative}
+.eyebrow{font-size:15px;font-weight:700;color:var(--k);letter-spacing:1.5px}
+h1{font-size:38px;font-weight:900;margin:8px 0 8px;letter-spacing:-1px}
+.lead{font-size:18px;color:var(--sub);margin:0}
+.rule{height:3px;background:var(--ink);margin:22px 0 0;width:100%}
+.body{display:flex;gap:36px;margin-top:28px}
+.asis{width:350px;flex:none;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:24px 24px 22px;position:relative}
+.tag{display:inline-block;font-size:13px;font-weight:700;letter-spacing:1px;padding:4px 10px;border-radius:4px}
+.tag.gray{background:#e2e8f0;color:var(--sub)}.tag.blue{background:var(--ink);color:#fff}
+.asis h3{font-size:20px;margin:12px 0 4px;font-weight:700}
+.asis .d{font-size:14.5px;color:var(--sub);line-height:1.6;margin:0 0 16px}
+.silo{background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:center}
+.silo .n{font-size:15px;font-weight:700;width:118px;flex:none}
+.silo .t{font-size:13.5px;color:var(--sub);line-height:1.45}
+.gap{display:flex;align-items:center;justify-content:center;height:18px;margin:-4px 0 6px}
+.gap span{font-size:12px;color:var(--accent);font-weight:700;letter-spacing:.5px;border-top:1.5px dashed var(--accent);padding-top:2px;width:150px;text-align:center}
+.issues{border-top:1px solid var(--line);margin-top:14px;padding-top:14px}
+.issues div{font-size:14px;color:var(--sub);line-height:1.55;padding-left:14px;position:relative;margin-bottom:6px}
+.issues div::before{content:'';position:absolute;left:0;top:9px;width:6px;height:6px;background:var(--accent);border-radius:1px}
+.arrowcol{width:40px;flex:none;display:flex;align-items:center;justify-content:center}
+.tobe{flex:1;position:relative}
+.tobe .head{display:flex;gap:12px;align-items:center}
+.tobe .head h3{font-size:20px;margin:0;font-weight:700}
+.stage{position:relative;height:640px;margin-top:6px}
 svg{position:absolute;inset:0}
-.node{position:absolute;width:330px;background:#fff;border:4px solid var(--navy);border-radius:28px;padding:20px 22px 18px;box-shadow:0 8px 0 rgba(31,42,68,.15);transform:translate(-50%,-50%)}
-.node .ic{position:absolute;top:-34px;left:50%;transform:translateX(-50%);width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:32px;border:4px solid var(--navy)}
-.node h2{font-family:Jua;font-weight:400;font-size:30px;margin:22px 0 2px;text-align:center}
-.node .role{text-align:center;font-family:Jua;font-size:19px;margin-bottom:10px}
-.node ul{margin:0;padding:0;list-style:none;font-size:17px;line-height:1.65}
-.node li::before{content:'✓ ';font-weight:700}
-.wiki .ic{background:#d9e8ff}.wiki .role{color:#2f6fd6}.wiki li::before{color:#2f6fd6}
-.auto .ic{background:#ffe1e1}.auto .role{color:var(--coral)}.auto li::before{color:var(--coral)}
-.dash .ic{background:#c9f2ea}.dash .role{color:var(--mint)}.dash li::before{color:var(--mint)}
-.flow{position:absolute;white-space:nowrap;transform:translate(-50%,-50%);font-family:Jua;font-size:22px;padding:10px 18px;border-radius:16px;text-align:center;line-height:1.3;box-shadow:0 4px 0 rgba(0,0,0,.08)}
-.flow small{display:block;font-family:'Gowun Dodum';font-size:15px;margin-top:3px}
-.f1{background:#ffe1e1;color:#b83a3a}.f2{background:#c9f2ea;color:#126b5d}.f3{background:#d9e8ff;color:#2457a8}
-.center{position:absolute;left:552px;top:500px;transform:translate(-50%,-50%);text-align:center;width:300px}
-.center .c1{font-family:Jua;font-size:30px}
-.center .c2{font-size:18px;line-height:1.8;margin-top:6px}
-.center .c2 b{font-family:Jua;font-weight:400;font-size:20px}
-.bottom{margin-top:6px;background:var(--navy);color:#fff;border-radius:24px;padding:22px 30px;text-align:center}
-.bottom .b1{font-family:Jua;font-size:28px}.bottom .b1 em{font-style:normal;color:var(--yellow)}
-.bottom .b2{font-size:18px;opacity:.85;margin-top:6px}
+.node{position:absolute;width:300px;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(15,31,61,.08);transform:translate(-50%,-50%);overflow:hidden}
+.node .top{padding:14px 18px 12px;color:#fff;display:flex;align-items:baseline;gap:10px}
+.node .top .no{font-size:13px;font-weight:700;opacity:.75;letter-spacing:1px}
+.node .top .nm{font-size:19px;font-weight:700}
+.node .top .en{margin-left:auto;font-size:12px;font-weight:500;opacity:.8;letter-spacing:1px}
+.node .role{font-size:13.5px;font-weight:700;padding:12px 18px 4px}
+.node ul{margin:0;padding:2px 18px 14px 34px;font-size:14px;line-height:1.7;color:var(--sub)}
+.k .top{background:var(--k)}.k .role{color:var(--k)}
+.e .top{background:var(--e)}.e .role{color:var(--e)}
+.p .top{background:var(--p)}.p .role{color:var(--p)}
+.flow{position:absolute;transform:translate(-50%,-50%);background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 14px;width:250px}
+.flow .fl{font-size:12px;font-weight:700;letter-spacing:1px}
+.flow .ft{font-size:15.5px;font-weight:700;margin-top:2px}
+.flow .fd{font-size:13px;color:var(--sub);line-height:1.5;margin-top:3px}
+.core{position:absolute;transform:translate(-50%,-50%);text-align:center;width:210px}
+.core .c0{font-size:12px;font-weight:700;letter-spacing:1.5px;color:var(--mute)}
+.core .c1{font-size:21px;font-weight:900;margin-top:4px;line-height:1.35}
+.core .c2{font-size:13px;color:var(--sub);margin-top:6px;line-height:1.5}
+.effects{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+.eff{border:1px solid var(--line);border-radius:10px;padding:16px 20px;border-top:4px solid var(--ink)}
+.eff .el{font-size:12px;font-weight:700;color:var(--mute);letter-spacing:1px}
+.eff .et{font-size:18px;font-weight:700;margin:4px 0 4px}
+.eff .ed{font-size:14px;color:var(--sub);line-height:1.55}
+.pre{margin-top:16px;background:var(--ink);color:#fff;border-radius:10px;padding:16px 24px;display:flex;align-items:center;gap:20px}
+.pre .pl{font-size:13px;font-weight:700;letter-spacing:1px;background:var(--accent);padding:5px 10px;border-radius:4px;flex:none}
+.pre .pt{font-size:17.5px;font-weight:700}
+.pre .pd{font-size:14px;opacity:.75;margin-left:auto}
+.foot{margin-top:12px;font-size:12px;color:var(--mute)}
 </style></head><body><div class="page">
-<div class="top"><span class="tag">플랫폼 담당 지식 허브</span>
-<h1>세 가지가 함께 돌아가요 🔄</h1>
-<p>위키에 쌓인 기준으로 실행하고, 결과에서 배운 것을 다시 위키에 남겨요</p></div>
-<div class="wheel">
-<svg viewBox="0 0 1104 900" width="1104" height="900">
-<defs>
-<marker id="h1" markerWidth="30" markerHeight="30" refX="6" refY="5" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" preserveAspectRatio="none" orient="auto"><path d="M1,1 L7,5 L1,9" fill="none" stroke="#ff6b6b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
-<marker id="h2" markerWidth="30" markerHeight="30" refX="6" refY="5" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" preserveAspectRatio="none" orient="auto"><path d="M1,1 L7,5 L1,9" fill="none" stroke="#1f9e8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
-<marker id="h3" markerWidth="30" markerHeight="30" refX="6" refY="5" markerUnits="userSpaceOnUse" viewBox="0 0 10 10" preserveAspectRatio="none" orient="auto"><path d="M1,1 L7,5 L1,9" fill="none" stroke="#2f6fd6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></marker>
-</defs>
-<circle cx="552" cy="500" r="330" fill="none" stroke="#f1e3cf" stroke-width="26"/>
-<g id="arcs"></g>
-</svg>
-<div class="node wiki" style="left:552px;top:175px"><div class="ic">📚</div><h2>위키</h2><div class="role">기준과 인사이트가 모이는 곳</div>
-<ul><li>편성 기준 · 프로모션 정책</li><li>지켜야 할 운영 원칙 · 제약</li><li>지난 실행에서 얻은 인사이트</li></ul></div>
-<div class="node auto" style="left:860px;top:690px"><div class="ic">⚙️</div><h2>마케팅 자동화</h2><div class="role">기준대로 실행하는 곳</div>
-<ul><li>대상 · 구좌 · 혜택 조건 확인</li><li>위키 기준에 맞는지 점검</li><li>프로모션 실행</li></ul></div>
-<div class="node dash" style="left:244px;top:690px"><div class="ic">📊</div><h2>실적 대시보드</h2><div class="role">결과를 보고 배우는 곳</div>
-<ul><li>무엇이 잘됐고 아쉬웠는지</li><li>실행 기준과 결과를 함께 보기</li><li>업무 개선점 찾기</li></ul></div>
-<div class="flow f1" style="left:940px;top:330px">① 기준 보고 실행<small>위키의 규칙·인사이트로<br>조건을 정해요</small></div>
-<div class="flow f2" style="left:552px;top:915px">② 실행 결과가 쌓여요<small>어떤 기준으로 했는지도 함께 남아요</small></div>
-<div class="flow f3" style="left:164px;top:330px">③ 배운 것은 위키에<small>인사이트 · 고칠 기준 ·<br>개선점을 남겨요</small></div>
-<div class="center"><div class="c1">돌수록 좋아져요</div>
-<div class="c2"><b>기준</b>은 더 정확하게<br><b>실행</b>은 더 빠르게<br><b>보고</b>는 더 풍부하게</div></div>
+<div class="eyebrow">2027 추진 방향 · 플랫폼 담당</div>
+<h1>지식 · 실행 · 성과를 잇는 선순환 운영 체계</h1>
+<p class="lead">개별로 운영되는 지식 허브(위키), 마케팅 자동화, 실적 대시보드를 하나의 흐름으로 연결해 기준에 근거한 실행과 성과 기반 개선이 반복되는 구조를 만든다.</p>
+<div class="rule"></div>
+
+<div class="body">
+ <div class="asis">
+  <span class="tag gray">AS-IS · 현재</span>
+  <h3>세 영역이 각각 운영</h3>
+  <p class="d">기준·실행·성과 정보가 서로 연결되지 않아, 근거 확인과 개선 반영이 담당자 개인에 의존한다.</p>
+  <div class="silo"><div class="n">지식 허브(위키)</div><div class="t">정책·기준 문서 관리</div></div>
+  <div class="gap"><span>연결 없음</span></div>
+  <div class="silo"><div class="n">마케팅 자동화</div><div class="t">프로모션 조건 설정·실행</div></div>
+  <div class="gap"><span>연결 없음</span></div>
+  <div class="silo"><div class="n">실적 대시보드</div><div class="t">성과 지표 모니터링</div></div>
+  <div class="issues">
+   <div>실행 시 최신 기준 여부를 사람이 직접 확인</div>
+   <div>실적 수치에 실행 근거가 남지 않아 원인 해석이 어려움</div>
+   <div>성과에서 얻은 시사점이 기준 문서로 환류되지 않음</div>
+  </div>
+ </div>
+
+ <div class="arrowcol"><svg width="40" height="60" viewBox="0 0 40 60" style="position:static"><path d="M6,30 H30 M22,20 L32,30 L22,40" fill="none" stroke="#0f1f3d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+
+ <div class="tobe">
+  <div class="head"><span class="tag blue">TO-BE · 2027</span><h3>하나의 순환 구조로 연결</h3></div>
+  <div class="stage" id="stage">
+   <svg id="svg" width="1058" height="640" viewBox="0 0 1058 640">
+    <defs>
+     <marker id="mk" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="16" markerHeight="16" markerUnits="userSpaceOnUse" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0f1f3d"/></marker>
+    </defs>
+    
+    <g id="arcs"></g>
+   </svg>
+   <div class="node k" style="left:529px;top:108px">
+    <div class="top"><span class="no">01</span><span class="nm">지식 허브 (위키)</span><span class="en">KNOWLEDGE</span></div>
+    <div class="role">의사결정의 기준 원천</div>
+    <ul><li>편성 기준 · 프로모션 정책</li><li>운영 원칙 및 제약 사항</li><li>누적된 성과 인사이트</li></ul>
+   </div>
+   <div class="node e" style="left:828px;top:478px">
+    <div class="top"><span class="no">02</span><span class="nm">마케팅 자동화</span><span class="en">EXECUTION</span></div>
+    <div class="role">기준에 근거한 실행</div>
+    <ul><li>대상 · 구좌 · 혜택 조건 설정</li><li>정책 준수 여부 사전 점검</li><li>프로모션 실행 및 이력 기록</li></ul>
+   </div>
+   <div class="node p" style="left:230px;top:478px">
+    <div class="top"><span class="no">03</span><span class="nm">실적 대시보드</span><span class="en">PERFORMANCE</span></div>
+    <div class="role">성과 분석과 개선 도출</div>
+    <ul><li>성과 지표 모니터링</li><li>실행 기준과 성과의 연계 분석</li><li>업무 개선 과제 도출</li></ul>
+   </div>
+   <div class="flow" style="left:900px;top:205px"><div class="fl" style="color:var(--k)">A · 기준 제공</div><div class="ft">정책 · 인사이트 참조</div><div class="fd">실행 조건을 최신 기준 문서에 근거해 설정</div></div>
+   <div class="flow" style="left:529px;top:575px"><div class="fl" style="color:var(--e)">B · 실행 이력 연계</div><div class="ft">실행 근거 + 성과 데이터</div><div class="fd">어떤 기준으로 실행했는지 성과와 함께 기록</div></div>
+   <div class="flow" style="left:158px;top:205px"><div class="fl" style="color:var(--p)">C · 인사이트 환류</div><div class="ft">분석 결과의 문서화</div><div class="fd">시사점과 개선 사항을 기준 문서에 반영</div></div>
+   <div class="core" style="left:529px;top:340px"><div class="c0">CONTINUOUS LOOP</div><div class="c1">기준 → 실행 → 성과<br>→ 기준 고도화</div><div class="c2">순환이 반복될수록<br>기준의 정확도가 높아진다</div></div>
+  </div>
+ </div>
 </div>
-<div class="bottom"><div class="b1">이 순환의 출발점은 <em>지금, 위키 문서 업데이트</em>예요</div>
-<div class="b2">기준이 정확해야 자동화가 바르게 돌고, 실행의 근거가 남아야 실적에 '왜'가 붙어요</div></div>
+
+<div class="effects">
+ <div class="eff"><div class="el">기대 효과 1</div><div class="et">기준 정합성 확보</div><div class="ed">모든 실행이 최신 기준 문서를 근거로 수행되어, 정책과 실행 간 불일치를 줄인다.</div></div>
+ <div class="eff"><div class="el">기대 효과 2</div><div class="et">실행 효율 향상</div><div class="ed">조건 정리와 정책 확인에 드는 반복 수작업을 줄여, 기획에서 실행까지의 시간을 단축한다.</div></div>
+ <div class="eff"><div class="el">기대 효과 3</div><div class="et">성과 해석력 강화</div><div class="ed">실적에 실행 근거가 결합되어, 수치 중심 보고에서 원인과 시사점 중심 보고로 전환한다.</div></div>
+</div>
+<div class="pre"><span class="pl">선결 과제 · 2026</span><span class="pt">지식 문서 현행화 및 누락 기준 보강</span><span class="pd">선순환 체계가 참조할 기준 데이터를 먼저 확보한다</span></div>
+<div class="foot">※ 2027년 추진 계획 기준의 개념도이며, 세부 연계 방식과 범위는 추진 과정에서 확정한다.</div>
 </div>
 <script>
-const g=document.getElementById('arcs'),cx=552,cy=500,r=330,ns='http://www.w3.org/2000/svg';
+const g=document.getElementById('arcs'),cx=529,cy=335,r=235,ns='http://www.w3.org/2000/svg';
 const P=a=>[cx+r*Math.cos(a*Math.PI/180),cy+r*Math.sin(a*Math.PI/180)];
-[[-90+34,30-38,'#ff6b6b','h1'],[30+40,150-40,'#1f9e8a','h2'],[150+38,270-34,'#2f6fd6','h3']].forEach(([a,b,c,m])=>{
+[[-90+38,30-30],[150+30,270-38]].forEach(([a,b])=>{
  const [x1,y1]=P(a),[x2,y2]=P(b);const p=document.createElementNS(ns,'path');
- p.setAttribute('d',`M${x1},${y1} A${r},${r} 0 0 1 ${x2},${y2}`);p.setAttribute('fill','none');p.setAttribute('stroke',c);
- p.setAttribute('stroke-width','9');p.setAttribute('stroke-linecap','round');p.setAttribute('marker-end',`url(#${m})`);g.appendChild(p);});
+ p.setAttribute('d',`M${x1},${y1} A${r},${r} 0 0 1 ${x2},${y2}`);p.setAttribute('fill','none');p.setAttribute('stroke','#0f1f3d');
+ p.setAttribute('stroke-width','2.5');p.setAttribute('marker-end','url(#mk)');g.appendChild(p);});
+{const p=document.createElementNS(ns,'path');p.setAttribute('d','M676,500 H386');p.setAttribute('fill','none');p.setAttribute('stroke','#0f1f3d');p.setAttribute('stroke-width','2.5');p.setAttribute('marker-end','url(#mk)');g.appendChild(p);}
 document.fonts.ready.then(()=>setTimeout(()=>document.body.dataset.ready=1,500));
 </script></body></html>
