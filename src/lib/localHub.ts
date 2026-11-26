@@ -41,6 +41,15 @@ export const detectOs = (): Os =>
 export const isLocalStatus = (status: Partial<Record<Engine, EngineStatus>> | null | undefined): boolean =>
   Boolean(status && CLI_ENGINES.some((e) => e in status))
 
+/** 허브 종류 — 안내 문구가 셋으로 갈린다. 확인 전(undefined)·경로 없음(null)은 모름 */
+export type HubKind = 'local' | 'deploy' | 'unknown'
+export const hubKind = (status: Partial<Record<Engine, EngineStatus>> | null | undefined): HubKind =>
+  !status ? 'unknown' : isLocalStatus(status) ? 'local' : 'deploy'
+
+/** 내 AI 계정(Claude·ChatGPT) 중 하나라도 로그인돼 있는지 */
+export const hasMyAccount = (status: Partial<Record<Engine, EngineStatus>> | null | undefined): boolean =>
+  CLI_ENGINES.some((e) => Boolean(status?.[e]?.loggedIn))
+
 /**
  * 허브 ZIP 내려받기. <a href>로 바로 받으면 서버가 503(토큰 없음)·401(로그인 필요) 등을 돌려줄 때
  * 브라우저가 JSON 오류 파일을 저장하거나 아무 일도 없어 보인다. 저장소는 작으니(소스+문서) fetch → Blob으로

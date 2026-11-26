@@ -28,9 +28,9 @@ const WEEKDAY = ['일', '월', '화', '수', '목', '금', '토']
 // 별표가 늘어도 오른쪽 열이 왼쪽보다 길어지지 않게 — 나머지는 시스템 화면에서 본다
 const FAVORITE_LIMIT = 3
 
-/** 인사 줄 오른쪽 엔진 상태 한 줄 — 연결·설정은 하단 왼쪽 '챗봇 답변 엔진' 칸에서 한다 */
+/** 인사 줄 오른쪽 엔진 상태 한 줄 — 미연결이면 공용 설정 창을, 연결됐으면 하단 왼쪽 '챗봇 답변 엔진' 칸을 연다 */
 function EngineLine() {
-  const { assistant } = useApp()
+  const { assistant, openEngineSettings } = useApp()
   const engines = assistant.engines
   const usable = engines ? (Object.keys(ENGINE_LABEL) as Engine[]).filter((e) => engines[e]) : []
   const [lamp, text] =
@@ -48,7 +48,9 @@ function EngineLine() {
       className="dash-engine"
       onClick={(e) => {
         e.preventDefault()
-        document.getElementById('engine')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        // 연결하러 가는 사람은 칸까지 내려가지 않고 바로 [로그인]이 있는 창을 본다 (F2)
+        if (assistant.engineStatus && usable.length === 0) openEngineSettings()
+        else document.getElementById('engine')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       }}
     >
       <span className={`lamp ${lamp}`} aria-hidden="true" />

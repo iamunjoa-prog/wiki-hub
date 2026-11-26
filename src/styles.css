@@ -1352,6 +1352,12 @@ body.resizing-x { cursor: col-resize; user-select: none; }
 .engine-toggle button + button { border-left: 1px solid var(--border); }
 .engine-toggle button.on { background: var(--accent); color: var(--on-dark); }
 .engine-toggle button:disabled:not(.on) { opacity: 0.4; cursor: not-allowed; }
+/* 어시스턴트 입력칸 위 상태 줄 — 연결 상태를 글자로, 끝에 ⚙ 또는 [연결하기] (F1) */
+.dock-engine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; line-height: 1.5; }
+.dock-engine .grow { flex: 1 1 160px; word-break: keep-all; }
+.dock-engine .dock-engine-gear { margin-left: auto; }
+.msg .fallback-notice .btn.sm { vertical-align: baseline; }
+.msg .engine-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
 
 .cli-row { min-height: 42px; }
 .cli-ok { color: var(--ok); font-weight: 600; }

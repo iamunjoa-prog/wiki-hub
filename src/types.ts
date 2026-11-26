@@ -263,6 +263,8 @@ export interface ChatMessage {
   answeredBy?: string
   /** 이 답 전에 실패한 엔진들 — 없던 시절 메시지는 answeredBy 만 있으므로 비어 있어도 그린다 */
   fallback?: EngineFailure[]
+  /** 「내 계정으로 다시 묻기」를 이미 눌렀다 — 같은 답에 칩을 다시 붙이지 않는다 */
+  askedAgain?: boolean
 }
 
 /** 시스템 메뉴의 구분 — 편성 관련 / 마케팅 관련 */

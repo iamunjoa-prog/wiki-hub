@@ -7,6 +7,7 @@ import { detectOs, forgetSessionSeen } from '../lib/localHub'
 import { useApp } from '../store/AppStore'
 import { AssistantDock } from './AssistantDock'
 import { useAuth } from './AuthGate'
+import { EngineSettings } from './EngineSettings'
 import { HubUpdateNotice } from './HubUpdateNotice'
 import { ColorBarMark, Icon } from './Icon'
 import { LocalHubOnboarding } from './LocalHubOnboarding'
@@ -701,6 +702,8 @@ export function AppShell() {
           </button>
         )}
         <LocalHubOnboarding />
+        {/* 설정 창은 여기 한 곳 — 홈 칸·인사 줄·어시스턴트가 모두 같은 창을 연다 */}
+        <EngineSettings />
         {toast && <div className="toast">{toast}</div>}
       </div>
     </DrawerContext.Provider>

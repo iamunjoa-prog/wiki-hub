@@ -29,10 +29,12 @@ import {
   ppmDetailLabel,
   readBrief,
   readSlots,
+  requestLogin,
   type PpmDetail,
 } from '../lib/assistant'
 import { buildCampaignUrl } from '../lib/campaignLink'
 import { fetchChatLogStatus, makeChatId, type ChatLogStatus } from '../lib/chatLog'
+import { ACCOUNT_NAME } from '../lib/localHub'
 import { fetchProposals } from '../lib/proposeEdit'
 import { requestPublicCheck } from '../lib/publicCheck'
 import {
@@ -61,6 +63,7 @@ import type {
   CampaignDraft,
   CategoryId,
   ChatMessage,
+  CliEngine,
   Engine,
   EngineStatus,
   ProductScope,
@@ -79,6 +82,18 @@ const LS_ROLE = 'wikihub.role'
 const LS_FAVORITE_SYSTEMS = 'wikihub.favoriteSystems'
 const LS_DOCK = 'wikihub.dockOpen'
 const LS_ENGINE = 'wikihub.engine'
+/** 로그인 창을 띄운 뒤 연결을 기다리는 한도 — 넘기면 [로그인]을 다시 누르게 한다 */
+const LOGIN_WAIT_MS = 180_000
+
+/** 계정 로그인 진행 — 홈 엔진 칸과 공용 설정 창이 같은 대기 상태를 본다 */
+export interface EngineLoginState {
+  /** 로그인 창을 띄우고 연결을 기다리는 계정 */
+  waiting: CliEngine | null
+  /** 한도 안에 연결되지 않은 계정 */
+  timedOut: CliEngine | null
+  /** 이번에 연결이 끝난 계정 — 설정 창 그 줄에 [바로 물어보기]를 붙인다. 창을 닫으면 지운다 */
+  connected: CliEngine | null
+}
 
 interface AssistantState {
   open: boolean
@@ -131,7 +146,16 @@ interface AppState {
   closeDock: () => void
   /** 챗봇 창을 열고 입력칸에 글을 미리 넣는다 — 보내지는 않는다(질문은 사용자가 마저 쓴다) */
   openDockWith: (text: string) => void
+  /** 챗봇 답변 엔진 설정 창 — 홈 칸·인사 줄·어시스턴트 어디서 열어도 같은 창이다 */
+  engineSettingsOpen: boolean
+  openEngineSettings: () => void
+  closeEngineSettings: () => void
+  engineLogin: EngineLoginState
+  /** 브라우저 로그인 창을 띄우고, 연결될 때까지 3초마다 상태를 다시 확인한다 */
+  loginEngine: (engine: CliEngine) => Promise<void>
   ask: (query: string, opts?: AskOpts) => void
+  /** 엔진 없이 받은 답의 질문을 연결된 내 계정으로 다시 보낸다 — 한 번 누르면 그 답의 칩은 사라진다 */
+  askWithAccount: (messageId: string) => void
   /** 같은 질문을 리포트(report) 또는 짧은 답(qa)으로 다시 받는다 — 그 질문 한 번에만 적용된다 */
   askAgain: (messageId: string, mode: 'qa' | 'report') => void
   /** 기다리는 리포트를 끊고 같은 질문을 짧은 답으로 다시 받는다 */
@@ -272,6 +296,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
   const [engineStatus, setEngineStatus] = useState<Partial<Record<Engine, EngineStatus>> | null | undefined>(undefined)
   const refreshEngines = useCallback(() => fetchEngines().then(setEngineStatus), [])
+  const [engineSettingsOpen, setEngineSettingsOpen] = useState(false)
+  const [engineLogin, setEngineLogin] = useState<EngineLoginState>({ waiting: null, timedOut: null, connected: null })
+  const loginStart = useRef(0)
   const engines = useMemo(
     () =>
       engineStatus
@@ -354,6 +381,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   )
 
   const showToast = useCallback((msg: string) => setToast(msg), [])
+
+  const loginEngine = useCallback(async (e: CliEngine) => {
+    const r = await requestLogin(e)
+    if (r?.opened) {
+      loginStart.current = Date.now()
+      setEngineLogin({ waiting: e, timedOut: null, connected: null })
+      setToast(`브라우저에서 ${ACCOUNT_NAME[e]} 계정으로 로그인해 주세요`)
+    } else {
+      setEngineLogin((prev) => ({ ...prev, timedOut: null }))
+      setToast('로그인 화면을 열지 못했어요. 바탕화면의 플랫폼 담당 지식 허브를 다시 켠 뒤 눌러 주세요')
+    }
+  }, [])
+
+  // 로그인 창을 띄운 뒤에는 완료될 때까지 3초마다 다시 확인한다 — 연결되면 다음 걸음([바로 물어보기])을 보인다
+  const loginWaiting = engineLogin.waiting
+  useEffect(() => {
+    if (!loginWaiting) return
+    if (engineStatus?.[loginWaiting]?.loggedIn && Date.now() - loginStart.current > 4000) {
+      setToast(`${ACCOUNT_NAME[loginWaiting]} 계정이 연결됐어요. 이제 내 계정으로 답해요`)
+      setEngineLogin({ waiting: null, timedOut: null, connected: loginWaiting })
+      return
+    }
+    const t = setInterval(() => {
+      if (Date.now() - loginStart.current > LOGIN_WAIT_MS) setEngineLogin({ waiting: null, timedOut: loginWaiting, connected: null })
+      else refreshEngines()
+    }, 3000)
+    return () => clearInterval(t)
+  }, [loginWaiting, engineStatus, refreshEngines])
+
+  const openEngineSettings = useCallback(() => setEngineSettingsOpen(true), [])
+  const closeEngineSettings = useCallback(() => {
+    setEngineSettingsOpen(false)
+    setEngineLogin((prev) => (prev.connected ? { ...prev, connected: null } : prev))
+  }, [])
 
   const ask = useCallback((query: string, opts: AskOpts = {}) => {
     let q = query.trim()
@@ -460,6 +521,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const askAgain = useCallback((messageId: string, mode: 'qa' | 'report') => {
     const q = questionOf(messagesRef.current, messageId)
     if (q) askRef.current?.(q, { modeOverride: mode, via: mode === 'report' ? '리포트로 자세히 받기' : '짧게 답 받기' })
+  }, [])
+
+  const askWithAccount = useCallback((messageId: string) => {
+    const q = questionOf(messagesRef.current, messageId)
+    if (!q) return
+    setMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, askedAgain: true } : m)))
+    askRef.current?.(q, { via: '내 계정으로 다시 묻기' })
   }, [])
 
   const cancelReport = useCallback(() => {
@@ -886,7 +954,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     openDock: () => setDockOpen(true),
     closeDock: () => setDockOpen(false),
     openDockWith,
+    engineSettingsOpen,
+    openEngineSettings,
+    closeEngineSettings,
+    engineLogin,
+    loginEngine,
     ask,
+    askWithAccount,
     askAgain,
     cancelReport,
     startReflect,
