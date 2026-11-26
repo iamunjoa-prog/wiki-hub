@@ -56,7 +56,7 @@ svg.ov{position:absolute;inset:0;overflow:visible;pointer-events:none}
   <div class="tag">처음이어도 5분이면 OK ✨</div>
   <h1>위키 문서, 이렇게 고쳐요</h1>
   <p>어려운 프로그램 필요 없어요. 워드 고치듯 화면에서 글자를 바로 고치고<br><b style="color:var(--yellow)">제출하기</b>만 누르면, 관리자가 한 번 보고 위키에 올려 드려요.</p>
-  <div class="flow"><span>① 로그인</span><i>→</i><span>② 내 문서 찾기</span><i>→</i><span>③ 오래됐나 보기</span><i>→</i><span>④ 고치고 보내기</span><i>→</i><span>⑤ 잘 올라갔나 보기</span><i>+</i><span>⑥ 없으면 새로 쓰기</span></div>
+  <div class="flow"><span>① 로그인</span><i>→</i><span>② 내 문서 찾기</span><i>→</i><span>③ ✎ 고치기 누르기</span><i>→</i><span>④ 고치고 보내기</span><i>→</i><span>⑤ 잘 올라갔나 보기</span><i>+</i><span>⑥ 없으면 새로 쓰기</span></div>
 </section>
 
 <section class="card" id="s1">
@@ -75,21 +75,18 @@ svg.ov{position:absolute;inset:0;overflow:visible;pointer-events:none}
 <section class="card" id="s2">
   <div class="head"><div class="num">2</div><h2>내 담당 문서를 찾아요</h2></div>
   <p class="desc">왼쪽 메뉴를 눌러 펼쳐 보거나, 위쪽 검색창에 찾고 싶은 말을 넣어요.</p>
-  <div class="stage" data-img="home.png" data-crop="0,0,1440,540" data-bot="110" data-w="960">
-    <a data-t="8,140,240,256" data-l="210,420" data-c="yellow" data-n="1" data-h="왼쪽 메뉴에서 찾기" data-s="누르면 아래로 문서 목록이 펼쳐져요"></a>
+  <div class="stage" data-img="home.png" data-crop="0,0,1440,400" data-bot="110" data-w="960">
+    <a data-t="8,140,240,256" data-l="330,330" data-c="yellow" data-n="1" data-h="왼쪽 메뉴에서 찾기" data-s="누르면 아래로 문서 목록이 펼쳐져요"></a>
     <a data-t="688,6,1252,42" data-l="720,110" data-c="mint" data-n="2" data-h="찾고 싶은 말 넣기" data-s="예: 띠배너, 월정액"></a>
-    <a data-t="845,412,1133,522" data-l="640,420" data-c="pink" data-n="3" data-h="확인 필요 23" data-s="한 달 넘게 안 고친 문서 수예요"></a>
   </div>
 </section>
 
 <section class="card" id="s3">
-  <div class="head"><div class="num">3</div><h2>문서가 오래됐는지 봐요</h2></div>
-  <p class="desc">문서 제목 아래와 오른쪽 상자에 <b>마지막으로 고친 날</b>이 적혀 있어요. 오래됐다면 지금 내용이 맞는지 봐 주세요.</p>
-  <div class="stage" data-img="promo.png" data-crop="248,48,1440,520" data-top="60" data-bot="10" data-w="960">
-    <a data-t="280,100,552,122" data-l="230,270" data-c="mint" data-n="1" data-h="마지막으로 고친 날" data-s="9월 17일 이후로 그대로예요"></a>
-    <a data-t="632,126,708,148" data-l="530,225" data-c="pink" data-n="2" data-h="🟡 확인 권장" data-s="오래됐으니 한번 봐 달라는 뜻"></a>
-    <a data-t="1110,104,1340,230" data-l="870,360" data-c="yellow" data-n="3" data-h="문서 정보 상자" data-s="고친 날·상태를 한눈에"></a>
-    <a data-t="1014,62,1089,91" data-l="500,28" data-c="yellow" data-n="4" data-h="'✎ 고치기'를 누르면 시작!" data-s=""></a>
+  <div class="head"><div class="num">3</div><h2>문서를 열고 '✎ 고치기'를 눌러요</h2></div>
+  <p class="desc">고칠 문서를 열면 오른쪽 위에 까만 <b>✎ 고치기</b> 버튼이 있어요. 누르면 바로 고칠 수 있는 화면이 돼요.</p>
+  <div class="stage" data-img="promo.png" data-crop="248,48,1440,420" data-w="960" data-bot="10">
+    <a data-t="1014,62,1089,91" data-l="560,190" data-c="yellow" data-n="1" data-h="여기를 눌러요!" data-s="문서 전체를 고칠 수 있어요"></a>
+    <a data-t="260,195,640,232" data-l="300,250" data-c="mint" data-n="2" data-h="어느 내용을 고칠지 먼저 읽어 봐요" data-s="틀린 것 · 바뀐 것 · 빠진 것"></a>
   </div>
 </section>
 
@@ -120,7 +117,7 @@ svg.ov{position:absolute;inset:0;overflow:visible;pointer-events:none}
     <div class="chip no">닫힘<small>= 돌려받았어요 · 이유 보고 다시 보내기</small></div>
   </div>
   <div class="tip"><span class="ic">🗂️</span><div><strong>화면에 나오는 낯선 말, 이 뜻이에요</strong><br>
-  <b>머지됨</b> = 승인됨 · <b>대기 중</b> = 관리자 확인 기다리는 중 · <b>닫힘</b> = 돌려받음 · <b>확인 권장</b> = 오래된 문서 · <b>v2</b> = 두 번째로 고친 판</div></div>
+  <b>대기 중</b> = 관리자 확인 기다리는 중 · <b>머지됨</b> = 승인됨 · <b>닫힘</b> = 돌려받음</div></div>
 </section>
 
 <section class="card" id="s6">
