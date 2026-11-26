@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jua&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1f2a44;--coral:#ff6b6b;--pink:#e5487b;--yellow:#ffd84d;--mint:#2bb5a0;--bg:#fff8ef}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);font-family:'Gowun Dodum',sans-serif;color:var(--navy)}
+.page{width:1200px;padding:40px 48px 56px}
+.hero{background:var(--navy);color:#fff;border-radius:28px;padding:36px 44px;position:relative;overflow:hidden}
+.hero h1{font-family:Jua;font-size:46px;margin:0 0 10px;font-weight:400}
+.hero p{font-size:20px;margin:0;opacity:.9;line-height:1.6}
+.hero .tag{display:inline-block;background:var(--yellow);color:var(--navy);font-family:Jua;font-size:18px;padding:4px 14px;border-radius:99px;margin-bottom:14px}
+.hero .flow{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.hero .flow span{background:rgba(255,255,255,.12);border-radius:14px;padding:8px 14px;font-family:Jua;font-size:18px}
+.hero .flow i{font-style:normal;color:var(--yellow);font-family:Jua;font-size:18px;align-self:center}
+.blob{position:absolute;border-radius:50%;opacity:.18}
+.card{overflow:hidden;background:#fff;border-radius:28px;padding:30px 36px 36px;margin-top:30px;box-shadow:0 6px 0 #f1e3cf}
+.head{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+.num{width:58px;height:58px;border-radius:50%;background:var(--coral);color:#fff;font-family:Jua;font-size:30px;display:flex;align-items:center;justify-content:center;transform:rotate(-6deg);box-shadow:0 4px 0 #d94f4f;flex:none}
+.head h2{font-family:Jua;font-weight:400;font-size:32px;margin:0}
+.desc{font-size:19px;margin:4px 0 20px 74px;line-height:1.6;color:#475467}
+.stage{position:relative}
+.shot{position:relative;overflow:hidden;border-radius:16px;border:3px solid var(--navy);box-shadow:0 8px 24px rgba(31,42,68,.12)}
+.shot img{position:absolute;display:block}
+svg.ov{position:absolute;inset:0;overflow:visible;pointer-events:none}
+.lab{position:absolute;background:var(--yellow);color:var(--navy);font-family:Jua;font-size:20px;line-height:1.35;padding:10px 16px;border-radius:16px;box-shadow:0 4px 0 #e0b928, 0 8px 18px rgba(0,0,0,.12);white-space:nowrap;z-index:2}
+.lab small{display:block;font-family:'Gowun Dodum';font-size:15px;color:#5b4a00;margin-top:2px;white-space:normal}
+.lab.mint{background:#c9f2ea;box-shadow:0 4px 0 #8fd9ca,0 8px 18px rgba(0,0,0,.12)}
+.lab.mint small{color:#145a4f}
+.lab.pink{background:#ffd6e2;box-shadow:0 4px 0 #f3a2bb,0 8px 18px rgba(0,0,0,.12)}
+.lab.pink small{color:#7a1f3d}
+.lab b{display:inline-flex;width:28px;height:28px;border-radius:50%;background:var(--navy);color:#fff;align-items:center;justify-content:center;font-size:17px;margin-right:8px;font-weight:400;vertical-align:2px}
+.tip{display:flex;gap:14px;align-items:flex-start;background:#eef7ff;border-radius:18px;padding:16px 20px;margin-top:22px;font-size:17px;line-height:1.6}
+.tip .ic{font-size:28px;line-height:1}
+.tip strong{font-family:Jua;font-weight:400;font-size:19px}
+/* login mock */
+.login-row{display:flex;gap:26px;align-items:center;justify-content:center;padding:10px 0}
+.mock{width:330px;background:#fff;border:3px solid var(--navy);border-radius:20px;padding:24px;box-shadow:0 8px 24px rgba(31,42,68,.12)}
+.mock .t{font-family:Jua;font-size:22px;margin-bottom:14px}
+.mock .f{border:2px solid #d0d5dd;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:16px;color:#98a2b3}
+.mock .f.on{border-color:var(--coral);color:var(--navy)}
+.mock .btn{background:var(--navy);color:#fff;border-radius:10px;padding:11px;text-align:center;font-family:Jua;font-size:18px}
+.big-arrow{font-family:Jua;font-size:56px;color:var(--coral)}
+.status{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:24px}
+.chip{font-family:Jua;font-size:20px;padding:10px 18px;border-radius:14px;border:3px solid var(--navy)}
+.chip small{display:block;font-family:'Gowun Dodum';font-size:14px;color:#475467}
+.chip.wait{background:#fff3c4}.chip.done{background:#c9f2ea}.chip.live{background:#d9e8ff}.chip.no{background:#ffe1e1}
+.status i{font-style:normal;font-family:Jua;font-size:30px;color:var(--coral)}
+.footer{margin-top:30px;text-align:center;font-family:Jua;font-size:22px;color:#98a2b3}
+</style></head>
+<body><div class="page">
+
+<section class="hero" id="s0">
+  <div class="blob" style="width:260px;height:260px;background:var(--yellow);right:-60px;top:-80px"></div>
+  <div class="blob" style="width:160px;height:160px;background:var(--coral);right:150px;bottom:-70px"></div>
+  <div class="tag">처음이어도 5분이면 OK ✨</div>
+  <h1>위키 문서, 이렇게 고쳐요</h1>
+  <p>마크다운·Git 몰라도 괜찮아요. 워드처럼 화면에서 바로 고치고 제출하면,<br>관리자가 확인한 뒤 위키에 반영돼요.</p>
+  <div class="flow"><span>① 로그인</span><i>→</i><span>② 내 문서 찾기</span><i>→</i><span>③ 낡았나 확인</span><i>→</i><span>④ 고치고 제출</span><i>→</i><span>⑤ 진행 확인</span><i>+</i><span>⑥ 없는 건 새 문서</span></div>
+</section>
+
+<section class="card" id="s1">
+  <div class="head"><div class="num">1</div><h2>받은 계정으로 로그인해요</h2></div>
+  <p class="desc">계정 요청서를 보내면 아이디와 임시 비밀번호를 받아요. 첫 로그인 때 내 비밀번호로 한 번만 바꾸면 끝!</p>
+  <div class="login-row">
+    <div class="mock"><div class="t">🔐 지식 허브 로그인</div>
+      <div class="f on">아이디 · hong.gd</div><div class="f on">임시 비밀번호 · ••••••••</div><div class="btn">로그인</div></div>
+    <div class="big-arrow">➜</div>
+    <div class="mock"><div class="t">🔑 새 비밀번호로 바꾸기</div>
+      <div class="f on">새 비밀번호 · ••••••••</div><div class="f on">한 번 더 · ••••••••</div><div class="btn">바꾸고 시작하기</div></div>
+  </div>
+  <div class="tip"><span class="ic">💡</span><div><strong>비밀번호를 잊었다면?</strong> 관리자에게 말하면 새 임시 비밀번호를 바로 발급해 드려요. 5번 틀리면 10분 동안 잠겨요.</div></div>
+</section>
+
+<section class="card" id="s2">
+  <div class="head"><div class="num">2</div><h2>내 담당 문서를 찾아요</h2></div>
+  <p class="desc">왼쪽 <b>위키</b> 메뉴를 펼치거나, 위쪽 검색창에 문서 이름·코드를 넣어요.</p>
+  <div class="stage" data-img="home.png" data-crop="0,0,1440,540" data-bot="110" data-w="960">
+    <a data-t="8,140,240,256" data-l="210,420" data-c="yellow" data-n="1" data-h="왼쪽 위키 메뉴" data-s="이용 안내 · 프로모션 · 편성 순으로 펼쳐져요"></a>
+    <a data-t="688,6,1252,42" data-l="720,110" data-c="mint" data-n="2" data-h="문서 이름·코드로 검색" data-s="Ctrl + K 를 눌러도 열려요"></a>
+    <a data-t="845,412,1133,522" data-l="640,420" data-c="pink" data-n="3" data-h="확인 필요 = 현행화 후보!" data-s="갱신한 지 30일이 넘은 문서 수예요"></a>
+  </div>
+</section>
+
+<section class="card" id="s3">
+  <div class="head"><div class="num">3</div><h2>문서가 낡았는지 확인해요</h2></div>
+  <p class="desc">제목 아래와 오른쪽 <b>문서 정보</b>를 보면 언제, 어느 팀이 마지막으로 고쳤는지 알 수 있어요.</p>
+  <div class="stage" data-img="promo.png" data-crop="248,48,1440,520" data-top="60" data-bot="10" data-w="960">
+    <a data-t="280,100,552,122" data-l="230,270" data-c="mint" data-n="1" data-h="버전 · 마지막 갱신일" data-s="v2 · 2026-09-17 → 두 달 넘게 그대로"></a>
+    <a data-t="632,126,708,148" data-l="530,225" data-c="pink" data-n="2" data-h="🟡 확인 권장" data-s="오래된 문서라는 표시예요"></a>
+    <a data-t="1110,104,1340,230" data-l="870,360" data-c="yellow" data-n="3" data-h="담당 팀 · 상태" data-s="우리 팀 문서인지 확인!"></a>
+    <a data-t="1014,62,1089,91" data-l="500,28" data-c="yellow" data-n="4" data-h="✎ 고치기 누르면 시작!" data-s=""></a>
+  </div>
+</section>
+
+<section class="card" id="s4">
+  <div class="head"><div class="num">4</div><h2>그 자리에서 고치고 제출해요</h2></div>
+  <p class="desc">페이지가 바뀌지 않고 바로 편집 칸이 돼요. 고친 곳은 색으로 칠해지고, 쓰는 동안 이 PC에 저절로 임시 저장돼요.</p>
+  <div class="stage" data-img="edit0.png" data-crop="248,48,1440,660" data-bot="20" data-w="960">
+    <a data-t="272,338,700,366" data-l="330,345" data-c="yellow" data-n="1" data-h="글자를 눌러 바로 고쳐요" data-s="워드 쓰듯이! 기호는 몰라도 돼요"></a>
+    <a data-t="274,238,1076,268" data-l="760,118" data-c="mint" data-n="2" data-h="굵게 · 링크 · 표 · 주의 상자" data-s="막히면 'AI에게 부탁'도 있어요"></a>
+    <a data-t="1110,284,1414,376" data-l="500,262" data-c="pink" data-n="3" data-h="수정 사유 한 줄" data-s="무엇을 왜 바꿨는지 — 승인 근거예요"></a>
+    <a data-t="1112,378,1412,414" data-l="860,470" data-c="yellow" data-n="4" data-h="제출하기!" data-s="관리자가 확인한 뒤 반영돼요"></a>
+  </div>
+  <div class="tip"><span class="ic">🙅</span><div><strong>이것만은 쓰지 마세요</strong> — 매출 금액, 제휴사 실명, 개인 실명·연락처. 수치는 "늘었다/줄었다" 같은 경향으로 써 주세요. 화면이 제출 전에 알아서 한 번 더 검사해 줘요.</div></div>
+</section>
+
+<section class="card" id="s5">
+  <div class="head"><div class="num">5</div><h2>내 요청에서 진행 상황을 봐요</h2></div>
+  <p class="desc">제출한 수정은 왼쪽 <b>내 요청</b> 메뉴에 모여요. 상태는 딱 세 가지예요.</p>
+  <div class="stage" data-img="req.png" data-crop="0,0,1440,138" data-bot="120" data-w="960">
+    <a data-t="8,88,240,122" data-l="200,160" data-c="yellow" data-n="1" data-h="내 요청 메뉴" data-s=""></a>
+    <a data-t="256,92,374,132" data-l="470,160" data-c="mint" data-n="2" data-h="문서 수정 제안 탭" data-s=""></a>
+  </div>
+  <div class="status" style="margin-top:18px">
+    <div class="chip wait">대기 중<small>관리자 확인 전</small></div><i>→</i>
+    <div class="chip done">머지됨<small>승인 완료!</small></div><i>→</i>
+    <div class="chip live">위키에 반영<small>다음 배포 때</small></div>
+    <span style="width:24px"></span>
+    <div class="chip no">닫힘<small>반려 · 사유 보고 다시 제안</small></div>
+  </div>
+</section>
+
+<section class="card" id="s6">
+  <div class="head"><div class="num">6</div><h2>없는 내용은 새 문서로 써요</h2></div>
+  <p class="desc">찾는 문서가 아예 없다면 위키 목록 오른쪽 위 <b>+ 새 문서</b>를 눌러요. 제출 흐름은 고치기와 똑같아요.</p>
+  <div class="stage" data-img="wikiidx.png" data-crop="248,48,1440,330" data-w="960">
+    <a data-t="1352,62,1428,92" data-l="800,130" data-c="pink" data-n="1" data-h="+ 새 문서" data-s="빠진 정책·노하우를 채워 주세요"></a>
+    <a data-t="260,124,564,156" data-l="420,170" data-c="mint" data-n="2" data-h="분류별로 모아 보기" data-s="어디에 넣을지 감 잡기"></a>
+  </div>
+  <div class="tip"><span class="ic">📖</span><div><strong>더 자세한 사용법</strong>은 허브 안 <b>이용 안내 › 문서 수정 제안과 승인 절차</b>, <b>문서 작성 규칙</b>에 있어요. 궁금한 건 오른쪽 위 <b>묻기</b>(챗봇)에게 물어봐도 돼요!</div></div>
+</section>
+
+<div class="footer">문서 한 줄이 다음 담당자의 하루를 아껴 줘요 🙌</div>
+</div>
+
+<script>
+const COL={yellow:'#ff6b6b',mint:'#1f9e8a',pink:'#e5487b'};
+function build(){
+ document.querySelectorAll('.stage').forEach(st=>{
+  const [cx,cy,cx2,cy2]=st.dataset.crop.split(',').map(Number);
+  const W=+st.dataset.w, s=W/(cx2-cx), H=(cy2-cy)*s;
+  const shot=document.createElement('div'); shot.className='shot'; shot.style.width=W+'px'; shot.style.height=H+'px';
+  shot.style.marginLeft=((1032-W)/2)+'px';
+  const img=new Image(); img.src=st.dataset.img; img.style.width=(1440*s)+'px'; img.style.left=(-cx*s)+'px'; img.style.top=(-cy*s)+'px';
+  shot.appendChild(img); st.prepend(shot);
+  const TOP=+(st.dataset.top||0), BOT=+(st.dataset.bot||0); st.style.paddingTop=TOP+'px'; st.style.height=(TOP+H+BOT)+'px';
+  const ox=((1032-W)/2);
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'); svg.setAttribute('class','ov'); svg.setAttribute('width','100%'); svg.setAttribute('height','100%'); st.appendChild(svg);
+  const P=(x,y)=>[ox+(x-cx)*s,TOP+(y-cy)*s];
+  st.querySelectorAll('a').forEach(a=>{
+   const [x1,y1,x2,y2]=a.dataset.t.split(',').map(Number);
+   const [lx,ly]=a.dataset.l.split(',').map(Number); // label center, in stage px
+   const c=COL[a.dataset.c];
+   const [rx,ry]=P(x1,y1),[rx2,ry2]=P(x2,y2);
+   const pad=6;
+   const rect=document.createElementNS(svg.namespaceURI,'rect');
+   Object.entries({x:rx-pad,y:ry-pad,width:rx2-rx+pad*2,height:ry2-ry+pad*2,rx:12,fill:c,'fill-opacity':.10,stroke:c,'stroke-width':4,'stroke-dasharray':'10 7','stroke-linecap':'round'}).forEach(([k,v])=>rect.setAttribute(k,v));
+   svg.appendChild(rect);
+   const lab=document.createElement('div'); lab.className='lab '+(a.dataset.c==='yellow'?'':a.dataset.c);
+   lab.innerHTML=`<b>${a.dataset.n}</b>${a.dataset.h}`+(a.dataset.s?`<small>${a.dataset.s}</small>`:'');
+   st.appendChild(lab);
+   const lw=lab.offsetWidth, lh=lab.offsetHeight;
+   lab.style.left=(lx-lw/2)+'px'; lab.style.top=(ly-lh/2)+'px';
+   // target point: nearest point on rect to label center
+   const tx=Math.max(rx-pad,Math.min(lx,rx2+pad)), ty=Math.max(ry-pad,Math.min(ly,ry2+pad));
+   // start point: label edge toward target
+   const dx=tx-lx, dy=ty-ly; const k=Math.min((lw/2+4)/Math.abs(dx||1e-6),(lh/2+4)/Math.abs(dy||1e-6));
+   const sx=lx+dx*k, sy=ly+dy*k;
+   // end shortened
+   const L=Math.hypot(tx-sx,ty-sy); const ex=tx-(tx-sx)/L*8, ey=ty-(ty-sy)/L*8;
+   const mx=(sx+ex)/2, my=(sy+ey)/2; const nx=-(ey-sy)/L, ny=(ex-sx)/L; const bend=Math.min(60,L*.28);
+   const qx=mx+nx*bend, qy=my+ny*bend;
+   const path=document.createElementNS(svg.namespaceURI,'path');
+   Object.entries({d:`M${sx},${sy} Q${qx},${qy} ${ex},${ey}`,fill:'none',stroke:c,'stroke-width':5,'stroke-linecap':'round'}).forEach(([k,v])=>path.setAttribute(k,v));
+   svg.appendChild(path);
+   const ang=Math.atan2(ey-qy,ex-qx), h=18, w=.5;
+   const head=document.createElementNS(svg.namespaceURI,'path');
+   const p1=[ex-h*Math.cos(ang-w),ey-h*Math.sin(ang-w)], p2=[ex-h*Math.cos(ang+w),ey-h*Math.sin(ang+w)];
+   Object.entries({d:`M${p1} L${ex},${ey} L${p2}`,fill:'none',stroke:c,'stroke-width':5,'stroke-linecap':'round','stroke-linejoin':'round'}).forEach(([k,v])=>head.setAttribute(k,v));
+   svg.appendChild(head);
+   // little sparkle near target
+   const sp=document.createElementNS(svg.namespaceURI,'text'); sp.textContent='✦'; sp.setAttribute('x',rx2+pad+2); sp.setAttribute('y',ry-pad+4); sp.setAttribute('fill',c); sp.setAttribute('font-size','20'); svg.appendChild(sp);
+  });
+ });
+}
+document.fonts.ready.then(()=>{ Promise.all([...document.images].map(i=>i.complete?1:new Promise(r=>i.onload=r))).then(()=>{}); build(); setTimeout(()=>document.body.dataset.ready=1,800); });
+</script>
+</body></html>
