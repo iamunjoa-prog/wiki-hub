@@ -55,13 +55,13 @@ svg.ov{position:absolute;inset:0;overflow:visible;pointer-events:none}
   <div class="blob" style="width:160px;height:160px;background:var(--coral);right:150px;bottom:-70px"></div>
   <div class="tag">처음이어도 5분이면 OK ✨</div>
   <h1>위키 문서, 이렇게 고쳐요</h1>
-  <p>마크다운·Git 몰라도 괜찮아요. 워드처럼 화면에서 바로 고치고 제출하면,<br>관리자가 확인한 뒤 위키에 반영돼요.</p>
-  <div class="flow"><span>① 로그인</span><i>→</i><span>② 내 문서 찾기</span><i>→</i><span>③ 낡았나 확인</span><i>→</i><span>④ 고치고 제출</span><i>→</i><span>⑤ 진행 확인</span><i>+</i><span>⑥ 없는 건 새 문서</span></div>
+  <p>어려운 프로그램 필요 없어요. 워드 고치듯 화면에서 글자를 바로 고치고<br><b style="color:var(--yellow)">제출하기</b>만 누르면, 관리자가 한 번 보고 위키에 올려 드려요.</p>
+  <div class="flow"><span>① 로그인</span><i>→</i><span>② 내 문서 찾기</span><i>→</i><span>③ 오래됐나 보기</span><i>→</i><span>④ 고치고 보내기</span><i>→</i><span>⑤ 잘 올라갔나 보기</span><i>+</i><span>⑥ 없으면 새로 쓰기</span></div>
 </section>
 
 <section class="card" id="s1">
   <div class="head"><div class="num">1</div><h2>받은 계정으로 로그인해요</h2></div>
-  <p class="desc">계정 요청서를 보내면 아이디와 임시 비밀번호를 받아요. 첫 로그인 때 내 비밀번호로 한 번만 바꾸면 끝!</p>
+  <p class="desc">계정 요청서를 보내면 아이디와 임시 비밀번호를 보내 드려요. 처음 들어갈 때 내가 쓸 비밀번호로 한 번만 바꾸면 끝!</p>
   <div class="login-row">
     <div class="mock"><div class="t">🔐 지식 허브 로그인</div>
       <div class="f on">아이디 · hong.gd</div><div class="f on">임시 비밀번호 · ••••••••</div><div class="btn">로그인</div></div>
@@ -69,66 +69,68 @@ svg.ov{position:absolute;inset:0;overflow:visible;pointer-events:none}
     <div class="mock"><div class="t">🔑 새 비밀번호로 바꾸기</div>
       <div class="f on">새 비밀번호 · ••••••••</div><div class="f on">한 번 더 · ••••••••</div><div class="btn">바꾸고 시작하기</div></div>
   </div>
-  <div class="tip"><span class="ic">💡</span><div><strong>비밀번호를 잊었다면?</strong> 관리자에게 말하면 새 임시 비밀번호를 바로 발급해 드려요. 5번 틀리면 10분 동안 잠겨요.</div></div>
+  <div class="tip"><span class="ic">💡</span><div><strong>비밀번호를 잊었다면?</strong> 관리자에게 말하면 새 임시 비밀번호를 바로 보내 드려요. 5번 틀리면 10분 동안 잠기니 천천히 넣어 주세요.</div></div>
 </section>
 
 <section class="card" id="s2">
   <div class="head"><div class="num">2</div><h2>내 담당 문서를 찾아요</h2></div>
-  <p class="desc">왼쪽 <b>위키</b> 메뉴를 펼치거나, 위쪽 검색창에 문서 이름·코드를 넣어요.</p>
+  <p class="desc">왼쪽 메뉴를 눌러 펼쳐 보거나, 위쪽 검색창에 찾고 싶은 말을 넣어요.</p>
   <div class="stage" data-img="home.png" data-crop="0,0,1440,540" data-bot="110" data-w="960">
-    <a data-t="8,140,240,256" data-l="210,420" data-c="yellow" data-n="1" data-h="왼쪽 위키 메뉴" data-s="이용 안내 · 프로모션 · 편성 순으로 펼쳐져요"></a>
-    <a data-t="688,6,1252,42" data-l="720,110" data-c="mint" data-n="2" data-h="문서 이름·코드로 검색" data-s="Ctrl + K 를 눌러도 열려요"></a>
-    <a data-t="845,412,1133,522" data-l="640,420" data-c="pink" data-n="3" data-h="확인 필요 = 현행화 후보!" data-s="갱신한 지 30일이 넘은 문서 수예요"></a>
+    <a data-t="8,140,240,256" data-l="210,420" data-c="yellow" data-n="1" data-h="왼쪽 메뉴에서 찾기" data-s="누르면 아래로 문서 목록이 펼쳐져요"></a>
+    <a data-t="688,6,1252,42" data-l="720,110" data-c="mint" data-n="2" data-h="찾고 싶은 말 넣기" data-s="예: 띠배너, 월정액"></a>
+    <a data-t="845,412,1133,522" data-l="640,420" data-c="pink" data-n="3" data-h="확인 필요 23" data-s="한 달 넘게 안 고친 문서 수예요"></a>
   </div>
 </section>
 
 <section class="card" id="s3">
-  <div class="head"><div class="num">3</div><h2>문서가 낡았는지 확인해요</h2></div>
-  <p class="desc">제목 아래와 오른쪽 <b>문서 정보</b>를 보면 언제, 어느 팀이 마지막으로 고쳤는지 알 수 있어요.</p>
+  <div class="head"><div class="num">3</div><h2>문서가 오래됐는지 봐요</h2></div>
+  <p class="desc">문서 제목 아래와 오른쪽 상자에 <b>마지막으로 고친 날</b>이 적혀 있어요. 오래됐다면 지금 내용이 맞는지 봐 주세요.</p>
   <div class="stage" data-img="promo.png" data-crop="248,48,1440,520" data-top="60" data-bot="10" data-w="960">
-    <a data-t="280,100,552,122" data-l="230,270" data-c="mint" data-n="1" data-h="버전 · 마지막 갱신일" data-s="v2 · 2026-09-17 → 두 달 넘게 그대로"></a>
-    <a data-t="632,126,708,148" data-l="530,225" data-c="pink" data-n="2" data-h="🟡 확인 권장" data-s="오래된 문서라는 표시예요"></a>
-    <a data-t="1110,104,1340,230" data-l="870,360" data-c="yellow" data-n="3" data-h="담당 팀 · 상태" data-s="우리 팀 문서인지 확인!"></a>
-    <a data-t="1014,62,1089,91" data-l="500,28" data-c="yellow" data-n="4" data-h="✎ 고치기 누르면 시작!" data-s=""></a>
+    <a data-t="280,100,552,122" data-l="230,270" data-c="mint" data-n="1" data-h="마지막으로 고친 날" data-s="9월 17일 이후로 그대로예요"></a>
+    <a data-t="632,126,708,148" data-l="530,225" data-c="pink" data-n="2" data-h="🟡 확인 권장" data-s="오래됐으니 한번 봐 달라는 뜻"></a>
+    <a data-t="1110,104,1340,230" data-l="870,360" data-c="yellow" data-n="3" data-h="문서 정보 상자" data-s="고친 날·상태를 한눈에"></a>
+    <a data-t="1014,62,1089,91" data-l="500,28" data-c="yellow" data-n="4" data-h="'✎ 고치기'를 누르면 시작!" data-s=""></a>
   </div>
 </section>
 
 <section class="card" id="s4">
-  <div class="head"><div class="num">4</div><h2>그 자리에서 고치고 제출해요</h2></div>
-  <p class="desc">페이지가 바뀌지 않고 바로 편집 칸이 돼요. 고친 곳은 색으로 칠해지고, 쓰는 동안 이 PC에 저절로 임시 저장돼요.</p>
+  <div class="head"><div class="num">4</div><h2>그 자리에서 고치고 보내요</h2></div>
+  <p class="desc">화면이 그대로 글 쓰는 칸으로 바뀌어요. 고친 곳엔 색이 칠해지고, 쓰던 내용은 저절로 저장되니 창을 닫아도 괜찮아요.</p>
   <div class="stage" data-img="edit0.png" data-crop="248,48,1440,660" data-bot="20" data-w="960">
-    <a data-t="272,338,700,366" data-l="330,345" data-c="yellow" data-n="1" data-h="글자를 눌러 바로 고쳐요" data-s="워드 쓰듯이! 기호는 몰라도 돼요"></a>
-    <a data-t="274,238,1076,268" data-l="760,118" data-c="mint" data-n="2" data-h="굵게 · 링크 · 표 · 주의 상자" data-s="막히면 'AI에게 부탁'도 있어요"></a>
-    <a data-t="1110,284,1414,376" data-l="500,262" data-c="pink" data-n="3" data-h="수정 사유 한 줄" data-s="무엇을 왜 바꿨는지 — 승인 근거예요"></a>
-    <a data-t="1112,378,1412,414" data-l="860,470" data-c="yellow" data-n="4" data-h="제출하기!" data-s="관리자가 확인한 뒤 반영돼요"></a>
+    <a data-t="272,338,700,366" data-l="330,345" data-c="yellow" data-n="1" data-h="고칠 글자를 눌러 바로 써요" data-s="워드랑 똑같아요"></a>
+    <a data-t="274,238,1076,268" data-l="760,118" data-c="mint" data-n="2" data-h="글자 꾸미기 버튼" data-s="안 써도 괜찮아요"></a>
+    <a data-t="1110,284,1414,376" data-l="500,262" data-c="pink" data-n="3" data-h="왜 고쳤는지 한 줄" data-s="예: 10월부터 기준이 바뀜"></a>
+    <a data-t="1112,378,1412,414" data-l="860,470" data-c="yellow" data-n="4" data-h="제출하기 누르면 끝!" data-s="관리자에게 보내져요"></a>
   </div>
-  <div class="tip"><span class="ic">🙅</span><div><strong>이것만은 쓰지 마세요</strong> — 매출 금액, 제휴사 실명, 개인 실명·연락처. 수치는 "늘었다/줄었다" 같은 경향으로 써 주세요. 화면이 제출 전에 알아서 한 번 더 검사해 줘요.</div></div>
+  <div class="tip"><span class="ic">🙅</span><div><strong>이것만은 쓰지 마세요</strong> — 매출 금액, 제휴사 실명, 개인 실명·연락처. 숫자 대신 "늘었다 / 줄었다"처럼 써 주세요. 혹시 들어가면 보내기 전에 화면이 알려 줘요.</div></div>
 </section>
 
 <section class="card" id="s5">
-  <div class="head"><div class="num">5</div><h2>내 요청에서 진행 상황을 봐요</h2></div>
-  <p class="desc">제출한 수정은 왼쪽 <b>내 요청</b> 메뉴에 모여요. 상태는 딱 세 가지예요.</p>
+  <div class="head"><div class="num">5</div><h2>잘 올라갔는지 '내 요청'에서 봐요</h2></div>
+  <p class="desc">보낸 문서는 왼쪽 <b>내 요청</b>에 모여요. 아래처럼 글자가 바뀌면서 진행돼요.</p>
   <div class="stage" data-img="req.png" data-crop="0,0,1440,138" data-bot="120" data-w="960">
     <a data-t="8,88,240,122" data-l="200,160" data-c="yellow" data-n="1" data-h="내 요청 메뉴" data-s=""></a>
-    <a data-t="256,92,374,132" data-l="470,160" data-c="mint" data-n="2" data-h="문서 수정 제안 탭" data-s=""></a>
+    <a data-t="256,92,374,132" data-l="470,160" data-c="mint" data-n="2" data-h="여기에 보낸 문서가 보여요" data-s=""></a>
   </div>
   <div class="status" style="margin-top:18px">
-    <div class="chip wait">대기 중<small>관리자 확인 전</small></div><i>→</i>
-    <div class="chip done">머지됨<small>승인 완료!</small></div><i>→</i>
-    <div class="chip live">위키에 반영<small>다음 배포 때</small></div>
+    <div class="chip wait">대기 중<small>관리자가 아직 보는 중</small></div><i>→</i>
+    <div class="chip done">머지됨<small>= 승인됐어요! 🎉</small></div><i>→</i>
+    <div class="chip live">위키에 보여요<small>다음 업데이트 때 자동으로</small></div>
     <span style="width:24px"></span>
-    <div class="chip no">닫힘<small>반려 · 사유 보고 다시 제안</small></div>
+    <div class="chip no">닫힘<small>= 돌려받았어요 · 이유 보고 다시 보내기</small></div>
   </div>
+  <div class="tip"><span class="ic">🗂️</span><div><strong>화면에 나오는 낯선 말, 이 뜻이에요</strong><br>
+  <b>머지됨</b> = 승인됨 · <b>대기 중</b> = 관리자 확인 기다리는 중 · <b>닫힘</b> = 돌려받음 · <b>확인 권장</b> = 오래된 문서 · <b>v2</b> = 두 번째로 고친 판</div></div>
 </section>
 
 <section class="card" id="s6">
   <div class="head"><div class="num">6</div><h2>없는 내용은 새 문서로 써요</h2></div>
-  <p class="desc">찾는 문서가 아예 없다면 위키 목록 오른쪽 위 <b>+ 새 문서</b>를 눌러요. 제출 흐름은 고치기와 똑같아요.</p>
+  <p class="desc">찾는 내용이 아예 없다면 문서 목록 오른쪽 위 <b>+ 새 문서</b>를 눌러요. 쓰고 보내는 방법은 고치기와 똑같아요.</p>
   <div class="stage" data-img="wikiidx.png" data-crop="248,48,1440,330" data-w="960">
-    <a data-t="1352,62,1428,92" data-l="800,130" data-c="pink" data-n="1" data-h="+ 새 문서" data-s="빠진 정책·노하우를 채워 주세요"></a>
-    <a data-t="260,124,564,156" data-l="420,170" data-c="mint" data-n="2" data-h="분류별로 모아 보기" data-s="어디에 넣을지 감 잡기"></a>
+    <a data-t="1352,62,1428,92" data-l="800,130" data-c="pink" data-n="1" data-h="+ 새 문서" data-s="빠진 기준·노하우를 써 주세요"></a>
+    <a data-t="260,124,564,156" data-l="420,170" data-c="mint" data-n="2" data-h="주제별 묶음" data-s="어디에 넣을지 참고해요"></a>
   </div>
-  <div class="tip"><span class="ic">📖</span><div><strong>더 자세한 사용법</strong>은 허브 안 <b>이용 안내 › 문서 수정 제안과 승인 절차</b>, <b>문서 작성 규칙</b>에 있어요. 궁금한 건 오른쪽 위 <b>묻기</b>(챗봇)에게 물어봐도 돼요!</div></div>
+  <div class="tip"><span class="ic">📖</span><div><strong>막히면 물어보세요!</strong> 화면 오른쪽 위 빨간 <b>묻기</b> 버튼을 누르고 "문서 어떻게 고쳐?"처럼 편하게 물어보면 알려 줘요. 자세한 설명은 왼쪽 메뉴 <b>이용 안내</b>에 있어요.</div></div>
 </section>
 
 <div class="footer">문서 한 줄이 다음 담당자의 하루를 아껴 줘요 🙌</div>
