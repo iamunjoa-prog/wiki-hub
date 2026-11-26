@@ -103,7 +103,7 @@ function SectionAi({
             aria-label="AI에게 부탁할 내용"
             disabled={busy}
           />
-          <button className="btn accent" disabled={!instruction.trim() || busy} onClick={run} title="Ctrl+Enter">
+          <button className="btn primary" disabled={!instruction.trim() || busy} onClick={run} title="Ctrl+Enter">
             {busy ? '고치는 중…' : '부탁하기'}
           </button>
         </div>

@@ -600,7 +600,8 @@ function WikiDocPage() {
 
   return (
     <>
-      <TopBar />
+      {/* 편집 중 빨강은 편집 바 램프 하나 — 상단바 [묻기]는 테두리형 (docs/ux/2026-11-26-home-engine-assistant-cards.md A-7) */}
+      <TopBar ask={editing ? 'line' : 'onair'} />
       <div className="content flush" style={{ overflow: 'auto' }} ref={contentRef}>
         {editing && parts && (
           <div className={`edit-bar${checks.blocked ? ' blocked' : ''}`} role="region" aria-label="편집 바">

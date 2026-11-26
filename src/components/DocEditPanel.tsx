@@ -308,7 +308,14 @@ export function DocEditPanel({
     <aside className="doc-edit-panel" aria-label="편집 패널">
       <div className="edit-panel-sec">
         <div className="label strong">
-          <span className={`lamp ${checks.blocked ? 'warn' : 'on'}`} aria-hidden="true" /> {checks.blocked ? '제출 전 확인' : '편집 중'}
+          {/* 켜진 램프는 편집 바 하나만 — 차단 없을 때 여기는 글자만 */}
+          {checks.blocked ? (
+            <>
+              <span className="lamp warn" aria-hidden="true" /> 제출 전 확인
+            </>
+          ) : (
+            '편집 중'
+          )}
         </div>
       </div>
 

@@ -669,6 +669,9 @@ export function AppShell() {
   const { assistant, openDock, toast } = useApp()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
+  // 문서 편집 중(`/wiki/:docId?edit=`)이면 빨강은 편집 바 램프 하나 — 떠 있는 [묻기]는 테두리형
+  const docEditing =
+    /^\/wiki\/[^/]+$/.test(location.pathname) && location.pathname !== '/wiki/new' && new URLSearchParams(location.search).has('edit')
 
   // 메뉴를 고르면(주소가 바뀌면) 서랍을 닫는다
   useEffect(() => {
@@ -695,7 +698,7 @@ export function AppShell() {
           <AssistantDock />
         ) : (
           // 넓은 화면에서는 상단바 [묻기]로 옮겼다 — 휴대폰 폭(760px 이하)에서만 떠 있는 버튼을 남긴다
-          <button className="fab" onClick={openDock} title="큐 어시스턴트에게 묻기 — 위키 문서를 근거로 답해요">
+          <button className={`fab${docEditing ? ' line' : ''}`} onClick={openDock} title="큐 어시스턴트에게 묻기 — 위키 문서를 근거로 답해요">
             <Icon name="ask" />
             묻기
             {assistant.campaignDraft && <span className="fab-badge">프로모션 조건 대기</span>}
